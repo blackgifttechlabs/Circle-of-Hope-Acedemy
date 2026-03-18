@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { ApplyPage } from './pages/ApplyPage';
+import { VtcApplyPage } from './pages/VtcApplyPage';
 import { SchoolTour } from './pages/SchoolTour';
 import { AdminDashboard } from './pages/admin/Dashboard';
 import { TeachersPage } from './pages/admin/Teachers';
@@ -12,12 +13,15 @@ import { StudentsPage } from './pages/admin/Students';
 import { StudentDetailsPage } from './pages/admin/StudentDetails';
 import { ApplicationsPage } from './pages/admin/Applications';
 import { ApplicationDetailsPage } from './pages/admin/ApplicationDetails';
+import { VtcApplicationsPage } from './pages/admin/VtcApplications';
+import { VtcApplicationDetails } from './pages/admin/VtcApplicationDetails';
 import { SettingsPage } from './pages/admin/Settings';
 import { ParentDashboard } from './pages/parent/Dashboard';
 import { ParentAssessmentForm } from './pages/parent/AssessmentForm';
 import { ParentAssessmentProgress } from './pages/parent/AssessmentProgress';
 import { TeacherDashboard } from './pages/teacher/Dashboard';
 import { AssessmentPage } from './pages/teacher/AssessmentPage';
+import { VtcDashboard } from './pages/vtc/Dashboard';
 import { UserRole } from './types';
 import { seedAdminUser, getAdminProfile } from './services/dataService';
 import { Toast } from './components/ui/Toast';
@@ -111,6 +115,7 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/apply" element={<ApplyPage />} />
+          <Route path="/vtc-apply" element={<VtcApplyPage />} />
           <Route path="/tour" element={<SchoolTour />} />
           <Route path="/login" element={<LoginPage onLogin={handleLogin} showToast={showToast} />} />
 
@@ -122,6 +127,8 @@ const App: React.FC = () => {
                   <Route path="dashboard" element={<AdminDashboard />} />
                   <Route path="applications" element={<ApplicationsPage />} />
                   <Route path="applications/:id" element={<ApplicationDetailsPage />} />
+                  <Route path="vtc-applications" element={<VtcApplicationsPage />} />
+                  <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
                   <Route path="teachers" element={<TeachersPage />} />
                   <Route path="students" element={<StudentsPage />} />
                   <Route path="students/:id" element={<StudentDetailsPage />} />
@@ -155,6 +162,18 @@ const App: React.FC = () => {
                       <Route path="dashboard" element={<ParentDashboard user={user} />} />
                       <Route path="assessment-form" element={<ParentAssessmentForm user={user} />} />
                       <Route path="assessment" element={<ParentAssessmentProgress user={user} />} />
+                      <Route path="*" element={<Navigate to="dashboard" />} />
+                  </Routes>
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* VTC Student Routes */}
+          <Route path="/vtc/*" element={
+            <ProtectedRoute isAuthenticated={!!user} userRole={role} allowedRoles={[UserRole.VTC_STUDENT]}>
+               <AppLayout role={UserRole.VTC_STUDENT} user={user} onLogout={handleLogout}>
+                  <Routes>
+                      <Route path="dashboard" element={<VtcDashboard user={user} />} />
                       <Route path="*" element={<Navigate to="dashboard" />} />
                   </Routes>
               </AppLayout>

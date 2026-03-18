@@ -3,7 +3,8 @@ import React from 'react';
 export enum UserRole {
   ADMIN = 'ADMIN',
   TEACHER = 'TEACHER',
-  PARENT = 'PARENT'
+  PARENT = 'PARENT',
+  VTC_STUDENT = 'VTC_STUDENT'
 }
 
 export enum Division {
@@ -269,4 +270,42 @@ export interface Receipt {
   isUsed: boolean;
   usedByStudentId?: string;
   createdAt?: any;
+}
+
+export interface VtcApplication {
+  id?: string;
+  title: 'Mr' | 'Miss' | 'Mrs';
+  surname: string;
+  firstName: string;
+  dateOfBirth: string;
+  gender: 'Male' | 'Female' | 'Other';
+  cellNo: string;
+  identityNumber: string;
+  nationality: string;
+  maritalStatus: 'Single' | 'Married';
+  residentialAddress: string;
+  town: string;
+  postalAddress: string;
+  emailAddress: string;
+  region: string;
+  physicallyChallenged: 'Yes' | 'No';
+  
+  emergencyName: string;
+  emergencyCell: string;
+  emergencyRelationship: string;
+  emergencyRegion: string;
+  emergencyEmail: string;
+  emergencyTown: string;
+  
+  highestGradePassed: string;
+  nameOfSchool: string;
+  schoolTown: string;
+  
+  status: 'PENDING' | 'PAYMENT_REQUIRED' | 'VERIFYING' | 'APPROVED' | 'VERIFIED' | 'REJECTED';
+  submissionDate: any;
+  idDocumentUrl?: string;
+  resultsUrl?: string;
+  photoUrl?: string;
+  proofOfPaymentUrl?: string;
+  pin?: string;
 }

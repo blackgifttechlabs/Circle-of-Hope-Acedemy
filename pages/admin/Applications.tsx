@@ -20,7 +20,7 @@ export const ApplicationsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'PENDING' | 'REJECTED'>('PENDING');
   const navigate = useNavigate();
   
-  const [counts, setCounts] = useState({ pendingApps: 0, pendingVerifications: 0, total: 0 });
+  const [counts, setCounts] = useState({ pendingApps: 0, pendingVerifications: 0, pendingVtcApps: 0, total: 0 });
   const [newReceiptNumber, setNewReceiptNumber] = useState('');
   const [newReceiptAmount, setNewReceiptAmount] = useState('');
   const [loading, setLoading] = useState(false);
@@ -209,15 +209,21 @@ Circle of Hope Academy`;
             <h2 className="text-2xl font-bold text-coha-900">Admission Portal</h2>
             <p className="text-gray-600">Check applications and verify payments.</p>
         </div>
-        <div className="flex flex-wrap bg-white shadow-sm border border-gray-200">
-            <button onClick={() => setViewMode('APPLICATIONS')} className={`px-4 py-2 text-sm font-bold uppercase flex items-center gap-2 ${viewMode === 'APPLICATIONS' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                New Apps {counts.pendingApps > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{counts.pendingApps}</span>}
+        <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-wrap bg-white shadow-sm border border-gray-200">
+                <button onClick={() => setViewMode('APPLICATIONS')} className={`px-4 py-2 text-sm font-bold uppercase flex items-center gap-2 ${viewMode === 'APPLICATIONS' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    New Apps {counts.pendingApps > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{counts.pendingApps}</span>}
+                </button>
+                <button onClick={() => setViewMode('PENDING_PAYMENT')} className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === 'PENDING_PAYMENT' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Payment Required</button>
+                <button onClick={() => setViewMode('VERIFICATION')} className={`px-4 py-2 text-sm font-bold uppercase flex items-center gap-2 ${viewMode === 'VERIFICATION' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    Verify {counts.pendingVerifications > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{counts.pendingVerifications}</span>}
+                </button>
+                <button onClick={() => setViewMode('RECEIPTS')} className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === 'RECEIPTS' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Receipt Master</button>
+            </div>
+            <button onClick={() => navigate('/admin/vtc-applications')} className="px-4 py-2 text-sm font-bold uppercase bg-purple-600 text-white hover:bg-purple-700 shadow-sm flex items-center gap-2 transition-colors">
+                VTC Applications
+                {counts.pendingVtcApps > 0 && <span className="bg-white text-purple-600 text-[10px] px-1.5 rounded-full">{counts.pendingVtcApps}</span>}
             </button>
-            <button onClick={() => setViewMode('PENDING_PAYMENT')} className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === 'PENDING_PAYMENT' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Payment Required</button>
-            <button onClick={() => setViewMode('VERIFICATION')} className={`px-4 py-2 text-sm font-bold uppercase flex items-center gap-2 ${viewMode === 'VERIFICATION' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                Verify {counts.pendingVerifications > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{counts.pendingVerifications}</span>}
-            </button>
-            <button onClick={() => setViewMode('RECEIPTS')} className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === 'RECEIPTS' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Receipt Master</button>
         </div>
       </div>
 

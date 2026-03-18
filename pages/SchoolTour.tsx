@@ -506,7 +506,7 @@ export const SchoolTour: React.FC = () => {
 
             {/* Action buttons — stacked row */}
             <div className="flex flex-wrap gap-3">
-              <button onClick={()=>navigate('/apply')}
+              <button onClick={()=>navigate('/vtc-apply')}
                 className="flex items-center gap-2 px-7 py-3.5 font-black text-sm text-white uppercase tracking-widest transition-all hover:opacity-90 active:scale-95"
                 style={{background:'linear-gradient(135deg,#1565C0,#2563EB)',boxShadow:'0 6px 24px rgba(37,99,235,0.4)',borderRadius:'10px'}}>
                 Apply Today

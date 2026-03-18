@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { verifyAdminPin, searchTeachers, searchStudents } from '../services/dataService';
+import { verifyAdminPin, searchTeachers, searchStudents, searchVtcStudents } from '../services/dataService';
 import { UserRole, Teacher, Student } from '../types';
-import { User, ShieldCheck, GraduationCap, ArrowLeft } from 'lucide-react';
+import { User, ShieldCheck, GraduationCap, ArrowLeft, BookOpen } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (role: UserRole, user: any) => void;
@@ -12,7 +12,7 @@ interface LoginProps {
 }
 
 export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
-  const [activeTab, setActiveTab] = useState<'ADMIN' | 'TEACHER' | 'PARENT'>('ADMIN');
+  const [activeTab, setActiveTab] = useState<'ADMIN' | 'TEACHER' | 'PARENT' | 'VTC'>('ADMIN');
   const [pin, setPin] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -53,6 +53,9 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
       } else if (activeTab === 'PARENT') {
         const results = await searchStudents(term);
         setSearchResults(results);
+      } else if (activeTab === 'VTC') {
+        const results = await searchVtcStudents(term);
+        setSearchResults(results.map(r => ({ ...r, name: `${r.firstName} ${r.surname}` })));
       }
     } else {
       setSearchResults([]);
@@ -87,6 +90,11 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
         role = UserRole.PARENT;
         userData = { ...selectedUser, name: selectedUser.parentName };
       }
+    } else if (activeTab === 'VTC') {
+      if (selectedUser.pin === pin) {
+        success = true;
+        role = UserRole.VTC_STUDENT;
+      }
     }
 
     if (success) {
@@ -94,6 +102,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
       onLogin(role, userData);
       if (role === UserRole.TEACHER) navigate('/teacher/dashboard');
       if (role === UserRole.PARENT) navigate('/parent/dashboard');
+      if (role === UserRole.VTC_STUDENT) navigate('/vtc/dashboard');
     } else {
       setError('Incorrect PIN');
     }
@@ -148,6 +157,12 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
           >
             <GraduationCap size={18} /> Parent
           </button>
+          <button
+            onClick={() => { setActiveTab('VTC'); setSelectedUser(null); setSearchTerm(''); setError(''); }}
+            className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider flex justify-center items-center gap-2 transition-colors ${activeTab === 'VTC' ? 'bg-white text-coha-900 border-b-4 border-coha-900' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+          >
+            <BookOpen size={18} /> VTC
+          </button>
         </div>
 
         {/* Body */}
@@ -172,15 +187,15 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
             </form>
           )}
 
-          {(activeTab === 'TEACHER' || activeTab === 'PARENT') && (
+          {(activeTab === 'TEACHER' || activeTab === 'PARENT' || activeTab === 'VTC') && (
             <form onSubmit={handleUserLogin} className="animate-fade-in h-full">
               {!selectedUser ? (
                 <div className="relative">
                    <p className="mb-6 text-gray-600 text-sm">
-                    {activeTab === 'TEACHER' ? 'Search for your name to begin.' : 'Search for the student name.'}
+                    {activeTab === 'TEACHER' ? 'Search for your name to begin.' : activeTab === 'PARENT' ? 'Search for the student name.' : 'Search for your name to begin.'}
                   </p>
                   <Input
-                    label={activeTab === 'TEACHER' ? "Search Name" : "Student Name"}
+                    label={activeTab === 'TEACHER' ? "Search Name" : activeTab === 'PARENT' ? "Student Name" : "Search Name"}
                     placeholder="Start typing..."
                     value={searchTerm}
                     onChange={handleSearch}

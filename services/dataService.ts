@@ -1,12 +1,13 @@
 import { db, auth } from '../firebase';
 import { collection, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication } from '../types';
 
 // Collections
 const TEACHERS_COLLECTION = 'teachers';
 const STUDENTS_COLLECTION = 'students';
 const APPLICATIONS_COLLECTION = 'applications';
+const VTC_APPLICATIONS_COLLECTION = 'vtcApplications';
 const SETTINGS_COLLECTION = 'settings';
 const RECEIPTS_COLLECTION = 'receipts';
 
@@ -546,6 +547,47 @@ export const updateApplication = async (id: string, data: Partial<Application>) 
   }
 };
 
+export const submitVtcApplication = async (applicationData: any) => {
+  try {
+    const sanitizedData = JSON.parse(JSON.stringify(applicationData));
+    await addDoc(collection(db, VTC_APPLICATIONS_COLLECTION), {
+      ...sanitizedData,
+      status: 'PENDING',
+      submissionDate: Timestamp.now()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error submitting VTC application:", error);
+    return false;
+  }
+};
+
+export const getVtcApplications = async (): Promise<any[]> => {
+  const q = query(collection(db, VTC_APPLICATIONS_COLLECTION), orderBy('submissionDate', 'desc'));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const getVtcApplicationById = async (id: string): Promise<any | null> => {
+  const docRef = doc(db, VTC_APPLICATIONS_COLLECTION, id);
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return { id: docSnap.id, ...docSnap.data() };
+  }
+  return null;
+};
+
+export const updateVtcApplication = async (id: string, data: any) => {
+  try {
+    const docRef = doc(db, VTC_APPLICATIONS_COLLECTION, id);
+    await updateDoc(docRef, data);
+    return true;
+  } catch (error) {
+    console.error("Error updating VTC application:", error);
+    return false;
+  }
+};
+
 export const getPendingActionCounts = async () => {
     try {
         const appsQuery = query(collection(db, APPLICATIONS_COLLECTION), where("status", "==", "PENDING"));
@@ -554,14 +596,18 @@ export const getPendingActionCounts = async () => {
         const verifyQuery = query(collection(db, STUDENTS_COLLECTION), where("studentStatus", "==", "PAYMENT_VERIFICATION"));
         const verifySnap = await getDocs(verifyQuery);
         
+        const vtcAppsQuery = query(collection(db, VTC_APPLICATIONS_COLLECTION), where("status", "==", "PENDING"));
+        const vtcAppsSnap = await getDocs(vtcAppsQuery);
+        
         return {
             pendingApps: appsSnap.size,
             pendingVerifications: verifySnap.size,
-            total: appsSnap.size + verifySnap.size
+            pendingVtcApps: vtcAppsSnap.size,
+            total: appsSnap.size + verifySnap.size + vtcAppsSnap.size
         };
     } catch (e) {
         console.error("Error fetching counts", e);
-        return { pendingApps: 0, pendingVerifications: 0, total: 0 };
+        return { pendingApps: 0, pendingVerifications: 0, pendingVtcApps: 0, total: 0 };
     }
 };
 
@@ -670,4 +716,13 @@ export const saveSystemSettings = async (settings: Partial<SystemSettings>) => {
     console.error("Error saving settings:", error);
     return false;
   }
+};
+
+export const searchVtcStudents = async (searchTerm: string): Promise<VtcApplication[]> => {
+  if (!searchTerm) return [];
+  const all = await getVtcApplications();
+  return all.filter(a => 
+    (a.status === 'APPROVED' || a.status === 'PAYMENT_REQUIRED' || a.status === 'VERIFYING' || a.status === 'VERIFIED') && 
+    `${a.firstName} ${a.surname}`.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 };

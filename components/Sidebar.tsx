@@ -13,6 +13,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, onLogout }) => {
   const [badgeCount, setBadgeCount] = useState(0);
+  const [vtcBadgeCount, setVtcBadgeCount] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
@@ -20,7 +21,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, onLogou
     if (role === UserRole.ADMIN) {
       const fetchCounts = async () => {
         const counts = await getPendingActionCounts();
-        setBadgeCount(counts.total);
+        setBadgeCount(counts.pendingApps + counts.pendingVerifications);
+        setVtcBadgeCount(counts.pendingVtcApps);
       };
       fetchCounts();
       
@@ -33,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, onLogou
   const adminLinks = [
     { label: 'Dashboard', path: '/admin/dashboard', icon: <LayoutDashboard size={20} /> },
     { label: 'Applications', path: '/admin/applications', icon: <FileText size={20} />, badge: badgeCount },
+    { label: 'VTC Applications', path: '/admin/vtc-applications', icon: <FileText size={20} />, badge: vtcBadgeCount },
     { label: 'Teachers', path: '/admin/teachers', icon: <Users size={20} /> },
     { label: 'Students', path: '/admin/students', icon: <GraduationCap size={20} /> },
     { label: 'Settings', path: '/admin/settings', icon: <Settings size={20} /> },
@@ -49,9 +52,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, onLogou
     { label: 'Assessment Progress', path: '/parent/assessment', icon: <Activity size={20} /> },
   ];
 
+  const vtcLinks = [
+    { label: 'Dashboard', path: '/vtc/dashboard', icon: <LayoutDashboard size={20} /> },
+  ];
+
   let links = parentLinks;
   if (role === UserRole.ADMIN) links = adminLinks;
   if (role === UserRole.TEACHER) links = teacherLinks;
+  if (role === UserRole.VTC_STUDENT) links = vtcLinks;
 
   const sidebarWidth = isCollapsed ? 'w-20' : 'w-72';
 
