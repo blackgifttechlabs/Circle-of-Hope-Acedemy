@@ -269,15 +269,18 @@ export const SchoolTour: React.FC = () => {
   const activeCal=calList.find(c=>c.id===selectedTerm)||calList[0];
   useEffect(()=>{if(calList.length&&!selectedTerm)setSelectedTerm(calList[0]?.id||'');},[calList,selectedTerm]);
 
-  const buildHolidays=(term:typeof schoolCals[0])=>
+  const buildHolidays=(term:{holidays?:{name:string;startDate:string;endDate?:string}[]})=>
     (term?.holidays||[]).map(h=>({name:h.name,start:new Date(h.startDate),end:new Date(h.endDate||h.startDate)}));
 
-  const openDate  = calMode==='HOSTEL'?activeCal?.hostelOpeningDate :activeCal?.learnersOpeningDate;
-  const closeDate = calMode==='HOSTEL'?activeCal?.hostelClosingDate :activeCal?.learnersClosingDate;
+  const activeSchoolCal = calMode!=='HOSTEL' ? (activeCal as typeof schoolCals[0]|undefined) : undefined;
+  const activeHostelCal = calMode==='HOSTEL'  ? (activeCal as typeof hostelCals[0]|undefined) : undefined;
+
+  const openDate  = calMode==='HOSTEL' ? activeHostelCal?.hostelOpeningDate  : activeSchoolCal?.learnersOpeningDate;
+  const closeDate = calMode==='HOSTEL' ? activeHostelCal?.hostelClosingDate  : activeSchoolCal?.learnersClosingDate;
   const calMonths = activeCal?getMonthsInRange(openDate||'',closeDate||''):[];
   const termDates = activeCal?dateRange(openDate||'',closeDate||''):[];
   const holidays  = activeCal?buildHolidays(activeCal):[];
-  const totalDays = calMode==='HOSTEL'?(activeCal?.hostelDays||0):(activeCal?.schoolDays||0);
+  const totalDays = calMode==='HOSTEL' ? (activeHostelCal?.hostelDays||0) : (activeSchoolCal?.schoolDays||0);
 
   const activeMeta=SECTIONS.find(s=>s.id===activeSection)!;
 
