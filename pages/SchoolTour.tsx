@@ -31,17 +31,28 @@ const SECTIONS = [
 
 const ADMIN_MEMBERS = [
   {
+    id: 'victoria',
     name: 'Victoria Joel',
     role: 'Founder & Principal',
     img: 'https://i.ibb.co/My2rxxYJ/founder.png',
     bio: 'Victoria Joel is a 31-year-old social entrepreneur and an Olafika SMEs and Mentorship graduate, awarded the 2020 Most Diligent Entrepreneur of the Year. She is a devoted, trained special needs teacher with seven years of teaching experience in four different schools. Trained by SES Experts from Germany, she has passionately advocated for children with Autism Spectrum Disorder and other intellectual disabilities for the past ten years, serving as an expert and mentor.',
   },
-  { name: 'Staff Member', role: 'Senior Teacher', img: 'https://i.ibb.co/BVZm6gpr/FB-IMG-1773821340566.jpg', bio: "A dedicated educator committed to nurturing every child's potential and fostering an inclusive learning environment." },
-  { name: 'Staff Member', role: 'Teacher',        img: 'https://i.ibb.co/jPW3ygwd/FB-IMG-1773821327455.jpg', bio: 'Passionate about early childhood development and creating engaging, hands-on learning experiences.' },
-  { name: 'Staff Member', role: 'Teacher',        img: 'https://i.ibb.co/ccbr1hwS/FB-IMG-1773821330242.jpg', bio: 'Brings creativity and enthusiasm to the classroom, inspiring students to discover their unique talents.' },
-  { name: 'Staff Member', role: 'Teacher',        img: 'https://i.ibb.co/Zzqtr5PM/FB-IMG-1773821331313.jpg', bio: 'Specialises in special needs support with a warm, patient approach that helps every learner thrive.' },
-  { name: 'Staff Member', role: 'Support Staff',  img: 'https://i.ibb.co/3mCQQdvm/FB-IMG-1773821333719.jpg', bio: 'Dedicated to providing a safe and supportive environment for all students and staff.' },
-  { name: 'Staff Member', role: 'Support Staff',  img: 'https://i.ibb.co/p6ntPPXW/FB-IMG-1773821335935.jpg', bio: 'Works tirelessly to ensure the smooth day-to-day operations of our school community.' },
+  {
+    id: 'team',
+    name: 'Our Team',
+    role: 'Dedicated Educators & Support Staff',
+    img: 'https://i.ibb.co/7t5FL0rZ/IMG-20260318-WA0084.jpg',
+    bio: 'Our passionate team of educators and support staff are committed to every child\'s growth, wellbeing, and success. Together they create a nurturing, inclusive environment where every learner thrives.',
+  },
+];
+
+const TEAM_IMGS = [
+  'https://i.ibb.co/7t5FL0rZ/IMG-20260318-WA0084.jpg',
+  'https://i.ibb.co/mVT7hG9K/IMG-20260318-WA0085.jpg',
+  'https://i.ibb.co/cKG6sdxz/IMG-20260318-WA0086.jpg',
+  'https://i.ibb.co/CKv68BHv/IMG-20260318-WA0087.jpg',
+  'https://i.ibb.co/sv6zSw8j/IMG-20260318-WA0091.jpg',
+  'https://i.ibb.co/ycRfx7Rh/IMG-20260318-WA0092.jpg',
 ];
 
 const CLASSROOM_IMGS = [
@@ -51,6 +62,9 @@ const CLASSROOM_IMGS = [
   'https://i.ibb.co/k6P01cwQ/FB-IMG-1773821200205.jpg','https://i.ibb.co/BRSK7vd/FB-IMG-1773821203628.jpg',
   'https://i.ibb.co/qFc6C3FH/FB-IMG-1773821208074.jpg','https://i.ibb.co/Wvc0JvbJ/FB-IMG-1773821225289.jpg',
   'https://i.ibb.co/BHTLLWjZ/FB-IMG-1773821227125.jpg','https://i.ibb.co/6VKfCVq/FB-IMG-1773821229250.jpg',
+  'https://i.ibb.co/rKKq2CMF/IMG-20260318-WA0069.jpg','https://i.ibb.co/PGszbpNG/IMG-20260318-WA0070.jpg',
+  'https://i.ibb.co/nMCpJSt4/IMG-20260318-WA0071.jpg','https://i.ibb.co/jPXnKszp/IMG-20260318-WA0072.jpg',
+  'https://i.ibb.co/QvMY76JL/IMG-20260318-WA0073.jpg','https://i.ibb.co/wNLptp4G/IMG-20260318-WA0074.jpg',
 ];
 const MEETING_IMGS = [
   'https://i.ibb.co/hx9NN0Cj/FB-IMG-1773820712096.jpg','https://i.ibb.co/8DS35ywP/FB-IMG-1773820714022.jpg',
@@ -137,7 +151,8 @@ const PhotoGrid: React.FC<{images:string[]}> = ({images}) => {
     <>
       <div className="columns-2 sm:columns-3 gap-2 space-y-2">
         {images.map((src,i)=>(
-          <div key={i} className="break-inside-avoid overflow-hidden rounded-2xl cursor-zoom-in group shadow-sm"
+          <div key={i} className="break-inside-avoid overflow-hidden cursor-zoom-in group shadow-sm"
+            style={{borderRadius:'6px'}}
             onClick={()=>setLb(i)}>
             <img src={src} alt="" className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
               referrerPolicy="no-referrer"/>
@@ -184,7 +199,7 @@ const CalMonth: React.FC<{
             const term=isTermDay(day);
             const weekend=isWeekend(day);
             let bg='transparent',color='#424242',dot='';
-            if(holiday){bg='#E8F5E9';color='#2E7D32';dot='#43A047';}
+            if(holiday){bg='#C8E6C9';color='#1B5E20';dot='#2E7D32';}
             else if(term&&!weekend){bg=accent+'18';color='#212121';}
             if(weekend&&!holiday){color='#BDBDBD';}
             return (
@@ -344,6 +359,179 @@ export const SchoolTour: React.FC = () => {
       </div>
 
       {/* ═════════════════
+          VTC PROMO BANNER
+      ═════════════════ */}
+      <div style={{backgroundColor:'#0A0F1E',overflow:'hidden',position:'relative'}}>
+        <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(255,255,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.025) 1px,transparent 1px)',backgroundSize:'48px 48px',pointerEvents:'none'}}/>
+
+        <div className="relative flex flex-col lg:flex-row min-h-screen lg:min-h-0">
+
+          {/* ══ LEFT HALF — full info panel ══ */}
+          <div className="lg:w-1/2 flex flex-col justify-between px-8 sm:px-12 py-14"
+            style={{background:'linear-gradient(160deg,#0D1B3E 0%,#0A0F1E 100%)',borderRight:'1px solid rgba(255,255,255,0.07)'}}>
+
+            {/* Top: logo + badge */}
+            <div>
+              <div className="flex items-center gap-4 mb-8">
+                <img src="https://i.ibb.co/LzYXwYfX/logo.png" alt="COHA VTC"
+                  className="w-16 h-16 object-contain" referrerPolicy="no-referrer"/>
+                <div>
+                  <p className="text-white font-black text-xl leading-tight" style={{fontFamily:"'Outfit','Nunito',sans-serif"}}>COHA Vocational</p>
+                  <p className="text-white font-black text-xl leading-tight" style={{fontFamily:"'Outfit','Nunito',sans-serif"}}>Training Centre</p>
+                </div>
+                <div className="ml-auto">
+                  <span className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest text-white"
+                    style={{backgroundColor:'#DC2626',borderRadius:'6px'}}>
+                    <span className="w-2 h-2 rounded-full bg-white animate-pulse"/>
+                    Now Open
+                  </span>
+                </div>
+              </div>
+
+              {/* Location */}
+              <div className="flex items-center gap-2 mb-8 text-sm font-bold" style={{color:'rgba(255,255,255,0.45)'}}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                ERF 304 Onatsi, Ondangwa, Namibia
+              </div>
+
+              {/* Headline */}
+              <h2 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight mb-6"
+                style={{color:'#FFFFFF',fontFamily:"'Outfit','Nunito',sans-serif"}}>
+                Build Real Skills.<br/>
+                <span style={{color:'#60A5FA'}}>Launch Your</span><br/>
+                Career.
+              </h2>
+
+              <p className="text-base leading-relaxed mb-8" style={{color:'rgba(255,255,255,0.55)'}}>
+                COHA's Vocational Training Centre in Ondangwa gives young people the hands-on technical skills they need to enter the workforce with confidence. We assess your strengths first, then train you to master your field — with real tools, real projects, and real workplaces.
+              </p>
+
+              {/* Course details with labels */}
+              <div className="mb-8">
+                <p className="text-[11px] font-black uppercase tracking-widest mb-3" style={{color:'rgba(255,255,255,0.3)'}}>Course Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-4" style={{backgroundColor:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'12px'}}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{color:'rgba(255,255,255,0.35)'}}>Programme</p>
+                    <p className="text-white font-black text-base">Elementary Technical Training</p>
+                  </div>
+                  <div className="p-4" style={{backgroundColor:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'12px'}}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{color:'rgba(255,255,255,0.35)'}}>Duration</p>
+                    <p className="text-white font-black text-base">1 Year</p>
+                  </div>
+                  <div className="p-4" style={{backgroundColor:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'12px'}}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{color:'rgba(255,255,255,0.35)'}}>Academic Requirements</p>
+                    <p className="text-white font-black text-base">None Required</p>
+                  </div>
+                  <div className="p-4" style={{backgroundColor:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'12px'}}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{color:'rgba(255,255,255,0.35)'}}>Minimum Age</p>
+                    <p className="text-white font-black text-base">16 Years Old</p>
+                  </div>
+                  <div className="p-4 col-span-2" style={{backgroundColor:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'12px'}}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{color:'rgba(255,255,255,0.35)'}}>Intake Period</p>
+                    <p className="text-white font-black text-base">January 2026 — Applications Open Now</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Image grid — clickable lightbox */}
+              {(() => {
+                const VTC_IMGS = [
+                  'https://i.ibb.co/24vs2wY/IMG-20260318-WA0076.jpg',
+                  'https://i.ibb.co/yFf6sWZ4/IMG-20260318-WA0077.jpg',
+                  'https://i.ibb.co/JRCfMXNv/IMG-20260318-WA0078.jpg',
+                  'https://i.ibb.co/k65J0Kqr/IMG-20260318-WA0079.jpg',
+                  'https://i.ibb.co/C55vYfcY/IMG-20260318-WA0080.jpg',
+                  'https://i.ibb.co/5X6qJycQ/IMG-20260318-WA0081.jpg',
+                  'https://i.ibb.co/zh06gyTY/IMG-20260318-WA0082.jpg',
+                ];
+                return <PhotoGrid images={VTC_IMGS}/>;
+              })()}
+            </div>
+
+            {/* Bottom: contact */}
+            <div className="mt-8 pt-6 flex flex-wrap gap-4 text-sm font-bold" style={{color:'rgba(255,255,255,0.35)',borderTop:'1px solid rgba(255,255,255,0.07)'}}>
+              <span className="flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                +264 81 752 0894
+              </span>
+              <span className="flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                admin@cohavtc.com
+              </span>
+            </div>
+          </div>
+
+          {/* ══ RIGHT HALF — features + actions ══ */}
+          <div className="lg:w-1/2 px-8 sm:px-12 py-14 flex flex-col justify-center space-y-8">
+
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-widest mb-4" style={{color:'rgba(255,255,255,0.3)'}}>Why Choose COHA VTC?</p>
+              <div className="space-y-4">
+                {[
+                  {
+                    icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+                    title:'Discover Your Best Trade',
+                    desc:'You will be introduced to several trades first — bricklaying, carpentry, mechanics and more. We watch how you work and match you to the field where you will do best. No guessing, no pressure.',
+                  },
+                  {
+                    icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+                    title:'Safety is Always First',
+                    desc:'We have qualified Occupational Health and Safety officers on site at all times. We also work with occupational therapists to make sure every student is safe, healthy and supported while they learn.',
+                  },
+                  {
+                    icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+                    title:'Real Workplace Attachments',
+                    desc:'You will be placed with real companies and organisations to do your internship. This gives you actual work experience and a chance to show employers what you can do before you even finish training.',
+                  },
+                  {
+                    icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+                    title:'Training Built for Everyone',
+                    desc:'Our programme is designed to work for people with different learning styles and abilities. If you learn better by doing, by seeing, or by asking questions — we have an approach that works for you. No one is left behind.',
+                  },
+                ].map((f,i)=>(
+                  <div key={i} className="flex gap-4 items-start p-5"
+                    style={{backgroundColor:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:'16px'}}>
+                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl mt-0.5"
+                      style={{backgroundColor:'rgba(96,165,250,0.15)',color:'#60A5FA'}}>
+                      {f.icon}
+                    </div>
+                    <div>
+                      <p className="font-black text-base text-white mb-1">{f.title}</p>
+                      <p className="text-sm leading-relaxed" style={{color:'rgba(255,255,255,0.5)'}}>{f.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Action buttons — stacked row */}
+            <div className="flex flex-wrap gap-3">
+              <button onClick={()=>navigate('/apply')}
+                className="flex items-center gap-2 px-7 py-3.5 font-black text-sm text-white uppercase tracking-widest transition-all hover:opacity-90 active:scale-95"
+                style={{background:'linear-gradient(135deg,#1565C0,#2563EB)',boxShadow:'0 6px 24px rgba(37,99,235,0.4)',borderRadius:'10px'}}>
+                Apply Today
+              </button>
+              <a href="https://drive.google.com/uc?export=download&id=16H2wUuRcRDl-PcF6jj9xxlH0SzG4su5t"
+                download
+                className="flex items-center gap-2 px-6 py-3.5 font-black text-sm uppercase tracking-widest transition-all hover:opacity-90 active:scale-95"
+                style={{backgroundColor:'rgba(255,255,255,0.08)',color:'#fff',border:'1px solid rgba(255,255,255,0.15)',borderRadius:'10px'}}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download Flyer
+              </a>
+              <a href={`https://wa.me/?text=${encodeURIComponent('🎉 COHA Vocational Training Centre - Ondangwa is NOW OPEN for January 2026 intake!\n\n🏗️ Elementary Technical Training\n⏱ Duration: 1 Year\n🎓 No academic requirements needed\n👤 Open to anyone from age 16\n🦺 OHS officers on site, fully inclusive\n🤝 Real internship attachments\n\n📞 +264 81 752 0894\n📧 admin@cohavtc.com\n📍 ERF 304 Onatsi, Ondangwa')}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 px-6 py-3.5 font-black text-sm uppercase tracking-widest transition-all hover:opacity-90 active:scale-95"
+                style={{backgroundColor:'#25D366',color:'#fff',boxShadow:'0 4px 16px rgba(37,211,102,0.3)',borderRadius:'10px'}}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.552 4.116 1.524 5.843L0 24l6.347-1.498A11.933 11.933 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.817 9.817 0 0 1-5.004-1.369l-.36-.214-3.722.878.893-3.619-.235-.374A9.819 9.819 0 0 1 2.182 12c0-5.419 4.399-9.818 9.818-9.818 5.418 0 9.818 4.399 9.818 9.818 0 5.418-4.4 9.818-9.818 9.818z"/></svg>
+                Share on WhatsApp
+              </a>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* ═════════════════
           CALENDAR
       ═════════════════ */}
       <div ref={el=>sectionRefs.current['calendar']=el} className="scroll-mt-28">
@@ -389,6 +577,19 @@ export const SchoolTour: React.FC = () => {
                       </button>
                     ))}
                   </div>
+                  {/* Calendar preview image + download */}
+                  <div className="mt-5 rounded-2xl overflow-hidden" style={{border:'1px solid #E8EAF6'}}>
+                    <img src="https://i.ibb.co/sdPsdpPJ/Screenshot-from-2026-03-18-12-04-38.png"
+                      alt="Calendar Preview" className="w-full h-auto object-cover" referrerPolicy="no-referrer"/>
+                  </div>
+                  <a
+                    href="https://drive.google.com/uc?export=download&id=16H2wUuRcRDl-PcF6jj9xxlH0SzG4su5t"
+                    download
+                    className="mt-3 flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all hover:opacity-90 active:scale-95"
+                    style={{backgroundColor:'#3949AB',color:'#fff',boxShadow:'0 2px 10px #3949AB44'}}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Calendar
+                  </a>
                 </div>
               )}
             </div>
@@ -469,14 +670,31 @@ export const SchoolTour: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
             <div className="space-y-5">
               <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
-                Our classrooms are designed to inspire creativity and focus. With natural lighting, ergonomic furniture, and the latest educational tools, every student has the environment they need to succeed.
+                Our classrooms are bright, welcoming spaces designed to help every learner focus and thrive. We use natural lighting, quality furniture, and the latest teaching technology to create an environment where students genuinely want to be.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                Every classroom is equipped with smart interactive boards that make lessons more engaging and visual. Teachers can draw, write, and display content that students can interact with — making it easier to understand difficult topics.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                We keep our class sizes small so that every child gets the attention they deserve. Teachers know their students by name, understand how they learn, and can adjust their approach to help each one succeed. No child gets lost in a crowd here.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                We are proudly inclusive. Students with special needs are fully supported in the classroom, with trained staff who understand different learning profiles including autism spectrum disorder, ADHD, and other intellectual disabilities.
               </p>
               <div className="grid grid-cols-2 gap-2.5">
-                {['Smart Interactive Boards','Ergonomic Seating','Small Class Sizes','Special Needs Support'].map(item=>(
-                  <div key={item} className="flex items-center gap-2.5 px-4 py-3 rounded-2xl"
+                {[
+                  {t:'Smart Interactive Boards',d:'Digital lessons that engage every learner'},
+                  {t:'Ergonomic Seating',d:'Comfortable chairs and desks for long focus'},
+                  {t:'Small Class Sizes',d:'Individual attention for every student'},
+                  {t:'Special Needs Support',d:'Trained inclusive education staff on hand'},
+                ].map(item=>(
+                  <div key={item.t} className="flex flex-col gap-1 px-4 py-3 rounded-2xl"
                     style={{backgroundColor:'#E8F5E9',border:'1px solid #C8E6C9'}}>
-                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:'#388E3C'}}/>
-                    <span className="text-xs font-bold" style={{color:'#2E7D32'}}>{item}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:'#388E3C'}}/>
+                      <span className="text-xs font-black" style={{color:'#2E7D32'}}>{item.t}</span>
+                    </div>
+                    <span className="text-[11px] pl-4" style={{color:'#4B5563'}}>{item.d}</span>
                   </div>
                 ))}
               </div>
@@ -508,10 +726,12 @@ export const SchoolTour: React.FC = () => {
                 ))}
               </div>
             </div>
-            <div className="rounded-3xl overflow-hidden shadow-md" style={{border:'1px solid #FFCCBC'}}>
-              <img src="https://images.unsplash.com/photo-1576085898323-218337e3e43c?q=80&w=1400&auto=format&fit=crop"
-                alt="Playground" className="w-full h-72 object-cover" referrerPolicy="no-referrer"/>
-            </div>
+            <PhotoGrid images={[
+              'https://i.ibb.co/HTnq9kQm/FB-IMG-1773821509593.jpg',
+              'https://i.ibb.co/rL9H9c2/FB-IMG-1773821517053.jpg',
+              'https://i.ibb.co/1JZr22hv/FB-IMG-1773821521002.jpg',
+              'https://i.ibb.co/nqVd4M8P/FB-IMG-1773821524944.jpg',
+            ]}/>
           </div>
         </Reveal>
       </div>
@@ -523,55 +743,71 @@ export const SchoolTour: React.FC = () => {
         <Reveal visible={visibleSections.has('administration')}>
           <SectionHeader id="administration" title="Administration"/>
 
-          {/* Avatar strip */}
-          <div className="flex gap-5 overflow-x-auto no-scrollbar pb-5 mb-8">
+          {/* 2-tab selector */}
+          <div className="flex gap-3 mb-8 flex-wrap">
             {ADMIN_MEMBERS.map((m,i)=>(
-              <button key={i} onClick={()=>setActiveAdmin(i)}
-                className="flex flex-col items-center gap-2 flex-shrink-0 transition-all"
-                style={{opacity:activeAdmin===i?1:0.45}}>
-                <div className="relative">
-                  <img src={m.img} alt={m.name}
-                    className="w-16 h-16 rounded-full object-cover object-top"
-                    style={{
-                      border:activeAdmin===i?'3px solid #7B1FA2':'3px solid #E9D8FD',
-                      boxShadow:activeAdmin===i?'0 0 20px #7B1FA233':'none',
-                    }}
-                    referrerPolicy="no-referrer"/>
-                  {activeAdmin===i&&(
-                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full block"
-                      style={{backgroundColor:'#7B1FA2'}}/>
-                  )}
-                </div>
-                <p className="text-[10px] font-black whitespace-nowrap" style={{color:'#374151'}}>{m.name.split(' ')[0]}</p>
-                <p className="text-[9px] font-bold" style={{color:'#7B1FA2'}}>{m.role.split(' ')[0]}</p>
+              <button key={m.id} onClick={()=>setActiveAdmin(i)}
+                className="flex items-center gap-3 px-5 py-3 rounded-2xl text-sm font-black uppercase tracking-wider transition-all"
+                style={activeAdmin===i
+                  ?{backgroundColor:'#7B1FA2',color:'#fff',boxShadow:'0 4px 16px rgba(123,31,162,0.3)'}
+                  :{backgroundColor:'#F3E5F5',color:'#6A1B9A',border:'1px solid #E1BEE7'}}>
+                <img src={m.img} alt={m.name}
+                  className="w-8 h-8 rounded-full object-cover object-top flex-shrink-0"
+                  style={{border:activeAdmin===i?'2px solid rgba(255,255,255,0.5)':'2px solid #CE93D8'}}
+                  referrerPolicy="no-referrer"/>
+                {m.name}
               </button>
             ))}
           </div>
 
           {/* Detail panel */}
           <AnimatePresence mode="wait">
-            <motion.div key={activeAdmin}
-              initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-12}}
-              transition={{duration:0.45,ease:[0.22,1,0.36,1]}}
-              className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start rounded-3xl p-6 lg:p-8"
-              style={{backgroundColor:'#FAF5FF',border:'1px solid #E9D8FD',boxShadow:'0 4px 24px rgba(123,31,162,0.08)'}}>
-              <div className="flex justify-center lg:justify-start">
-                <img src={ADMIN_MEMBERS[activeAdmin].img} alt={ADMIN_MEMBERS[activeAdmin].name}
-                  className="w-full max-w-xs h-80 lg:h-96 object-cover object-top rounded-2xl shadow-lg"
-                  style={{border:'2px solid #D8B4FE'}}
-                  referrerPolicy="no-referrer"/>
-              </div>
-              <div className="flex flex-col justify-center">
-                <h3 className="text-3xl lg:text-4xl font-black leading-tight mb-1"
-                  style={{color:'#1A1A2E',fontFamily:"'Outfit','Nunito',sans-serif"}}>
-                  {ADMIN_MEMBERS[activeAdmin].name}
-                </h3>
-                <p className="text-sm font-black uppercase tracking-widest mb-5" style={{color:'#7B1FA2'}}>
-                  {ADMIN_MEMBERS[activeAdmin].role}
+            {activeAdmin === 0 ? (
+              /* ── Victoria Joel ── */
+              <motion.div key="victoria"
+                initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-12}}
+                transition={{duration:0.45,ease:[0.22,1,0.36,1]}}
+                className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start rounded-3xl p-6 lg:p-8"
+                style={{backgroundColor:'#FAF5FF',border:'1px solid #E9D8FD',boxShadow:'0 4px 24px rgba(123,31,162,0.08)'}}>
+                <div className="flex justify-center lg:justify-start">
+                  <img src={ADMIN_MEMBERS[0].img} alt="Victoria Joel"
+                    className="w-full max-w-xs h-80 lg:h-[420px] object-cover object-top rounded-2xl shadow-lg"
+                    style={{border:'2px solid #D8B4FE'}}
+                    referrerPolicy="no-referrer"/>
+                </div>
+                <div className="flex flex-col justify-center">
+                  <h3 className="text-3xl lg:text-4xl font-black leading-tight mb-1"
+                    style={{color:'#1A1A2E',fontFamily:"'Outfit','Nunito',sans-serif"}}>
+                    Victoria Joel
+                  </h3>
+                  <p className="text-sm font-black uppercase tracking-widest mb-5" style={{color:'#7B1FA2'}}>
+                    Founder & Principal
+                  </p>
+                  <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>{ADMIN_MEMBERS[0].bio}</p>
+                </div>
+              </motion.div>
+            ) : (
+              /* ── Our Team ── */
+              <motion.div key="team"
+                initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-12}}
+                transition={{duration:0.45,ease:[0.22,1,0.36,1]}}
+                className="rounded-3xl p-6 lg:p-8"
+                style={{backgroundColor:'#FAF5FF',border:'1px solid #E9D8FD',boxShadow:'0 4px 24px rgba(123,31,162,0.08)'}}>
+                <p className="text-base leading-relaxed mb-8" style={{color:'#4B5563'}}>
+                  {ADMIN_MEMBERS[1].bio}
                 </p>
-                <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>{ADMIN_MEMBERS[activeAdmin].bio}</p>
-              </div>
-            </motion.div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {TEAM_IMGS.map((src,i)=>(
+                    <div key={i} className="rounded-2xl overflow-hidden shadow-sm group cursor-pointer"
+                      style={{border:'2px solid #E9D8FD',aspectRatio:'3/4'}}>
+                      <img src={src} alt={`Team member ${i+1}`}
+                        className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                        referrerPolicy="no-referrer"/>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </Reveal>
       </div>
@@ -586,11 +822,20 @@ export const SchoolTour: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
             <div className="space-y-5">
               <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
-                We believe in building character through competition. Our sports programs cover over 15 codes — from soccer and netball to swimming and athletics.
+                Sport is not just about winning — it is about learning how to work with others, push through challenges, and grow as a person. At Circle of Hope, sport is a core part of who we are.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                We offer over 15 different sporting codes so that every student can find something they love. From soccer and netball to athletics and swimming, there is a place for everyone regardless of their skill level or experience.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                Our coaching staff are passionate and experienced. They know how to bring out the best in young athletes while making sure sport stays fun and supportive. We celebrate effort just as much as results.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                We compete in inter-school fixtures throughout the year, giving students the chance to experience healthy competition and represent their school with pride. Our 2025 intake has already produced regional champions.
               </p>
               <div className="flex gap-3 flex-wrap">
-                {[{v:'15+',l:'Sport Codes'},{v:'2025',l:'Champions'}].map(s=>(
-                  <div key={s.l} className="px-6 py-4 rounded-2xl"
+                {[{v:'15+',l:'Sport Codes Available'},{v:'2025',l:'Regional Champions'},{v:'All Ages',l:'Junior & Senior Teams'}].map(s=>(
+                  <div key={s.l} className="px-5 py-4 rounded-2xl"
                     style={{backgroundColor:'#FFEBEE',border:'1px solid #FFCDD2'}}>
                     <p className="text-2xl font-black" style={{color:'#B71C1C'}}>{s.v}</p>
                     <p className="text-[10px] font-black uppercase tracking-widest mt-0.5" style={{color:'#C62828'}}>{s.l}</p>
@@ -612,14 +857,30 @@ export const SchoolTour: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
             <div className="space-y-5">
               <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
-                State-of-the-art labs prepare students for a digital future. Every learner gains hands-on experience with coding, digital design, and research skills.
+                The world runs on technology, and we make sure our students are ready for it. Our computer labs are modern, well-equipped, and available to every learner from early grades through to graduation.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                Students learn to code using beginner-friendly tools like Scratch and Python. These sessions are structured, practical, and fun — students build real projects and see immediate results from what they write.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                Digital art and design classes teach students how to use software for graphic design and video editing. These are skills that open doors to careers in media, marketing, advertising, and technology.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                We also dedicate time to digital citizenship — teaching students how to use the internet safely, protect their personal information, and understand their rights and responsibilities online. These lessons matter for life, not just school.
               </p>
               <div className="space-y-2">
-                {['Coding for Kids — Python & Scratch','Digital Art — Design & Video Editing','Safe Internet — Cybersecurity & Citizenship'].map((item,i)=>(
-                  <div key={i} className="flex items-center justify-between px-4 py-3 rounded-2xl"
+                {[
+                  {t:'Coding for Kids',d:'Python and Scratch — building real projects from day one'},
+                  {t:'Digital Art & Design',d:'Graphic design and video editing with industry software'},
+                  {t:'Safe Internet Use',d:'Cybersecurity awareness and responsible digital citizenship'},
+                ].map((item,i)=>(
+                  <div key={i} className="flex items-start gap-3 px-4 py-3 rounded-2xl"
                     style={{backgroundColor:'#E0F7FA',border:'1px solid #B2EBF2'}}>
-                    <span className="text-xs font-bold" style={{color:'#006064'}}>{item}</span>
-                    <ChevronRight size={14} style={{color:'#00838F'}}/>
+                    <ChevronRight size={16} className="flex-shrink-0 mt-0.5" style={{color:'#00838F'}}/>
+                    <div>
+                      <p className="text-xs font-black mb-0.5" style={{color:'#006064'}}>{item.t}</p>
+                      <p className="text-[11px]" style={{color:'#4B5563'}}>{item.d}</p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -639,13 +900,27 @@ export const SchoolTour: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
             <div className="space-y-5">
               <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
-                Strong partnerships between parents, teachers, and the community keep everyone aligned on student progress.
+                We believe that the best schools are built on strong relationships — between teachers, parents, and the wider community. Regular, open communication is the foundation of everything we do.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                Each term we hold structured parent-teacher consultation sessions where families can sit down with their child's teacher and get a full picture of how they are doing — academically, socially, and emotionally. These are not rushed conversations. We give parents the time they need.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                We also run community workshops throughout the year, covering topics like parenting support, child development, digital safety, and career guidance. These sessions are open to all parents and community members, not just our school families.
+              </p>
+              <p className="text-base leading-relaxed" style={{color:'#4B5563'}}>
+                Our School Governing Body meets regularly to ensure that the school's decisions are made with input from the people it serves. We believe in transparency, accountability, and shared ownership of our school's future.
               </p>
               <div className="space-y-2">
-                {['Parent-Teacher Consultations — Held termly to discuss individual progress.','Community Workshops — Skills sharing and educational seminars.'].map((item,i)=>(
+                {[
+                  {t:'Parent-Teacher Consultations',d:'Held every term — detailed one-on-one progress discussions'},
+                  {t:'Community Workshops',d:'Open skills and awareness sessions for all families'},
+                  {t:'Governing Body Meetings',d:'Transparent decision-making with parent representation'},
+                ].map((item,i)=>(
                   <div key={i} className="px-5 py-4 rounded-2xl"
                     style={{backgroundColor:'#F1F8E9',border:'1px solid #DCEDC8'}}>
-                    <p className="text-xs font-bold" style={{color:'#33691E'}}>{item}</p>
+                    <p className="text-xs font-black mb-1" style={{color:'#33691E'}}>{item.t}</p>
+                    <p className="text-[11px]" style={{color:'#4B5563'}}>{item.d}</p>
                   </div>
                 ))}
               </div>
