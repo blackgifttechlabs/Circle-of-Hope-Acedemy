@@ -17,6 +17,9 @@ export const StudentsPage: React.FC = () => {
   const [toast, setToast] = useState({show: false, msg: ''});
   
   const [divisionFilter, setDivisionFilter] = useState<'ALL' | 'MAINSTREAM' | 'SPECIAL_NEEDS'>('ALL');
+  const [gradeFilter, setGradeFilter] = useState('ALL');
+  const [levelFilter, setLevelFilter] = useState('ALL');
+  const [stageFilter, setStageFilter] = useState('ALL');
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -59,7 +62,19 @@ export const StudentsPage: React.FC = () => {
     if (divisionFilter === 'MAINSTREAM') matchesDivision = student.division !== Division.SPECIAL_NEEDS;
     if (divisionFilter === 'SPECIAL_NEEDS') matchesDivision = student.division === Division.SPECIAL_NEEDS;
 
-    return matchesSearch && matchesDivision;
+    let matchesGrade = true;
+    if (divisionFilter === 'MAINSTREAM' && gradeFilter !== 'ALL') {
+      matchesGrade = student.grade === gradeFilter;
+    }
+
+    let matchesLevel = true;
+    let matchesStage = true;
+    if (divisionFilter === 'SPECIAL_NEEDS') {
+      if (levelFilter !== 'ALL') matchesLevel = student.level === levelFilter;
+      if (stageFilter !== 'ALL') matchesStage = student.stage?.toString() === stageFilter;
+    }
+
+    return matchesSearch && matchesDivision && matchesGrade && matchesLevel && matchesStage;
   });
 
   return (
@@ -96,17 +111,60 @@ export const StudentsPage: React.FC = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
               <Filter className="text-gray-400" size={20} />
               <select 
                 className="p-2 border border-gray-300 outline-none bg-gray-50 text-sm font-medium"
                 value={divisionFilter}
-                onChange={(e) => setDivisionFilter(e.target.value as any)}
+                onChange={(e) => {
+                  setDivisionFilter(e.target.value as any);
+                  setGradeFilter('ALL');
+                  setLevelFilter('ALL');
+                  setStageFilter('ALL');
+                }}
               >
                   <option value="ALL">All Divisions</option>
                   <option value="MAINSTREAM">Mainstream</option>
                   <option value="SPECIAL_NEEDS">Special Needs</option>
               </select>
+
+              {divisionFilter === 'MAINSTREAM' && (
+                <select 
+                  className="p-2 border border-gray-300 outline-none bg-gray-50 text-sm font-medium"
+                  value={gradeFilter}
+                  onChange={(e) => setGradeFilter(e.target.value)}
+                >
+                  <option value="ALL">All Grades</option>
+                  {settings?.grades?.map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              )}
+
+              {divisionFilter === 'SPECIAL_NEEDS' && (
+                <>
+                  <select 
+                    className="p-2 border border-gray-300 outline-none bg-gray-50 text-sm font-medium"
+                    value={levelFilter}
+                    onChange={(e) => setLevelFilter(e.target.value)}
+                  >
+                    <option value="ALL">All Levels</option>
+                    {settings?.specialNeedsLevels?.map(l => (
+                      <option key={l} value={l}>{l}</option>
+                    ))}
+                  </select>
+                  <select 
+                    className="p-2 border border-gray-300 outline-none bg-gray-50 text-sm font-medium"
+                    value={stageFilter}
+                    onChange={(e) => setStageFilter(e.target.value)}
+                  >
+                    <option value="ALL">All Stages</option>
+                    {[1, 2, 3].map(s => (
+                      <option key={s} value={s.toString()}>Stage {s}</option>
+                    ))}
+                  </select>
+                </>
+              )}
           </div>
         </div>
         <div className="overflow-x-auto">

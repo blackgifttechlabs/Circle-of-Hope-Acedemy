@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudentById, getSystemSettings, getTeacherByClass, getReceipts } from '../../services/dataService';
-import { Student, Teacher, SystemSettings } from '../../types';
+import { getStudentById, getSystemSettings, getTeacherByClass, getReceipts, getAssessmentRecordsForStudent } from '../../services/dataService';
+import { Student, Teacher, SystemSettings, TermAssessmentRecord, PRE_PRIMARY_AREAS } from '../../types';
 import { Loader } from '../../components/ui/Loader';
-import { User, BookOpen, Calendar, DollarSign, CheckCircle, Clock, AlertTriangle, ArrowRight } from 'lucide-react';
+import { User, BookOpen, Calendar, DollarSign, CheckCircle, Clock, AlertTriangle, ArrowRight, Download, FileText } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
+import { printGrade0Report } from '../../utils/printGrade0Report';
 
 interface ParentDashboardProps {
   user: any;
@@ -16,6 +17,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [financials, setFinancials] = useState({ totalFees: 0, paid: 0, balance: 0 });
+  const [assessmentRecords, setAssessmentRecords] = useState<TermAssessmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,6 +32,11 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
            if (stud.assignedClass) {
                const t = await getTeacherByClass(stud.assignedClass);
                setTeacher(t);
+           }
+
+           if (stud.grade === 'Grade 0') {
+               const records = await getAssessmentRecordsForStudent('Grade 0', stud.id);
+               setAssessmentRecords(records.filter(r => r.isComplete)); // Only show completed records to parents
            }
 
            if (setts && setts.fees) {
@@ -63,7 +70,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
   const isWaitingPayment = student.studentStatus === 'WAITING_PAYMENT';
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 pb-20">
       
       {/* Header / Welcome */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 shadow-sm border-l-8 border-coha-900">
@@ -198,6 +205,64 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
              </div>
           </div>
       </div>
+
+      {/* Assessment Reports */}
+      {student.grade === 'Grade 0' && assessmentRecords.length > 0 && (
+          <div className="bg-white p-6 shadow-sm border-2 border-gray-200 mt-6">
+              <div className="flex items-center gap-3 mb-6 border-b-2 border-gray-100 pb-4">
+                  <FileText className="text-coha-900" size={24} />
+                  <h3 className="font-black text-lg uppercase tracking-widest text-coha-900">Assessment Reports</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {assessmentRecords.map(record => (
+                      <div key={record.termId} className="border-2 border-gray-200 p-4 hover:border-coha-900 transition-colors flex flex-col justify-between h-full">
+                          <div>
+                              <h4 className="font-black text-lg uppercase tracking-tighter mb-1">{record.termId}</h4>
+                              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">
+                                  Completed: {new Date(record.updatedAt).toLocaleDateString()}
+                              </p>
+                              
+                              <div className="space-y-2 mb-6">
+                                  {PRE_PRIMARY_AREAS.map(area => {
+                                      const areaRatings = area.components.map(c => record.ratings[c.id]).filter(Boolean);
+                                      const rated = areaRatings.length;
+                                      let currentScore = 0;
+                                      areaRatings.forEach(rating => {
+                                          if (rating === 'FM') currentScore += 2;
+                                          else if (rating === 'AM') currentScore += 1;
+                                      });
+                                      const maxScore = rated * 2;
+                                      const progress = maxScore === 0 ? 0 : Math.round((currentScore / maxScore) * 100);
+                                      return (
+                                          <div key={area.id}>
+                                              <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-1">
+                                                  <span className="text-gray-600 truncate mr-2">{area.name}</span>
+                                                  <span className="text-coha-900 shrink-0">{progress}%</span>
+                                              </div>
+                                              <div className="w-full bg-gray-100 h-1.5 overflow-hidden">
+                                                  <div className={`h-full ${progress >= 80 ? 'bg-green-500' : progress >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${progress}%` }}></div>
+                                              </div>
+                                          </div>
+                                      );
+                                  })}
+                              </div>
+                          </div>
+                          
+                          <Button 
+                              onClick={() => {
+                                  const termName = settings?.schoolCalendars?.find(c => c.id === record.termId)?.termName || record.termId;
+                                  const year = new Date().getFullYear().toString();
+                                  printGrade0Report(student, record, termName, year, teacher?.name || 'Class Teacher');
+                              }}
+                              className="w-full py-3 text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-900 hover:bg-gray-200 border-none"
+                          >
+                              <Download size={14} className="mr-2 inline" /> Download Report
+                          </Button>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      )}
 
     </div>
   );

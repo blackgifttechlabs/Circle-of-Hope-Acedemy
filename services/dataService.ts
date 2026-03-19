@@ -10,6 +10,7 @@ const APPLICATIONS_COLLECTION = 'applications';
 const VTC_APPLICATIONS_COLLECTION = 'vtcApplications';
 const SETTINGS_COLLECTION = 'settings';
 const RECEIPTS_COLLECTION = 'receipts';
+const ASSESSMENT_RECORDS_COLLECTION = 'assessment_records';
 
 // Admin Auth Configuration
 const ADMIN_EMAIL = "admin@coha.com";
@@ -725,4 +726,61 @@ export const searchVtcStudents = async (searchTerm: string): Promise<VtcApplicat
     (a.status === 'APPROVED' || a.status === 'PAYMENT_REQUIRED' || a.status === 'VERIFYING' || a.status === 'VERIFIED') && 
     `${a.firstName} ${a.surname}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
+};
+
+// Assessment Records
+
+export const saveAssessmentRecord = async (record: import('../types').TermAssessmentRecord) => {
+  try {
+    const docRef = doc(db, ASSESSMENT_RECORDS_COLLECTION, record.grade, 'students', record.studentId, 'terms', record.termId);
+    await setDoc(docRef, {
+      ...record,
+      updatedAt: new Date().toISOString()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error saving assessment record:", error);
+    return false;
+  }
+};
+
+export const getAssessmentRecord = async (grade: string, studentId: string, termId: string): Promise<import('../types').TermAssessmentRecord | null> => {
+  try {
+    const docRef = doc(db, ASSESSMENT_RECORDS_COLLECTION, grade, 'students', studentId, 'terms', termId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as import('../types').TermAssessmentRecord;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error getting assessment record:", error);
+    return null;
+  }
+};
+
+export const getAssessmentRecordsForStudent = async (grade: string, studentId: string): Promise<import('../types').TermAssessmentRecord[]> => {
+  try {
+    const q = collection(db, ASSESSMENT_RECORDS_COLLECTION, grade, 'students', studentId, 'terms');
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as import('../types').TermAssessmentRecord));
+  } catch (error) {
+    console.error("Error getting assessment records for student:", error);
+    return [];
+  }
+};
+
+export const getAssessmentRecordsForClass = async (grade: string, termId: string, studentIds: string[]): Promise<import('../types').TermAssessmentRecord[]> => {
+  try {
+    const records: import('../types').TermAssessmentRecord[] = [];
+    for (const studentId of studentIds) {
+      const record = await getAssessmentRecord(grade, studentId, termId);
+      if (record) {
+        records.push(record);
+      }
+    }
+    return records;
+  } catch (error) {
+    console.error("Error getting assessment records for class:", error);
+    return [];
+  }
 };

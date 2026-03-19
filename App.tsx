@@ -21,6 +21,8 @@ import { ParentAssessmentForm } from './pages/parent/AssessmentForm';
 import { ParentAssessmentProgress } from './pages/parent/AssessmentProgress';
 import { TeacherDashboard } from './pages/teacher/Dashboard';
 import { AssessmentPage } from './pages/teacher/AssessmentPage';
+import { TermAssessmentPage } from './pages/teacher/TermAssessmentPage';
+import { TermAssessmentComponentPage } from './pages/teacher/TermAssessmentComponentPage';
 import { VtcDashboard } from './pages/vtc/Dashboard';
 import { UserRole } from './types';
 import { seedAdminUser, getAdminProfile } from './services/dataService';
@@ -148,6 +150,8 @@ const App: React.FC = () => {
                     <Route path="dashboard" element={<TeacherDashboard user={user} />} />
                     <Route path="classes" element={<TeacherDashboard user={user} />} />
                     <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.TEACHER} user={user} />} />
+                    <Route path="term-assessment/:id" element={<TermAssessmentPage user={user} />} />
+                    <Route path="term-assessment-component" element={<TermAssessmentComponentPage user={user} />} />
                     <Route path="*" element={<Navigate to="dashboard" />} />
                 </Routes>
               </AppLayout>

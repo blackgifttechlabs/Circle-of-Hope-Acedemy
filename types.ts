@@ -101,9 +101,102 @@ export interface SystemSettings {
   termStartTime: string;
   
   lastStudentId?: number; 
+  activeTermId?: string;
 }
 
 // Assessment Specific Types
+
+export type AssessmentRating = 'FM' | 'AM' | 'NM';
+
+export interface AssessmentComponent {
+  id: string;
+  name: string;
+}
+
+export interface AssessmentArea {
+  id: string;
+  name: string;
+  components: AssessmentComponent[];
+}
+
+export const PRE_PRIMARY_AREAS: AssessmentArea[] = [
+  {
+    id: 'language',
+    name: 'Language Development',
+    components: [
+      { id: 'listening', name: 'Listening and Responding' },
+      { id: 'speaking', name: 'Speaking and Communication' },
+      { id: 'prep_reading', name: 'Preparatory Reading' },
+      { id: 'incidental_reading', name: 'Incidental Reading' },
+      { id: 'prep_writing', name: 'Preparatory Writing' },
+    ]
+  },
+  {
+    id: 'physical',
+    name: 'Physical Development',
+    components: [
+      { id: 'gross_motor', name: 'Gross-Motor Development' },
+      { id: 'fine_muscle', name: 'Fine Muscle Control' },
+      { id: 'balance', name: 'Balance' },
+      { id: 'eye_hand', name: 'Eye-Hand Coordination' },
+      { id: 'eye_foot', name: 'Eye-Foot Coordination' },
+      { id: 'body_awareness', name: 'Body Awareness' },
+    ]
+  },
+  {
+    id: 'math',
+    name: 'Preparatory Mathematics',
+    components: [
+      { id: 'number_concept', name: 'Number Concept' },
+      { id: 'problem_solving', name: 'Problem Solving' },
+      { id: 'classification', name: 'Classification' },
+      { id: 'seriation', name: 'Seriation' },
+      { id: 'spatial_relations', name: 'Spatial Relations' },
+      { id: 'measurement', name: 'Measurement' },
+    ]
+  },
+  {
+    id: 'arts',
+    name: 'Arts',
+    components: [
+      { id: 'visual_art', name: 'Visual Art: Draw, paint, model, construct' },
+      { id: 'music', name: 'Music: Sing, play instruments' },
+      { id: 'dance', name: 'Dance: Free & choreographed' },
+      { id: 'drama', name: 'Drama: Mime, role-play, dramatise' },
+    ]
+  },
+  {
+    id: 'environmental',
+    name: 'Environmental Learning',
+    components: [
+      { id: 'general_info', name: 'General information on Themes' },
+      { id: 'health', name: 'Health' },
+      { id: 'safety', name: 'Safety' },
+      { id: 'weather', name: 'Weather' },
+      { id: 'special_occasions', name: 'Special occasions' },
+    ]
+  },
+  {
+    id: 'religious',
+    name: 'Religious and Moral Education',
+    components: [
+      { id: 'morals', name: 'Morals and Values' },
+      { id: 'social', name: 'Social development' },
+      { id: 'emotional', name: 'Emotional development' },
+    ]
+  }
+];
+
+export interface TermAssessmentRecord {
+  id?: string;
+  studentId: string;
+  termId: string;
+  grade: string;
+  ratings: Record<string, AssessmentRating>; // key is component id
+  remarks?: string;
+  isComplete: boolean;
+  updatedAt: string;
+}
 
 export type AssessmentResponse = 'Yes' | 'No' | 'Yes with help';
 

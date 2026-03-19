@@ -101,7 +101,7 @@ COHA VTC Administration`;
   }
 
   return (
-    <div className="max-w-5xl mx-auto pb-12">
+    <div className="w-full px-5 mx-auto pb-12">
       <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({...toast, show: false})} variant={toast.type} />
       
       {emailModalOpen && (
@@ -128,7 +128,7 @@ COHA VTC Administration`;
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
         <button 
           onClick={() => navigate('/admin/vtc-applications')}
           className="flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors font-medium text-sm"
@@ -136,39 +136,39 @@ COHA VTC Administration`;
           <ArrowLeft size={16} /> Back to Applications
         </button>
         
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-stretch gap-2 sm:gap-3 w-full sm:w-auto">
           {application.status === 'PENDING' && (
             <>
-              <Button onClick={() => handleStatusChange('APPROVED')} className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2">
-                <Check size={16} /> Approve
+              <Button onClick={() => handleStatusChange('APPROVED')} className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-1 sm:gap-2 !px-3 !py-2 sm:!px-6 sm:!py-3 text-xs sm:text-sm rounded-[14px]">
+                <Check size={16} /> <span className="hidden sm:inline">Approve</span><span className="sm:hidden">Approve</span>
               </Button>
-              <Button onClick={() => handleStatusChange('PAYMENT_REQUIRED')} className="bg-yellow-600 hover:bg-yellow-700 text-white flex items-center gap-2">
-                <DollarSign size={16} /> Require Payment
+              <Button onClick={() => handleStatusChange('PAYMENT_REQUIRED')} className="flex-1 sm:flex-none bg-yellow-600 hover:bg-yellow-700 text-white flex items-center justify-center gap-1 sm:gap-2 !px-3 !py-2 sm:!px-6 sm:!py-3 text-xs sm:text-sm rounded-[14px]">
+                <DollarSign size={16} /> <span className="hidden sm:inline">Require Payment</span><span className="sm:hidden">Payment</span>
               </Button>
-              <Button onClick={() => handleStatusChange('REJECTED')} variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 flex items-center gap-2">
-                <X size={16} /> Reject
+              <Button onClick={() => handleStatusChange('REJECTED')} variant="outline" className="flex-1 sm:flex-none text-red-600 border-red-200 hover:bg-red-50 flex items-center justify-center gap-1 sm:gap-2 !px-3 !py-2 sm:!px-6 sm:!py-3 text-xs sm:text-sm rounded-[14px]">
+                <X size={16} /> <span className="hidden sm:inline">Reject</span><span className="sm:hidden">Reject</span>
               </Button>
             </>
           )}
           
           {application.status === 'VERIFYING' && (
             <>
-              <Button onClick={() => handleStatusChange('VERIFIED')} className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2">
-                <Check size={16} /> Verify Receipt
+              <Button onClick={() => handleStatusChange('VERIFIED')} className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-1 sm:gap-2 !px-3 !py-2 sm:!px-6 sm:!py-3 text-xs sm:text-sm rounded-[14px]">
+                <Check size={16} /> <span className="hidden sm:inline">Verify Receipt</span><span className="sm:hidden">Verify</span>
               </Button>
-              <Button onClick={() => handleStatusChange('PAYMENT_REQUIRED')} variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 flex items-center gap-2">
-                <X size={16} /> Reject Payment
+              <Button onClick={() => handleStatusChange('PAYMENT_REQUIRED')} variant="outline" className="flex-1 sm:flex-none text-red-600 border-red-200 hover:bg-red-50 flex items-center justify-center gap-1 sm:gap-2 !px-3 !py-2 sm:!px-6 sm:!py-3 text-xs sm:text-sm rounded-[14px]">
+                <X size={16} /> <span className="hidden sm:inline">Reject Payment</span><span className="sm:hidden">Reject</span>
               </Button>
             </>
           )}
 
           {application.status === 'APPROVED' && (
             <>
-              <Button onClick={() => openReplyModal('email')} variant="outline" className="flex items-center gap-2">
-                <Mail size={16} /> Send Email
+              <Button onClick={() => openReplyModal('email')} variant="outline" className="flex-1 sm:flex-none flex items-center justify-center gap-1 sm:gap-2 !px-3 !py-2 sm:!px-6 sm:!py-3 text-xs sm:text-sm rounded-[14px]">
+                <Mail size={16} /> <span className="hidden sm:inline">Send Email</span><span className="sm:hidden">Email</span>
               </Button>
-              <Button onClick={() => openReplyModal('whatsapp')} className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2">
-                <MessageCircle size={16} /> Send WhatsApp
+              <Button onClick={() => openReplyModal('whatsapp')} className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-1 sm:gap-2 !px-3 !py-2 sm:!px-6 sm:!py-3 text-xs sm:text-sm rounded-[14px]">
+                <MessageCircle size={16} /> <span className="hidden sm:inline">Send WhatsApp</span><span className="sm:hidden">WhatsApp</span>
               </Button>
             </>
           )}
@@ -176,7 +176,7 @@ COHA VTC Administration`;
       </div>
 
       {/* Main Content */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-[20px] shadow-sm border border-gray-200 overflow-hidden">
         {/* Status Banner */}
         <div className={`px-8 py-4 flex items-center justify-between border-b
           ${application.status === 'PENDING' ? 'bg-yellow-50 border-yellow-100' : 
@@ -210,7 +210,7 @@ COHA VTC Administration`;
               <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 mb-6 border-b pb-2">
                 <User size={20} className="text-blue-600" /> Personal Information
               </h3>
-              <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-4">
                 <DetailItem label="Full Name" value={`${application.title} ${application.firstName} ${application.surname}`} />
                 <DetailItem label="Identity Number" value={application.identityNumber} />
                 <DetailItem label="Date of Birth" value={application.dateOfBirth} />
@@ -226,15 +226,15 @@ COHA VTC Administration`;
               <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 mb-6 border-b pb-2">
                 <Phone size={20} className="text-blue-600" /> Contact Details
               </h3>
-              <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-4">
                 <DetailItem label="Cell/Tel No" value={application.cellNo} />
                 <DetailItem label="Email Address" value={application.emailAddress} />
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <DetailItem label="Residential Address" value={application.residentialAddress} />
                 </div>
                 <DetailItem label="Town" value={application.town} />
                 <DetailItem label="Region" value={application.region} />
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <DetailItem label="Postal Address" value={application.postalAddress || 'N/A'} />
                 </div>
               </div>
@@ -245,7 +245,7 @@ COHA VTC Administration`;
               <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 mb-6 border-b pb-2">
                 <AlertCircle size={20} className="text-blue-600" /> Emergency Contact
               </h3>
-              <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-4">
                 <DetailItem label="Name" value={application.emergencyName} />
                 <DetailItem label="Relationship" value={application.emergencyRelationship} />
                 <DetailItem label="Cell Number" value={application.emergencyCell} />
@@ -260,7 +260,7 @@ COHA VTC Administration`;
               <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 mb-6 border-b pb-2">
                 <GraduationCap size={20} className="text-blue-600" /> Educational History
               </h3>
-              <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-4">
                 <DetailItem label="Highest Grade Passed" value={application.highestGradePassed || 'N/A'} />
                 <DetailItem label="School Attended" value={application.nameOfSchool || 'N/A'} />
                 <DetailItem label="School Town" value={application.schoolTown || 'N/A'} />
@@ -271,7 +271,7 @@ COHA VTC Administration`;
 
           {/* Right Column - Documents */}
           <div className="lg:col-span-1">
-            <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200 sticky top-6">
+            <div className="bg-gray-50 rounded-[20px] p-6 border border-gray-200 sticky top-6">
               <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 mb-6 border-b border-gray-200 pb-2">
                 <FileText size={20} className="text-blue-600" /> Uploaded Documents
               </h3>
@@ -292,7 +292,7 @@ COHA VTC Administration`;
 };
 
 const DetailItem = ({ label, value }: { label: string, value: string }) => (
-  <div>
+  <div className="flex flex-col h-full justify-start">
     <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{label}</p>
     <p className="text-gray-900 font-medium">{value}</p>
   </div>

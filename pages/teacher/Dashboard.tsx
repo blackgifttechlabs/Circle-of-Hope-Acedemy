@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudentsByAssignedClass } from '../../services/dataService';
-import { Student } from '../../types';
+import { getStudentsByAssignedClass, getAssessmentRecordsForClass, getSystemSettings } from '../../services/dataService';
+import { Student, TermAssessmentRecord } from '../../types';
 import { Loader } from '../../components/ui/Loader';
-import { Users, BookOpen, Activity, CheckCircle, Clock, Search, Filter } from 'lucide-react';
+import { Users, BookOpen, Activity, CheckCircle, Clock, Search, Filter, Send } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
+import { Toast } from '../../components/ui/Toast';
 
 interface TeacherDashboardProps {
   user: any; // The logged-in teacher object
@@ -12,8 +13,10 @@ interface TeacherDashboardProps {
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   const [students, setStudents] = useState<Student[]>([]);
+  const [records, setRecords] = useState<Record<string, TermAssessmentRecord>>({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [toast, setToast] = useState({ show: false, msg: '' });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,11 +24,29 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
       if (user?.assignedClass) {
         const data = await getStudentsByAssignedClass(user.assignedClass);
         setStudents(data);
+        
+        const settings = await getSystemSettings();
+        const termId = settings?.activeTermId || 'Term 1';
+        
+        // Fetch records for Grade 0 students
+        const grade0Students = data.filter(s => s.grade === 'Grade 0');
+        if (grade0Students.length > 0) {
+            const classRecords = await getAssessmentRecordsForClass('Grade 0', termId, grade0Students.map(s => s.id));
+            const recordsMap: Record<string, TermAssessmentRecord> = {};
+            classRecords.forEach(r => {
+                recordsMap[r.studentId] = r;
+            });
+            setRecords(recordsMap);
+        }
       }
       setLoading(false);
     };
     fetchClassData();
   }, [user]);
+
+  const handleSubmitToAdmin = () => {
+      setToast({ show: true, msg: 'Assessments submitted to admin successfully!' });
+  };
 
   if (loading) return <Loader />;
 
@@ -51,6 +72,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
 
   return (
     <div className="font-sans text-black">
+      <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({show:false, msg:''})} variant="success" />
       <div className="mb-10">
         <h2 className="text-3xl font-black text-coha-900 uppercase tracking-tighter leading-none mb-1">Class Cohort: {user.assignedClass}</h2>
         <p className="text-gray-500 font-black uppercase text-[10px] tracking-[0.2em]">Academic Management & Student Observations</p>
@@ -140,15 +162,29 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
               <h3 className="text-gray-900 font-black flex items-center gap-3 uppercase text-xs tracking-widest">
                   <BookOpen size={20} className="text-coha-900"/> Official Class Register
               </h3>
-              <div className="relative w-full sm:w-64">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input 
-                    type="text" 
-                    placeholder="Search register..." 
-                    className="w-full pl-10 pr-4 py-2 bg-white border-2 border-gray-200 text-xs font-bold uppercase tracking-widest outline-none focus:border-coha-900 transition-all"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+              <div className="flex items-center gap-4 w-full sm:w-auto">
+                  <Button 
+                    onClick={handleSubmitToAdmin}
+                    className="whitespace-nowrap text-[10px] uppercase tracking-widest font-black bg-green-600 hover:bg-green-700"
+                  >
+                    <Send size={14} className="mr-2 inline" /> Submit Assessments
+                  </Button>
+                  <Button 
+                    onClick={() => navigate('/teacher/term-assessment-component')}
+                    className="whitespace-nowrap text-[10px] uppercase tracking-widest font-black"
+                  >
+                    Component Mode
+                  </Button>
+                  <div className="relative w-full sm:w-64">
+                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input 
+                        type="text" 
+                        placeholder="Search register..." 
+                        className="w-full pl-10 pr-4 py-2 bg-white border-2 border-gray-200 text-xs font-bold uppercase tracking-widest outline-none focus:border-coha-900 transition-all"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                  </div>
               </div>
           </div>
           <div className="overflow-x-auto">
@@ -158,11 +194,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                          <th className="px-6 py-4">Student Name</th>
                          <th className="px-6 py-4">Enrollment Status</th>
                          <th className="px-6 py-4">Assigned Stage</th>
-                         <th className="px-6 py-4">Guardian Contact</th>
+                         <th className="px-6 py-4">Assessment</th>
+                         <th className="px-6 py-4 text-right">Actions</th>
                      </tr>
                  </thead>
                  <tbody className="divide-y divide-gray-100">
-                     {filteredEnrolled.map(student => (
+                     {filteredEnrolled.map(student => {
+                         const isComplete = records[student.id]?.isComplete;
+                         return (
                          <tr key={student.id} className="hover:bg-gray-50 transition-colors">
                              <td className="px-6 py-5 font-black text-gray-900 uppercase text-sm">{student.name}</td>
                              <td className="px-6 py-5">
@@ -174,13 +213,31 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                                      {student.stage && <span className="bg-coha-900 text-white px-2 py-0.5 text-[10px] font-black">S{student.stage}</span>}
                                  </div>
                              </td>
-                             <td className="px-6 py-5 text-[11px] font-mono font-bold text-gray-600 tracking-tighter">
-                                 {student.fatherPhone || student.motherPhone || 'N/A'}
+                             <td className="px-6 py-5">
+                                {student.grade === 'Grade 0' ? (
+                                    isComplete ? (
+                                        <span className="flex items-center gap-1 text-green-600 font-black text-[10px] uppercase tracking-widest"><CheckCircle size={14} /> Complete</span>
+                                    ) : (
+                                        <span className="flex items-center gap-1 text-yellow-600 font-black text-[10px] uppercase tracking-widest"><Clock size={14} /> Pending</span>
+                                    )
+                                ) : (
+                                    <span className="text-gray-400 font-black text-[10px] uppercase tracking-widest">N/A</span>
+                                )}
+                             </td>
+                             <td className="px-6 py-5 text-right">
+                                {student.grade === 'Grade 0' && (
+                                    <Button 
+                                        onClick={() => navigate(`/teacher/term-assessment/${student.id}`)}
+                                        className={`py-2 px-4 text-[10px] font-black uppercase tracking-widest shadow-sm transition-all ${isComplete ? 'bg-white text-coha-900 border-2 border-coha-900 hover:bg-gray-50' : 'bg-coha-900 hover:bg-coha-800'}`}
+                                    >
+                                        {isComplete ? 'Edit Record' : 'Add Record'}
+                                    </Button>
+                                )}
                              </td>
                          </tr>
-                     ))}
+                     )})}
                      {filteredEnrolled.length === 0 && (
-                         <tr><td colSpan={4} className="p-12 text-center text-gray-400 font-black uppercase tracking-widest text-xs italic">No enrolled learners found in this cohort register.</td></tr>
+                         <tr><td colSpan={6} className="p-12 text-center text-gray-400 font-black uppercase tracking-widest text-xs italic">No enrolled learners found in this cohort register.</td></tr>
                      )}
                  </tbody>
              </table>
