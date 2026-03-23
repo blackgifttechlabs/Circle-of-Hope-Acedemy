@@ -1,7 +1,7 @@
 import { db, auth } from '../firebase';
 import { collection, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister } from '../types';
 
 // Collections
 const TEACHERS_COLLECTION = 'teachers';
@@ -782,5 +782,57 @@ export const getAssessmentRecordsForClass = async (grade: string, termId: string
   } catch (error) {
     console.error("Error getting assessment records for class:", error);
     return [];
+  }
+};
+
+// Daily Register
+
+export const getDailyRegister = async (grade: string): Promise<StudentDailyRegister[]> => {
+  try {
+    const q = collection(db, 'daily_register', grade, 'students');
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentDailyRegister));
+  } catch (error) {
+    console.error('Error fetching daily register:', error);
+    return [];
+  }
+};
+
+export const markDailyRegister = async (grade: string, studentId: string, studentName: string, date: string, status: 'present' | 'absent') => {
+  try {
+    const docRef = doc(db, 'daily_register', grade, 'students', studentId);
+    const docSnap = await getDoc(docRef);
+    
+    const timestamp = new Date().toISOString();
+    
+    if (docSnap.exists()) {
+      await updateDoc(docRef, {
+        [`attendance.${date}`]: { status, timestamp }
+      });
+    } else {
+      await setDoc(docRef, {
+        studentName,
+        attendance: {
+          [date]: { status, timestamp }
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error marking daily register:', error);
+    throw error;
+  }
+};
+
+export const getStudentDailyRegister = async (grade: string, studentId: string): Promise<StudentDailyRegister | null> => {
+  try {
+    const docRef = doc(db, 'daily_register', grade, 'students', studentId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as StudentDailyRegister;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching student daily register:', error);
+    return null;
   }
 };

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { getStudentById, calculateDayPercentage } from '../../services/dataService';
-import { Student } from '../../types';
+import { getStudentById, calculateDayPercentage, getAssessmentRecordsForStudent, getSystemSettings } from '../../services/dataService';
+import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from '../../types';
 import { Loader } from '../../components/ui/Loader';
-import { Calendar, Activity, Brain, CheckCircle, ClipboardList, Clock } from 'lucide-react';
+import { Calendar, Activity, Brain, CheckCircle, ClipboardList, Clock, FileText, Download } from 'lucide-react';
+import { printGrade0Report } from '../../utils/printGrade0Report';
 
 interface ParentAssessmentProgressProps {
   user: any;
@@ -10,14 +11,25 @@ interface ParentAssessmentProgressProps {
 
 export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> = ({ user }) => {
   const [student, setStudent] = useState<Student | null>(null);
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [assessmentRecords, setAssessmentRecords] = useState<TermAssessmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(1);
+  const [reportLoadingMap, setReportLoadingMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (user?.id) {
       const fetchStudent = async () => {
         const data = await getStudentById(user.id);
+        const setts = await getSystemSettings();
         setStudent(data);
+        setSettings(setts);
+        
+        if (data && data.division === 'Mainstream') {
+            const records = await getAssessmentRecordsForStudent(data.grade || 'Grade 0', user.id);
+            setAssessmentRecords(records);
+        }
+        
         setLoading(false);
       };
       fetchStudent();
@@ -26,6 +38,116 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
 
   if (loading) return <Loader />;
   if (!student) return <div className="p-8 text-center text-gray-500">Student record not found.</div>;
+
+  const handleDownloadReport = async (record: TermAssessmentRecord) => {
+    if (!record.isComplete || reportLoadingMap[record.termId]) return;
+
+    setReportLoadingMap(prev => ({ ...prev, [record.termId]: true }));
+    try {
+      const termName = settings?.schoolCalendars?.find(c => c.id === record.termId)?.termName || record.termId;
+      const year = new Date().getFullYear().toString();
+      await printGrade0Report(student, record, termName, year, 'Class Teacher');
+    } finally {
+      setReportLoadingMap(prev => ({ ...prev, [record.termId]: false }));
+    }
+  };
+
+  if (student.division === 'Mainstream') {
+      return (
+        <div className="w-full pb-10">
+            <div className="bg-white p-6 shadow-sm border-l-8 border-coha-900 mb-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-coha-900">Academic Reports</h2>
+                        <p className="text-gray-600">Term Assessment Records for {student.name}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="p-4 sm:p-8 max-w-7xl mx-auto bg-white border border-gray-200 shadow-sm rounded-[20px]">
+                {assessmentRecords.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400 font-black uppercase tracking-widest text-xs italic border-2 border-dashed border-gray-200">
+                        No assessment records found for this student.
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {assessmentRecords.map(record => {
+                            const isReportLoading = reportLoadingMap[record.termId] === true;
+                            return (
+                                <div key={record.termId} className="border-2 border-gray-200 p-6 hover:border-coha-900 transition-colors flex flex-col justify-between h-full bg-gray-50">
+                                    <div>
+                                        <div className="flex justify-between items-start mb-4">
+                                            <h4 className="font-black text-xl uppercase tracking-tighter">{record.termId}</h4>
+                                            {record.isComplete ? (
+                                                <span className="bg-green-100 text-green-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><CheckCircle size={10} /> Complete</span>
+                                            ) : (
+                                                <span className="bg-yellow-100 text-yellow-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1">In Progress</span>
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">
+                                            Last Updated: {new Date(record.updatedAt).toLocaleDateString()}
+                                        </p>
+                                        
+                                        <div className="space-y-3 mb-6">
+                                            {PRE_PRIMARY_AREAS.map(area => {
+                                                const areaRatings = area.components.map(c => record.ratings[c.id]).filter(Boolean);
+                                                const rated = areaRatings.length;
+                                                let currentScore = 0;
+                                                areaRatings.forEach(rating => {
+                                                    if (rating === 'FM') currentScore += 2;
+                                                    else if (rating === 'AM') currentScore += 1;
+                                                });
+                                                const maxScore = rated * 2;
+                                                const progress = maxScore === 0 ? 0 : Math.round((currentScore / maxScore) * 100);
+                                                return (
+                                                    <div key={area.id}>
+                                                        <div className="flex justify-between text-[9px] font-black uppercase tracking-widest mb-1">
+                                                            <span className="text-gray-600 truncate mr-2">{area.name}</span>
+                                                            <span className="text-coha-900 shrink-0">{progress}%</span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-200 h-1.5 overflow-hidden">
+                                                            <div className={`h-full ${progress >= 80 ? 'bg-green-500' : progress >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${progress}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    
+                                    <button
+                                        onClick={() => handleDownloadReport(record)}
+                                        disabled={!record.isComplete || isReportLoading}
+                                        className={`w-full py-3 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all border-none rounded-none
+                                            ${record.isComplete
+                                                ? 'bg-coha-900 text-white hover:bg-coha-800 cursor-pointer'
+                                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                            }
+                                            ${isReportLoading ? 'opacity-80 cursor-wait' : ''}
+                                        `}
+                                    >
+                                        {isReportLoading ? (
+                                            <>
+                                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                                </svg>
+                                                Generating...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Download size={14} /> Download Report
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+      );
+  }
 
   const currentDayData = student.assessment?.teacherAssessments?.[selectedDay];
   const completedDays = student.assessment?.teacherAssessments ? Object.values(student.assessment.teacherAssessments).filter((d:any) => d.completed).length : 0;

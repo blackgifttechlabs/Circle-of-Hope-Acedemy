@@ -1,20 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, GraduationCap, LogOut, X, FileText, Settings, Activity, ClipboardList, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
-import { UserRole } from '../types';
-import { getPendingActionCounts } from '../services/dataService';
+import { LayoutDashboard, Users, GraduationCap, LogOut, X, FileText, Settings, Activity, ClipboardList, ChevronLeft, ChevronRight, Menu, Calendar } from 'lucide-react';
+import { UserRole, Student } from '../types';
+import { getPendingActionCounts, getStudentById } from '../services/dataService';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   role: UserRole;
+  user?: any;
   onLogout: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, onLogout }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, onLogout }) => {
   const [badgeCount, setBadgeCount] = useState(0);
   const [vtcBadgeCount, setVtcBadgeCount] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [studentDivision, setStudentDivision] = useState<string | null>(null);
 
   useEffect(() => {
     // Only fetch counts if Admin
@@ -29,8 +31,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, onLogou
       // Optional: Refresh counts every minute
       const interval = setInterval(fetchCounts, 60000);
       return () => clearInterval(interval);
+    } else if (role === UserRole.PARENT && user?.id) {
+        const fetchStudent = async () => {
+            const student = await getStudentById(user.id);
+            if (student) {
+                setStudentDivision(student.division || null);
+            }
+        };
+        fetchStudent();
     }
-  }, [role]);
+  }, [role, user]);
 
   const adminLinks = [
     { label: 'Dashboard', path: '/admin/dashboard', icon: <LayoutDashboard size={20} /> },
@@ -44,12 +54,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, onLogou
   const teacherLinks = [
     { label: 'Dashboard', path: '/teacher/dashboard', icon: <LayoutDashboard size={20} /> },
     { label: 'My Classes', path: '/teacher/classes', icon: <GraduationCap size={20} /> },
+    { label: 'Register', path: '/teacher/register', icon: <ClipboardList size={20} /> },
   ];
 
   const parentLinks = [
     { label: 'Dashboard', path: '/parent/dashboard', icon: <LayoutDashboard size={20} /> },
-    { label: 'Assessment Info', path: '/parent/assessment-form', icon: <ClipboardList size={20} /> },
+    ...(studentDivision !== 'Mainstream' ? [{ label: 'Assessment Info', path: '/parent/assessment-form', icon: <ClipboardList size={20} /> }] : []),
     { label: 'Assessment Progress', path: '/parent/assessment', icon: <Activity size={20} /> },
+    { label: 'Daily Register', path: '/parent/register', icon: <Calendar size={20} /> },
   ];
 
   const vtcLinks = [

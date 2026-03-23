@@ -193,9 +193,21 @@ export interface TermAssessmentRecord {
   termId: string;
   grade: string;
   ratings: Record<string, AssessmentRating>; // key is component id
+  rawScores?: Record<string, 1 | 2 | 3 | null>; // key is skill id
   remarks?: string;
   isComplete: boolean;
   updatedAt: string;
+}
+
+export interface DailyRegisterRecord {
+  status: 'present' | 'absent';
+  timestamp: string;
+}
+
+export interface StudentDailyRegister {
+  id: string; // studentId
+  studentName: string;
+  attendance: Record<string, DailyRegisterRecord>; // Key is YYYY-MM-DD
 }
 
 export type AssessmentResponse = 'Yes' | 'No' | 'Yes with help';

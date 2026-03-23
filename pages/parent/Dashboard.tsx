@@ -535,8 +535,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
               </div>
             </div>
 
-            {/* Observation progress (if in assessment) */}
-            {isAssessment && (
+            {/* Observation progress (if in assessment and not Mainstream) */}
+            {isAssessment && student.division !== 'Mainstream' && (
               <div style={{ ...card, padding: 22,
                 background: 'linear-gradient(135deg,#fefce8,#fef9c3)',
                 border: '1.5px solid #fde68a' }}>
@@ -581,12 +581,12 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
                 Quick Actions
               </p>
               {[
-                { icon: <DollarSign size={15}/>, label: 'View Fee Receipts', color: '#10b981', bg: '#f0fdf4' },
-                { icon: <FileText size={15}/>, label: 'Progress Reports', color: '#6366f1', bg: '#eef2ff' },
-                { icon: <MessageCircle size={15}/>, label: 'Contact Teacher', color: '#a855f7', bg: '#fdf4ff' },
-                { icon: <Calendar size={15}/>, label: 'School Calendar', color: '#f59e0b', bg: '#fefce8' },
+                { icon: <DollarSign size={15}/>, label: 'View Fee Receipts', color: '#10b981', bg: '#f0fdf4', path: '#' },
+                { icon: <FileText size={15}/>, label: 'Progress Reports', color: '#6366f1', bg: '#eef2ff', path: '/parent/assessment' },
+                { icon: <MessageCircle size={15}/>, label: 'Contact Teacher', color: '#a855f7', bg: '#fdf4ff', path: '#' },
+                { icon: <Calendar size={15}/>, label: 'School Calendar', color: '#f59e0b', bg: '#fefce8', path: '/parent/register' },
               ].map((x, i) => (
-                <div key={i} className="pai" style={{ cursor: 'pointer' }}>
+                <div key={i} className="pai" style={{ cursor: 'pointer' }} onClick={() => x.path !== '#' && navigate(x.path)}>
                   <div style={{ background: x.bg, color: x.color, padding: 8, borderRadius: 9 }}>
                     {x.icon}
                   </div>

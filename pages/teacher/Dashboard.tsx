@@ -10,7 +10,7 @@ import { Loader } from '../../components/ui/Loader';
 import {
   Users, BookOpen, Activity, CheckCircle, Clock,
   Search, Send, ArrowRight, Bell, ChevronRight,
-  TrendingUp, Eye, UserPlus, Edit2
+  TrendingUp, Eye, UserPlus, Edit2, ClipboardList
 } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
 
@@ -433,12 +433,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                 </div>
                 <div style={{ display:'flex', flexWrap:'wrap', gap:10, alignItems:'center' }}>
                   <button className="bp" style={{ background:'#10b981' }}
+                    onClick={() => navigate('/teacher/register')}>
+                    <ClipboardList size={13}/> Mark Register
+                  </button>
+                  <button className="bp" style={{ background:'#6366f1' }}
                     onClick={() => setToast({show:true, msg:'Assessments submitted to admin!'})}>
                     <Send size={13}/> Submit
                   </button>
                   <button className="bo"
-                    onClick={() => navigate('/teacher/term-assessment-component')}>
-                    Component Mode
+                    onClick={() => navigate('/teacher/class-list-form')}>
+                    Class List Form
+                  </button>
+                  <button className="bo"
+                    onClick={() => navigate('/teacher/summary-form')}>
+                    Summary Form
                   </button>
                   <div style={{ position:'relative', minWidth:160 }}>
                     <Search size={14} style={{ position:'absolute', left:10, top:'50%',

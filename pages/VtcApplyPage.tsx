@@ -42,6 +42,10 @@ export const VtcApplyPage: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [stepError, setStepError] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    scrollToTop();
+  }, []);
+
   const [formData, setFormData] = useState({
     title: 'Mr',
     surname: '',
@@ -311,7 +315,13 @@ export const VtcApplyPage: React.FC = () => {
           {/* Header */}
           <div className="sticky top-0 bg-white z-40 border-b border-gray-100 shadow-sm">
             <div className="px-5 py-3 flex items-center gap-4">
-              <button onClick={() => setStep('instructions')} className="text-gray-500 hover:text-coha-900">
+              <button 
+                onClick={() => {
+                  setStep('instructions');
+                  scrollToTop();
+                }} 
+                className="text-gray-500 hover:text-coha-900"
+              >
                 <ArrowLeft size={20} />
               </button>
               <h1 className="text-sm font-bold text-gray-600">VTC Application</h1>

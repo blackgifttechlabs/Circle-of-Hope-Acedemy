@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { ArrowLeft, CheckCircle, Save, ChevronRight, Download } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
 import { printGrade0Report } from '../../utils/printGrade0Report';
+import { CLASS_LIST_SKILLS } from '../../utils/classListSkills';
 
 const TAB_COLORS = [
   { active: 'border-blue-600 text-blue-800 bg-white', inactive: 'text-gray-500 hover:text-blue-600 hover:bg-blue-50', headerBg: 'bg-blue-50', headerText: 'text-blue-900', border: 'border-blue-200' },
@@ -64,6 +65,66 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
     };
     fetchData();
   }, [id, user]);
+
+  const handleRawScoreChange = async (componentId: string, skillId: string, score: 1 | 2 | 3 | null) => {
+    if (!record) return;
+    
+    // Toggle score if clicking the same one
+    const newScore = record.rawScores?.[skillId] === score ? null : score;
+
+    const newRawScores = {
+      ...(record.rawScores || {}),
+      [skillId]: newScore
+    };
+
+    // Calculate new component rating
+    const termSkills = CLASS_LIST_SKILLS[record.termId] || {};
+    const areaId = activeTab; // We know the area because the user is on that tab
+    const areaSkills = termSkills[areaId] || [];
+    
+    let totalScore = 0;
+    let count = 0;
+
+    areaSkills.forEach((theme: any) => {
+      theme.skills.forEach((skill: any) => {
+        if (skill.componentId === componentId) {
+          const s = newRawScores[skill.id];
+          if (s) {
+            totalScore += s;
+            count++;
+          }
+        }
+      });
+    });
+
+    let newRating: AssessmentRating | undefined = undefined;
+    if (count > 0) {
+      const average = totalScore / count;
+      if (average >= 2.5) newRating = 'FM';
+      else if (average >= 1.5) newRating = 'AM';
+      else newRating = 'NM';
+    }
+
+    const newRecord = {
+      ...record,
+      rawScores: newRawScores,
+      ratings: {
+        ...record.ratings,
+      },
+      updatedAt: new Date().toISOString()
+    };
+
+    if (newRating) {
+      newRecord.ratings[componentId] = newRating;
+    } else {
+      delete newRecord.ratings[componentId];
+    }
+    
+    setRecord(newRecord);
+    
+    // Auto-save
+    await saveAssessmentRecord(newRecord);
+  };
 
   const handleRatingChange = async (componentId: string, rating: AssessmentRating) => {
     if (!record) return;
@@ -195,33 +256,84 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
             </div>
             
             <div className="divide-y divide-gray-100">
-              {area.components.map(comp => (
-                <div key={comp.id} className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex-1">
+              {area.components.map(comp => {
+                const termSkills = CLASS_LIST_SKILLS[record.termId] || {};
+                const areaSkills = termSkills[area.id] || [];
+                const compSkills = areaSkills.map((theme: any) => {
+                  return {
+                    theme: theme.theme,
+                    skills: theme.skills.filter((s: any) => s.componentId === comp.id)
+                  };
+                }).filter((theme: any) => theme.skills.length > 0);
+
+                return (
+                <div key={comp.id} className="p-4 sm:p-6 flex flex-col gap-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex justify-between items-center">
                     <p className="font-bold text-gray-900">{comp.name}</p>
+                    <div className="flex gap-2">
+                       {/* Show calculated rating */}
+                       {record.ratings[comp.id] && (
+                          <span className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 ${record.ratings[comp.id] === 'FM' ? 'bg-green-100 border-green-500 text-green-800' : record.ratings[comp.id] === 'AM' ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-red-100 border-red-500 text-red-800'}`}>
+                            {record.ratings[comp.id]}
+                          </span>
+                       )}
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleRatingChange(comp.id, 'FM')}
-                      className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 transition-all ${record.ratings[comp.id] === 'FM' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
-                    >
-                      FM
-                    </button>
-                    <button 
-                      onClick={() => handleRatingChange(comp.id, 'AM')}
-                      className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 transition-all ${record.ratings[comp.id] === 'AM' ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
-                    >
-                      AM
-                    </button>
-                    <button 
-                      onClick={() => handleRatingChange(comp.id, 'NM')}
-                      className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 transition-all ${record.ratings[comp.id] === 'NM' ? 'bg-red-100 border-red-500 text-red-800' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
-                    >
-                      NM
-                    </button>
-                  </div>
+                  
+                  {compSkills.length > 0 ? (
+                    <div className="pl-4 border-l-2 border-gray-200 space-y-4">
+                      {compSkills.map((theme: any) => (
+                        <div key={theme.theme}>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">{theme.theme}</p>
+                          <div className="space-y-2">
+                            {theme.skills.map((skill: any) => (
+                              <div key={skill.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                <p className="text-sm text-gray-700 flex-1">{skill.name}</p>
+                                <div className="flex gap-1">
+                                  {[1, 2, 3].map(score => (
+                                    <button
+                                      key={score}
+                                      onClick={() => handleRawScoreChange(comp.id, skill.id, score as 1|2|3)}
+                                      className={`w-8 h-8 flex items-center justify-center text-xs font-black border-2 transition-all ${record.rawScores?.[skill.id] === score ? 'bg-coha-900 border-coha-900 text-white' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
+                                    >
+                                      {score}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="pl-4 border-l-2 border-gray-200">
+                      <p className="text-sm text-gray-500 italic">No specific skills defined for this component in {record.termId}.</p>
+                      {/* Fallback to manual rating if no skills defined */}
+                      <div className="flex gap-2 mt-2">
+                        <button 
+                          onClick={() => handleRatingChange(comp.id, 'FM')}
+                          className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 transition-all ${record.ratings[comp.id] === 'FM' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
+                        >
+                          FM
+                        </button>
+                        <button 
+                          onClick={() => handleRatingChange(comp.id, 'AM')}
+                          className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 transition-all ${record.ratings[comp.id] === 'AM' ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
+                        >
+                          AM
+                        </button>
+                        <button 
+                          onClick={() => handleRatingChange(comp.id, 'NM')}
+                          className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 transition-all ${record.ratings[comp.id] === 'NM' ? 'bg-red-100 border-red-500 text-red-800' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
+                        >
+                          NM
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
+              )})}
             </div>
           </div>
           );

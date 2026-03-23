@@ -19,10 +19,14 @@ import { SettingsPage } from './pages/admin/Settings';
 import { ParentDashboard } from './pages/parent/Dashboard';
 import { ParentAssessmentForm } from './pages/parent/AssessmentForm';
 import { ParentAssessmentProgress } from './pages/parent/AssessmentProgress';
+import { ParentDailyRegister } from './pages/parent/DailyRegister';
 import { TeacherDashboard } from './pages/teacher/Dashboard';
 import { AssessmentPage } from './pages/teacher/AssessmentPage';
 import { TermAssessmentPage } from './pages/teacher/TermAssessmentPage';
 import { TermAssessmentComponentPage } from './pages/teacher/TermAssessmentComponentPage';
+import { ClassListFormPage } from './pages/teacher/ClassListFormPage';
+import { SummaryFormPage } from './pages/teacher/SummaryFormPage';
+import { DailyRegister } from './pages/teacher/DailyRegister';
 import { VtcDashboard } from './pages/vtc/Dashboard';
 import { UserRole } from './types';
 import { seedAdminUser, getAdminProfile } from './services/dataService';
@@ -43,6 +47,7 @@ const AppLayout: React.FC<{
         isOpen={sidebarOpen} 
         onClose={() => setSidebarOpen(false)} 
         role={role}
+        user={user}
         onLogout={onLogout}
       />
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
@@ -149,9 +154,12 @@ const App: React.FC = () => {
                 <Routes>
                     <Route path="dashboard" element={<TeacherDashboard user={user} />} />
                     <Route path="classes" element={<TeacherDashboard user={user} />} />
+                    <Route path="register" element={<DailyRegister user={user} />} />
                     <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.TEACHER} user={user} />} />
                     <Route path="term-assessment/:id" element={<TermAssessmentPage user={user} />} />
                     <Route path="term-assessment-component" element={<TermAssessmentComponentPage user={user} />} />
+                    <Route path="class-list-form" element={<ClassListFormPage user={user} />} />
+                    <Route path="summary-form" element={<SummaryFormPage user={user} />} />
                     <Route path="*" element={<Navigate to="dashboard" />} />
                 </Routes>
               </AppLayout>
@@ -166,6 +174,7 @@ const App: React.FC = () => {
                       <Route path="dashboard" element={<ParentDashboard user={user} />} />
                       <Route path="assessment-form" element={<ParentAssessmentForm user={user} />} />
                       <Route path="assessment" element={<ParentAssessmentProgress user={user} />} />
+                      <Route path="register" element={<ParentDailyRegister user={user} />} />
                       <Route path="*" element={<Navigate to="dashboard" />} />
                   </Routes>
               </AppLayout>
