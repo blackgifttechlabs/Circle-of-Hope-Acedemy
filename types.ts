@@ -23,6 +23,7 @@ export interface Teacher extends User {
   subject?: string;
   email?: string;
   assignedClass?: string;
+  activeTermId?: string;
 }
 
 export interface MenuItem {

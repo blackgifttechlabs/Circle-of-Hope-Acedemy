@@ -9,6 +9,7 @@ import { VtcApplyPage } from './pages/VtcApplyPage';
 import { SchoolTour } from './pages/SchoolTour';
 import { AdminDashboard } from './pages/admin/Dashboard';
 import { TeachersPage } from './pages/admin/Teachers';
+import { TeacherProgressPage } from './pages/admin/TeacherProgress';
 import { StudentsPage } from './pages/admin/Students';
 import { StudentDetailsPage } from './pages/admin/StudentDetails';
 import { ApplicationsPage } from './pages/admin/Applications';
@@ -55,6 +56,7 @@ const AppLayout: React.FC<{
           onMenuClick={() => setSidebarOpen(!sidebarOpen)} 
           role={role}
           userName={user?.name}
+          userId={user?.id}
           onLogout={onLogout}
         />
         <main className="flex-1 p-5 overflow-y-auto">
@@ -64,6 +66,8 @@ const AppLayout: React.FC<{
     </div>
   );
 };
+
+import { TeacherSettings } from './pages/teacher/TeacherSettings';
 
 const ProtectedRoute: React.FC<{
   isAuthenticated: boolean;
@@ -137,6 +141,7 @@ const App: React.FC = () => {
                   <Route path="vtc-applications" element={<VtcApplicationsPage />} />
                   <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
                   <Route path="teachers" element={<TeachersPage />} />
+                  <Route path="teachers/:id/progress" element={<TeacherProgressPage />} />
                   <Route path="students" element={<StudentsPage />} />
                   <Route path="students/:id" element={<StudentDetailsPage />} />
                   <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.ADMIN} user={user} />} />
@@ -160,6 +165,7 @@ const App: React.FC = () => {
                     <Route path="term-assessment-component" element={<TermAssessmentComponentPage user={user} />} />
                     <Route path="class-list-form" element={<ClassListFormPage user={user} />} />
                     <Route path="summary-form" element={<SummaryFormPage user={user} />} />
+                    <Route path="settings" element={<TeacherSettings user={user} />} />
                     <Route path="*" element={<Navigate to="dashboard" />} />
                 </Routes>
               </AppLayout>

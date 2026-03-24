@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudentsByAssignedClass, getSystemSettings, saveAssessmentRecord, getAssessmentRecord } from '../../services/dataService';
+import { getStudentsByAssignedClass, getSystemSettings, saveAssessmentRecord, getAssessmentRecord, getTeacherById } from '../../services/dataService';
 import { Student, SystemSettings, PRE_PRIMARY_AREAS, TermAssessmentRecord, AssessmentRating } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
@@ -40,7 +40,13 @@ export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) =
         const setts = await getSystemSettings();
         setSettings(setts);
 
-        const termId = setts?.activeTermId || 'Term 1';
+        let termId = setts?.activeTermId || 'Term 1';
+        if (user?.id) {
+          const teacher = await getTeacherById(user.id);
+          if (teacher && teacher.activeTermId) {
+            termId = teacher.activeTermId;
+          }
+        }
         
         const newRecords: Record<string, TermAssessmentRecord> = {};
         for (const s of enrolledStudents) {

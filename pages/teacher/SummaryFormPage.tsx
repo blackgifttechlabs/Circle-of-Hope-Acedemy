@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudentsByAssignedClass, getSystemSettings, getAssessmentRecordsForClass } from '../../services/dataService';
+import { getStudentsByAssignedClass, getSystemSettings, getAssessmentRecordsForClass, getTeacherById } from '../../services/dataService';
 import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { ArrowLeft, Download, Printer } from 'lucide-react';
@@ -25,14 +25,21 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
           getSystemSettings()
         ]);
         
-        // Filter for Mainstream/Grade 0 students
-        const grade0Students = studentsData.filter(s => s.division === 'Mainstream');
+        // Filter for Grade 0 students
+        const grade0Students = studentsData.filter(s => s.grade === 'Grade 0');
         setStudents(grade0Students);
         setSettings(settingsData);
 
-        if (settingsData?.activeTermId) {
-          setSelectedTerm(settingsData.activeTermId);
-          await loadRecords(settingsData.activeTermId, grade0Students);
+        if (settingsData) {
+          let termId = settingsData.activeTermId || 'Term 1';
+          if (user?.id) {
+            const teacher = await getTeacherById(user.id);
+            if (teacher && teacher.activeTermId) {
+              termId = teacher.activeTermId;
+            }
+          }
+          setSelectedTerm(termId);
+          await loadRecords(termId, grade0Students);
         }
       }
       setLoading(false);

@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, Bell, ChevronDown, Search, LogOut, User, Settings } from 'lucide-react';
 import { UserRole } from '../types';
-import { getSystemSettings } from '../services/dataService';
+import { getSystemSettings, getTeacherById } from '../services/dataService';
 
 interface HeaderProps {
   onMenuClick: () => void;
   role: UserRole;
   userName?: string;
+  userId?: string;
   onLogout?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onMenuClick, role, userName, onLogout }) => {
+export const Header: React.FC<HeaderProps> = ({ onMenuClick, role, userName, userId, onLogout }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [schoolName, setSchoolName] = useState('Circle of Hope Academy');
+  const [activeTermName, setActiveTermName] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -20,9 +22,19 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, role, userName, onL
       if (settings?.schoolName) {
         setSchoolName(settings.schoolName);
       }
+
+      if (role === UserRole.TEACHER && userId && settings?.schoolCalendars) {
+        const teacher = await getTeacherById(userId);
+        if (teacher?.activeTermId) {
+          const activeTerm = settings.schoolCalendars.find(t => t.id === teacher.activeTermId);
+          if (activeTerm) {
+            setActiveTermName(activeTerm.termName);
+          }
+        }
+      }
     };
     fetchSettings();
-  }, []);
+  }, [role, userId]);
 
   return (
     <header className="bg-white/90 backdrop-blur-md border-b border-gray-200 h-20 flex items-center justify-between px-6 lg:px-10 sticky top-0 z-40 transition-all duration-300 shadow-sm">
@@ -38,7 +50,13 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, role, userName, onL
         {/* Brand - Enhanced visual */}
         <div className="flex items-center gap-4 group cursor-default">
            <div className="hidden md:block">
-              <h1 className="text-xl font-archivo font-bold text-gray-900 leading-none tracking-tighter group-hover:text-coha-700 transition-colors uppercase">{schoolName}</h1>
+              {role === UserRole.TEACHER ? (
+                <h1 className="text-xl font-archivo font-bold text-coha-600 leading-none tracking-tighter uppercase">
+                  {activeTermName ? `Active Term: ${activeTermName}` : 'No Active Term Selected'}
+                </h1>
+              ) : (
+                <h1 className="text-xl font-archivo font-bold text-gray-900 leading-none tracking-tighter group-hover:text-coha-700 transition-colors uppercase">{schoolName}</h1>
+              )}
            </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudentsByAssignedClass, getSystemSettings, saveAssessmentRecord, getAssessmentRecord } from '../../services/dataService';
+import { getStudentsByAssignedClass, getSystemSettings, saveAssessmentRecord, getAssessmentRecord, getTeacherById } from '../../services/dataService';
 import { Student, SystemSettings, PRE_PRIMARY_AREAS, TermAssessmentRecord, AssessmentRating } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
@@ -40,18 +40,24 @@ export const ClassListFormPage: React.FC<{ user: any }> = ({ user }) => {
         const setts = await getSystemSettings();
         setSettings(setts);
 
-        const termId = setts?.activeTermId || 'Term 1';
+        let termId = setts?.activeTermId || 'Term 1';
+        if (user?.id) {
+          const teacher = await getTeacherById(user.id);
+          if (teacher && teacher.activeTermId) {
+            termId = teacher.activeTermId;
+          }
+        }
         
         const newRecords: Record<string, TermAssessmentRecord> = {};
         for (const s of enrolledStudents) {
-          const existingRecord = await getAssessmentRecord(s.grade, s.id, termId);
+          const existingRecord = await getAssessmentRecord(s.grade || 'Grade 0', s.id, termId);
           if (existingRecord) {
             newRecords[s.id] = existingRecord;
           } else {
             newRecords[s.id] = {
               studentId: s.id,
               termId: termId,
-              grade: s.grade,
+              grade: s.grade || 'Grade 0',
               ratings: {},
               isComplete: false,
               updatedAt: new Date().toISOString()
@@ -129,8 +135,8 @@ export const ClassListFormPage: React.FC<{ user: any }> = ({ user }) => {
   if (loading) return <Loader />;
 
   const activeArea = PRE_PRIMARY_AREAS.find(a => a.id === activeAreaId);
-  const termId = settings?.activeTermId || 'Term 1';
-  const termSkills = CLASS_LIST_SKILLS[termId] || {};
+  const termId = Object.values(records)[0]?.termId || settings?.activeTermId || 'Term 1';
+  const termSkills = CLASS_LIST_SKILLS[termId] || CLASS_LIST_SKILLS['Term 1'] || {};
   const areaSkills = termSkills[activeAreaId] || [];
   const activeTheme = areaSkills[activeThemeIndex];
 

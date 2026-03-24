@@ -55,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Dashboard', path: '/teacher/dashboard', icon: <LayoutDashboard size={20} /> },
     { label: 'My Classes', path: '/teacher/classes', icon: <GraduationCap size={20} /> },
     { label: 'Register', path: '/teacher/register', icon: <ClipboardList size={20} /> },
+    { label: 'Settings', path: '/teacher/settings', icon: <Settings size={20} /> },
   ];
 
   const parentLinks = [

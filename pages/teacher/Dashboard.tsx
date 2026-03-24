@@ -4,13 +4,15 @@ import {
   getStudentsByAssignedClass,
   getAssessmentRecordsForClass,
   getSystemSettings,
+  getTeacherById,
+  updateTeacher
 } from '../../services/dataService';
-import { Student, TermAssessmentRecord } from '../../types';
+import { Student, TermAssessmentRecord, TermCalendar } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import {
   Users, BookOpen, Activity, CheckCircle, Clock,
   Search, Send, ArrowRight, Bell, ChevronRight,
-  TrendingUp, Eye, UserPlus, Edit2, ClipboardList
+  TrendingUp, Eye, UserPlus, Edit2, ClipboardList, Calendar
 } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
 
@@ -111,26 +113,97 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [toast, setToast] = useState({ show:false, msg:'' });
+  const [terms, setTerms] = useState<TermCalendar[]>([]);
+  const [activeTermId, setActiveTermId] = useState<string>('');
+  const [isCached, setIsCached] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     (async () => {
       if (user?.assignedClass) {
-        const data = await getStudentsByAssignedClass(user.assignedClass);
-        setStudents(data);
-        const settings = await getSystemSettings();
-        const termId = settings?.activeTermId || 'Term 1';
-        const g0 = data.filter(s => s.grade === 'Grade 0');
-        if (g0.length > 0) {
-          const recs = await getAssessmentRecordsForClass('Grade 0', termId, g0.map(s => s.id));
+        // Check cache first
+        const cacheKey = `teacher_dashboard_${user.id}_${activeTermId || 'default'}`;
+        const cachedStr = sessionStorage.getItem(cacheKey);
+        
+        if (cachedStr) {
+          try {
+            const parsed = JSON.parse(cachedStr);
+            if (parsed.timestamp && (Date.now() - parsed.timestamp < 5 * 60 * 1000)) {
+              setStudents(parsed.students);
+              setRecords(parsed.records);
+              setTerms(parsed.terms);
+              if (!activeTermId) setActiveTermId(parsed.activeTermId);
+              setIsCached(true);
+              setLoading(false);
+            }
+          } catch (e) {
+            console.error("Failed to parse cache", e);
+          }
+        }
+
+        if (!isCached) {
+          setLoading(true);
+        }
+
+        try {
+          const data = await getStudentsByAssignedClass(user.assignedClass);
+          setStudents(data);
+          const settings = await getSystemSettings();
+          if (settings?.schoolCalendars) {
+            setTerms(settings.schoolCalendars);
+          }
+          
+          let termId = activeTermId || settings?.activeTermId || 'Term 1';
+          if (!activeTermId && user?.id) {
+            const teacher = await getTeacherById(user.id);
+            if (teacher?.activeTermId) {
+              termId = teacher.activeTermId;
+            }
+          }
+          
+          if (!activeTermId) {
+            setActiveTermId(termId);
+          }
+
+          const g0 = data.filter(s => s.grade === 'Grade 0');
           const map: Record<string,TermAssessmentRecord> = {};
-          recs.forEach(r => { map[r.studentId] = r; });
-          setRecords(map);
+          if (g0.length > 0) {
+            const recs = await getAssessmentRecordsForClass('Grade 0', termId, g0.map(s => s.id));
+            recs.forEach(r => { map[r.studentId] = r; });
+            setRecords(map);
+          }
+          
+          // Save to cache
+          sessionStorage.setItem(`teacher_dashboard_${user.id}_${termId}`, JSON.stringify({
+            timestamp: Date.now(),
+            students: data,
+            records: map,
+            terms: settings?.schoolCalendars || [],
+            activeTermId: termId
+          }));
+        } catch (error) {
+          console.error("Error fetching dashboard data:", error);
         }
       }
       setLoading(false);
     })();
-  }, [user]);
+  }, [user, activeTermId]);
+
+  const handleTermChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newTermId = e.target.value;
+    setActiveTermId(newTermId);
+    setLoading(true);
+    try {
+      if (user?.id) {
+        await updateTeacher(user.id, { activeTermId: newTermId });
+      }
+      // Removed window.location.reload() to prevent logout/refresh issues
+      // The useEffect will re-run because activeTermId is in the dependency array
+    } catch (error) {
+      console.error("Error updating term:", error);
+      setLoading(false);
+    }
+  };
 
   if (loading) return <Loader />;
 
@@ -241,6 +314,22 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
           </p>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          {terms.length > 0 && (
+            <div style={{ display:'flex', alignItems:'center', gap:8, background:'white',
+              border:'1.5px solid #e2e8f0', borderRadius:10, padding:'6px 12px' }}>
+              <Calendar size={16} color="#64748b"/>
+              <select 
+                value={activeTermId} 
+                onChange={handleTermChange}
+                style={{ border:'none', outline:'none', background:'transparent', fontSize:12, fontWeight:700, color:'#334155', cursor:'pointer' }}
+              >
+                <option value="" disabled>Select Term</option>
+                {terms.map(t => (
+                  <option key={t.id} value={t.id}>{t.termName}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <button style={{ background:'white', border:'1.5px solid #e2e8f0', borderRadius:10,
             width:40, height:40, display:'flex', alignItems:'center', justifyContent:'center',
             cursor:'pointer', position:'relative' }}>

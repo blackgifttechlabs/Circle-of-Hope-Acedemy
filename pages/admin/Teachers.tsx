@@ -4,13 +4,16 @@ import { Input } from '../../components/ui/Input';
 import { CustomSelect } from '../../components/ui/CustomSelect';
 import { addTeacher, getTeachers, deleteTeacher, updateTeacher, getSystemSettings } from '../../services/dataService';
 import { Teacher, SystemSettings } from '../../types';
-import { Plus, Search, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, BarChart2 } from 'lucide-react';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import { useNavigate } from 'react-router-dom';
 
 export const TeachersPage: React.FC = () => {
+  const navigate = useNavigate();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterClass, setFilterClass] = useState('');
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   
   // Form State
@@ -87,10 +90,12 @@ export const TeachersPage: React.FC = () => {
     }
   };
 
-  const filteredTeachers = teachers.filter(t => 
-      t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (t.subject && t.subject.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredTeachers = teachers.filter(t => {
+      const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            (t.subject && t.subject.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesClass = filterClass ? t.assignedClass === filterClass : true;
+      return matchesSearch && matchesClass;
+  });
   
   // Build Class Options from Settings
   const getClassOptions = () => {
@@ -162,7 +167,7 @@ export const TeachersPage: React.FC = () => {
       )}
 
       <div className="bg-white border border-gray-200 shadow-sm">
-        <div className="p-4 border-b border-gray-200 flex gap-2">
+        <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-3 text-gray-400" size={20} />
             <input 
@@ -170,6 +175,14 @@ export const TeachersPage: React.FC = () => {
               placeholder="Search teachers..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-64">
+            <CustomSelect
+              value={filterClass}
+              onChange={setFilterClass}
+              options={[{ label: 'All Classes', value: '' }, ...getClassOptions()]}
+              placeholder="Filter by class..."
             />
           </div>
         </div>
@@ -193,10 +206,17 @@ export const TeachersPage: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2">
-                        <button onClick={() => handleEdit(teacher)} className="text-coha-500 hover:text-coha-700 p-1">
+                        <button 
+                          onClick={() => navigate(`/admin/teachers/${teacher.id}/progress`)} 
+                          className="text-coha-500 hover:text-coha-700 p-1"
+                          title="View Progress"
+                        >
+                            <BarChart2 size={18} />
+                        </button>
+                        <button onClick={() => handleEdit(teacher)} className="text-coha-500 hover:text-coha-700 p-1" title="Edit">
                             <Edit2 size={18} />
                         </button>
-                        <button onClick={() => confirmDelete(teacher)} className="text-red-400 hover:text-red-600 p-1">
+                        <button onClick={() => confirmDelete(teacher)} className="text-red-400 hover:text-red-600 p-1" title="Delete">
                             <Trash2 size={18} />
                         </button>
                     </div>

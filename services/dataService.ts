@@ -108,6 +108,15 @@ export const getTeachers = async (): Promise<Teacher[]> => {
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Teacher));
 };
 
+export const getTeacherById = async (id: string): Promise<Teacher | null> => {
+  const docRef = doc(db, TEACHERS_COLLECTION, id);
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return { id: docSnap.id, ...docSnap.data() } as Teacher;
+  }
+  return null;
+};
+
 export const getTeacherByClass = async (className: string): Promise<Teacher | null> => {
     const q = query(collection(db, TEACHERS_COLLECTION), where("assignedClass", "==", className));
     const snap = await getDocs(q);
