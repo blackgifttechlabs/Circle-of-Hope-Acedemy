@@ -50,13 +50,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, role, userName, use
         {/* Brand - Enhanced visual */}
         <div className="flex items-center gap-4 group cursor-default">
            <div className="hidden md:block">
-              {role === UserRole.TEACHER ? (
-                <h1 className="text-xl font-archivo font-bold text-coha-600 leading-none tracking-tighter uppercase">
-                  {activeTermName ? `Active Term: ${activeTermName}` : 'No Active Term Selected'}
-                </h1>
-              ) : (
-                <h1 className="text-xl font-archivo font-bold text-gray-900 leading-none tracking-tighter group-hover:text-coha-700 transition-colors uppercase">{schoolName}</h1>
-              )}
+              <h1 className="text-xl font-archivo font-bold text-gray-900 leading-none tracking-tighter group-hover:text-coha-700 transition-colors uppercase">{schoolName}</h1>
            </div>
         </div>
       </div>

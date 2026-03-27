@@ -5,6 +5,8 @@ import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from
 import { Loader } from '../../components/ui/Loader';
 import { ArrowLeft, Download, Printer } from 'lucide-react';
 
+import { generateSummaryReportPDF } from '../../utils/pdfGenerator';
+
 interface SummaryFormPageProps {
   user: any;
 }
@@ -31,13 +33,20 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
         setSettings(settingsData);
 
         if (settingsData) {
-          let termId = settingsData.activeTermId || 'Term 1';
+          let termId = settingsData.activeTermId || 'term-1';
           if (user?.id) {
             const teacher = await getTeacherById(user.id);
             if (teacher && teacher.activeTermId) {
               termId = teacher.activeTermId;
             }
           }
+          
+          // Ensure termId is valid (one of the 3 terms)
+          const validTermIds = ['term-1', 'term-2', 'term-3'];
+          if (!validTermIds.includes(termId)) {
+            termId = 'term-1';
+          }
+          
           setSelectedTerm(termId);
           await loadRecords(termId, grade0Students);
         }
@@ -96,10 +105,13 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
             ))}
           </select>
           <button 
-            onClick={() => window.print()}
+            onClick={() => {
+              const termName = settings?.schoolCalendars?.find(t => t.id === selectedTerm)?.termName || 'Term 1';
+              generateSummaryReportPDF(students, records, selectedTerm, termName, user.name || 'Teacher');
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-coha-900 text-white rounded-lg text-sm font-bold hover:bg-coha-800 transition-colors"
           >
-            <Printer size={16} /> Print Summary
+            <Printer size={16} /> Print Summary Report
           </button>
         </div>
       </div>

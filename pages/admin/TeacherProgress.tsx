@@ -77,7 +77,7 @@ export const TeacherProgressPage: React.FC = () => {
         const setts = await getSystemSettings();
         setSettings(setts);
         
-        const activeTerm = t.activeTermId || setts?.activeTermId || 'Term 1';
+        const activeTerm = t.activeTermId || setts?.activeTermId || 'term-1';
         setTermId(activeTerm);
 
         if (t.assignedClass) {
@@ -85,7 +85,7 @@ export const TeacherProgressPage: React.FC = () => {
           const enrolledStudents = students.filter(s => s.studentStatus === 'ENROLLED');
           
           const data: StudentProgressData[] = [];
-          const terms = ['Term 1', 'Term 2', 'Term 3'];
+          const terms = ['term-1', 'term-2', 'term-3'];
           
           for (const student of enrolledStudents) {
             const termPerformances: Record<string, TermPerformance> = {};
@@ -216,9 +216,9 @@ export const TeacherProgressPage: React.FC = () => {
               ${progressData.map(data => `
                 <tr>
                   <td>${data.student.name}</td>
-                  <td class="performance ${data.termPerformances['Term 1']?.performance >= 75 ? 'good' : data.termPerformances['Term 1']?.performance >= 50 ? 'average' : 'poor'}">${data.termPerformances['Term 1']?.performance || 0}%</td>
-                  <td class="performance ${data.termPerformances['Term 2']?.performance >= 75 ? 'good' : data.termPerformances['Term 2']?.performance >= 50 ? 'average' : 'poor'}">${data.termPerformances['Term 2']?.performance || 0}%</td>
-                  <td class="performance ${data.termPerformances['Term 3']?.performance >= 75 ? 'good' : data.termPerformances['Term 3']?.performance >= 50 ? 'average' : 'poor'}">${data.termPerformances['Term 3']?.performance || 0}%</td>
+                  <td class="performance ${data.termPerformances['term-1']?.performance >= 75 ? 'good' : data.termPerformances['term-1']?.performance >= 50 ? 'average' : 'poor'}">${data.termPerformances['term-1']?.performance || 0}%</td>
+                  <td class="performance ${data.termPerformances['term-2']?.performance >= 75 ? 'good' : data.termPerformances['term-2']?.performance >= 50 ? 'average' : 'poor'}">${data.termPerformances['term-2']?.performance || 0}%</td>
+                  <td class="performance ${data.termPerformances['term-3']?.performance >= 75 ? 'good' : data.termPerformances['term-3']?.performance >= 50 ? 'average' : 'poor'}">${data.termPerformances['term-3']?.performance || 0}%</td>
                   <td>${data.daysPresent}</td>
                   <td>${data.daysAbsent}</td>
                 </tr>
@@ -249,9 +249,9 @@ export const TeacherProgressPage: React.FC = () => {
       headers.join(','),
       ...progressData.map(data => [
         `"${data.student.name}"`,
-        data.termPerformances['Term 1']?.performance || 0,
-        data.termPerformances['Term 2']?.performance || 0,
-        data.termPerformances['Term 3']?.performance || 0,
+        data.termPerformances['term-1']?.performance || 0,
+        data.termPerformances['term-2']?.performance || 0,
+        data.termPerformances['term-3']?.performance || 0,
         data.daysPresent,
         data.daysAbsent
       ].join(','))
@@ -291,9 +291,9 @@ export const TeacherProgressPage: React.FC = () => {
     const tableColumn = ["Student Name", "Term 1", "Term 2", "Term 3", "Days Present", "Days Absent"];
     const tableRows = progressData.map(data => [
       data.student.name,
-      `${data.termPerformances['Term 1']?.performance || 0}%`,
-      `${data.termPerformances['Term 2']?.performance || 0}%`,
-      `${data.termPerformances['Term 3']?.performance || 0}%`,
+      `${data.termPerformances['term-1']?.performance || 0}%`,
+      `${data.termPerformances['term-2']?.performance || 0}%`,
+      `${data.termPerformances['term-3']?.performance || 0}%`,
       data.daysPresent.toString(),
       data.daysAbsent.toString()
     ]);
@@ -409,33 +409,33 @@ export const TeacherProgressPage: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <div className="w-24 bg-gray-100 rounded-full h-2 overflow-hidden">
                           <div 
-                            className={`h-2 rounded-full ${data.termPerformances['Term 1']?.performance >= 75 ? 'bg-green-500' : data.termPerformances['Term 1']?.performance >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                            style={{ width: `${data.termPerformances['Term 1']?.performance || 0}%` }}
+                            className={`h-2 rounded-full ${data.termPerformances['term-1']?.performance >= 75 ? 'bg-green-500' : data.termPerformances['term-1']?.performance >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            style={{ width: `${data.termPerformances['term-1']?.performance || 0}%` }}
                           ></div>
                         </div>
-                        <span className="text-xs font-bold">{data.termPerformances['Term 1']?.performance || 0}%</span>
+                        <span className="text-xs font-bold">{data.termPerformances['term-1']?.performance || 0}%</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <div className="w-24 bg-gray-100 rounded-full h-2 overflow-hidden">
                           <div 
-                            className={`h-2 rounded-full ${data.termPerformances['Term 2']?.performance >= 75 ? 'bg-green-500' : data.termPerformances['Term 2']?.performance >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                            style={{ width: `${data.termPerformances['Term 2']?.performance || 0}%` }}
+                            className={`h-2 rounded-full ${data.termPerformances['term-2']?.performance >= 75 ? 'bg-green-500' : data.termPerformances['term-2']?.performance >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            style={{ width: `${data.termPerformances['term-2']?.performance || 0}%` }}
                           ></div>
                         </div>
-                        <span className="text-xs font-bold">{data.termPerformances['Term 2']?.performance || 0}%</span>
+                        <span className="text-xs font-bold">{data.termPerformances['term-2']?.performance || 0}%</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <div className="w-24 bg-gray-100 rounded-full h-2 overflow-hidden">
                           <div 
-                            className={`h-2 rounded-full ${data.termPerformances['Term 3']?.performance >= 75 ? 'bg-green-500' : data.termPerformances['Term 3']?.performance >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                            style={{ width: `${data.termPerformances['Term 3']?.performance || 0}%` }}
+                            className={`h-2 rounded-full ${data.termPerformances['term-3']?.performance >= 75 ? 'bg-green-500' : data.termPerformances['term-3']?.performance >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            style={{ width: `${data.termPerformances['term-3']?.performance || 0}%` }}
                           ></div>
                         </div>
-                        <span className="text-xs font-bold">{data.termPerformances['Term 3']?.performance || 0}%</span>
+                        <span className="text-xs font-bold">{data.termPerformances['term-3']?.performance || 0}%</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center font-bold text-green-600">{data.daysPresent}</td>

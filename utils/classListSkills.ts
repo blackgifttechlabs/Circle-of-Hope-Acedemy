@@ -1,5 +1,5 @@
 export const CLASS_LIST_SKILLS: Record<string, Record<string, { theme: string, skills: { id: string, name: string, componentId: string }[] }[]>> = {
-  'Term 1': {
+  'term-1': {
     'language': [
       {
         theme: 'THEME 1: MYSELF',
@@ -125,29 +125,29 @@ export const CLASS_LIST_SKILLS: Record<string, Record<string, { theme: string, s
         ]
       }
     ],
-    'rme': [
+    'religious': [
       {
         theme: 'THEME 1: MYSELF',
         skills: [
-          { id: 'r1_1', name: 'M&V: obedience', componentId: 'morals_values' },
-          { id: 'r1_2', name: 'SD: respect & accept peers', componentId: 'social_dev' },
-          { id: 'r1_3', name: 'ED: act self-assuredly', componentId: 'emotional_dev' },
+          { id: 'r1_1', name: 'M&V: obedience', componentId: 'morals' },
+          { id: 'r1_2', name: 'SD: respect & accept peers', componentId: 'social' },
+          { id: 'r1_3', name: 'ED: act self-assuredly', componentId: 'emotional' },
         ]
       },
       {
         theme: 'THEME 2: MY BODY',
         skills: [
-          { id: 'r1_4', name: 'M&V: patience', componentId: 'morals_values' },
-          { id: 'r1_5', name: 'SD: play in groups', componentId: 'social_dev' },
-          { id: 'r1_6', name: 'ED: work independently', componentId: 'emotional_dev' },
+          { id: 'r1_4', name: 'M&V: patience', componentId: 'morals' },
+          { id: 'r1_5', name: 'SD: play in groups', componentId: 'social' },
+          { id: 'r1_6', name: 'ED: work independently', componentId: 'emotional' },
         ]
       },
       {
         theme: 'THEME 3: MY FAMILY',
         skills: [
-          { id: 'r1_7', name: 'M&V: loyalty', componentId: 'morals_values' },
-          { id: 'r1_8', name: 'SD: respect & accept adults', componentId: 'social_dev' },
-          { id: 'r1_9', name: 'ED: express emotions', componentId: 'emotional_dev' },
+          { id: 'r1_7', name: 'M&V: loyalty', componentId: 'morals' },
+          { id: 'r1_8', name: 'SD: respect & accept adults', componentId: 'social' },
+          { id: 'r1_9', name: 'ED: express emotions', componentId: 'emotional' },
         ]
       }
     ],
@@ -183,7 +183,7 @@ export const CLASS_LIST_SKILLS: Record<string, Record<string, { theme: string, s
       }
     ]
   },
-  'Term 2': {
+  'term-2': {
     'language': [
       {
         theme: 'THEME 4: MY HOME',
@@ -310,29 +310,29 @@ export const CLASS_LIST_SKILLS: Record<string, Record<string, { theme: string, s
         ]
       }
     ],
-    'rme': [
+    'religious': [
       {
         theme: 'THEME 4: MY HOME',
         skills: [
-          { id: 'r2_1', name: 'M&V: honesty', componentId: 'morals_values' },
-          { id: 'r2_2', name: 'SD: integrate in group', componentId: 'social_dev' },
-          { id: 'r2_3', name: 'ED: express self-control', componentId: 'emotional_dev' },
+          { id: 'r2_1', name: 'M&V: honesty', componentId: 'morals' },
+          { id: 'r2_2', name: 'SD: integrate in group', componentId: 'social' },
+          { id: 'r2_3', name: 'ED: express self-control', componentId: 'emotional' },
         ]
       },
       {
         theme: 'THEME 5: MY SCHOOL',
         skills: [
-          { id: 'r2_4', name: 'M&V: good & bad behaviour', componentId: 'morals_values' },
-          { id: 'r2_5', name: 'SD: accept discipline', componentId: 'social_dev' },
-          { id: 'r2_6', name: 'ED: wait for turn', componentId: 'emotional_dev' },
+          { id: 'r2_4', name: 'M&V: good & bad behaviour', componentId: 'morals' },
+          { id: 'r2_5', name: 'SD: accept discipline', componentId: 'social' },
+          { id: 'r2_6', name: 'ED: wait for turn', componentId: 'emotional' },
         ]
       },
       {
         theme: 'THEME 6: MY COMMUNITY',
         skills: [
-          { id: 'r2_7', name: 'M&V: generosity', componentId: 'morals_values' },
-          { id: 'r2_8', name: 'SD: can play with a friend', componentId: 'social_dev' },
-          { id: 'r2_9', name: 'ED: make decisions', componentId: 'emotional_dev' },
+          { id: 'r2_7', name: 'M&V: generosity', componentId: 'morals' },
+          { id: 'r2_8', name: 'SD: can play with a friend', componentId: 'social' },
+          { id: 'r2_9', name: 'ED: make decisions', componentId: 'emotional' },
         ]
       }
     ],
@@ -366,7 +366,7 @@ export const CLASS_LIST_SKILLS: Record<string, Record<string, { theme: string, s
       }
     ]
   },
-  'Term 3': {
+  'term-3': {
     'language': [
       {
         theme: 'THEME 7: ANIMALS',
@@ -498,29 +498,29 @@ export const CLASS_LIST_SKILLS: Record<string, Record<string, { theme: string, s
         ]
       }
     ],
-    'rme': [
+    'religious': [
       {
         theme: 'THEME 7: ANIMALS',
         skills: [
-          { id: 'r3_1', name: 'M&V: respect other beliefs', componentId: 'morals_values' },
-          { id: 'r3_2', name: 'SD: can cooperate in a group', componentId: 'social_dev' },
-          { id: 'r3_3', name: 'ED: make decisions', componentId: 'emotional_dev' },
+          { id: 'r3_1', name: 'M&V: respect other beliefs', componentId: 'morals' },
+          { id: 'r3_2', name: 'SD: can cooperate in a group', componentId: 'social' },
+          { id: 'r3_3', name: 'ED: make decisions', componentId: 'emotional' },
         ]
       },
       {
         theme: 'THEME 8: WATER',
         skills: [
-          { id: 'r3_4', name: 'M&V: respect others rights', componentId: 'morals_values' },
-          { id: 'r3_5', name: 'SD: can compromise', componentId: 'social_dev' },
-          { id: 'r3_6', name: 'ED: emotional stability', componentId: 'emotional_dev' },
+          { id: 'r3_4', name: 'M&V: respect others rights', componentId: 'morals' },
+          { id: 'r3_5', name: 'SD: can compromise', componentId: 'social' },
+          { id: 'r3_6', name: 'ED: emotional stability', componentId: 'emotional' },
         ]
       },
       {
         theme: 'THEME 9: PLANTS',
         skills: [
-          { id: 'r3_7', name: 'M&V: perseverance', componentId: 'morals_values' },
-          { id: 'r3_8', name: 'SD: able to share', componentId: 'social_dev' },
-          { id: 'r3_9', name: 'ED: handle problem situations', componentId: 'emotional_dev' },
+          { id: 'r3_7', name: 'M&V: perseverance', componentId: 'morals' },
+          { id: 'r3_8', name: 'SD: able to share', componentId: 'social' },
+          { id: 'r3_9', name: 'ED: handle problem situations', componentId: 'emotional' },
         ]
       }
     ],

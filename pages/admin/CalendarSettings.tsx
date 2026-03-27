@@ -260,7 +260,6 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({ settings, se
                         <h3 className="text-xl font-bold text-gray-900">Term Calendars</h3>
                         <p className="text-sm text-gray-500">Total School Days for Year: <span className="font-bold text-coha-900">{totalSchoolDays}</span></p>
                     </div>
-                    <Button onClick={addSchoolTerm}><Plus size={18} className="mr-2" /> Add Term</Button>
                 </div>
 
                 {schoolCalendars.map((term, index) => (
@@ -275,9 +274,6 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({ settings, se
                             </div>
                             <div className="flex items-center gap-4">
                                 <span className="text-sm font-bold bg-coha-100 text-coha-900 px-3 py-1 rounded-full">{term.schoolDays || 0} Days</span>
-                                <button onClick={(e) => { e.stopPropagation(); removeSchoolTerm(term.id); }} className="text-red-400 hover:text-red-600 p-2">
-                                    <Trash2 size={18} />
-                                </button>
                             </div>
                         </div>
 
@@ -363,7 +359,6 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({ settings, se
                         <h3 className="text-xl font-bold text-gray-900">Hostel Calendars</h3>
                         <p className="text-sm text-gray-500">Total Hostel Days for Year: <span className="font-bold text-coha-900">{totalHostelDays}</span></p>
                     </div>
-                    <Button onClick={addHostelTerm}><Plus size={18} className="mr-2" /> Add Term</Button>
                 </div>
 
                 {hostelCalendars.map((term, index) => (
@@ -378,9 +373,6 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({ settings, se
                             </div>
                             <div className="flex items-center gap-4">
                                 <span className="text-sm font-bold bg-orange-100 text-orange-900 px-3 py-1 rounded-full">{term.hostelDays || 0} Days</span>
-                                <button onClick={(e) => { e.stopPropagation(); removeHostelTerm(term.id); }} className="text-red-400 hover:text-red-600 p-2">
-                                    <Trash2 size={18} />
-                                </button>
                             </div>
                         </div>
 

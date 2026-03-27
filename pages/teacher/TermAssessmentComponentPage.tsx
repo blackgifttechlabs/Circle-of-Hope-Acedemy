@@ -26,9 +26,30 @@ export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) =
   
   const [activeAreaId, setActiveAreaId] = useState(PRE_PRIMARY_AREAS[0].id);
   const [activeComponentId, setActiveComponentId] = useState(PRE_PRIMARY_AREAS[0].components[0].id);
+  const [selectedTerm, setSelectedTerm] = useState<string>('');
   
   // Map of studentId -> record
   const [records, setRecords] = useState<Record<string, TermAssessmentRecord>>({});
+
+  const loadRecords = async (termId: string, enrolledStudents: Student[]) => {
+    const newRecords: Record<string, TermAssessmentRecord> = {};
+    for (const s of enrolledStudents) {
+      const existingRecord = await getAssessmentRecord(s.grade || 'Grade 0', s.id, termId);
+      if (existingRecord) {
+        newRecords[s.id] = existingRecord;
+      } else {
+        newRecords[s.id] = {
+          studentId: s.id,
+          termId: termId,
+          grade: s.grade || 'Grade 0',
+          ratings: {},
+          isComplete: false,
+          updatedAt: new Date().toISOString()
+        };
+      }
+    }
+    setRecords(newRecords);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,7 +61,7 @@ export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) =
         const setts = await getSystemSettings();
         setSettings(setts);
 
-        let termId = setts?.activeTermId || 'Term 1';
+        let termId = setts?.activeTermId || 'term-1';
         if (user?.id) {
           const teacher = await getTeacherById(user.id);
           if (teacher && teacher.activeTermId) {
@@ -48,28 +69,29 @@ export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) =
           }
         }
         
-        const newRecords: Record<string, TermAssessmentRecord> = {};
-        for (const s of enrolledStudents) {
-          const existingRecord = await getAssessmentRecord(s.grade, s.id, termId);
-          if (existingRecord) {
-            newRecords[s.id] = existingRecord;
-          } else {
-            newRecords[s.id] = {
-              studentId: s.id,
-              termId: termId,
-              grade: s.grade,
-              ratings: {},
-              isComplete: false,
-              updatedAt: new Date().toISOString()
-            };
-          }
+        // Ensure termId is valid (one of the 3 terms)
+        const validTermIds = ['term-1', 'term-2', 'term-3'];
+        if (!validTermIds.includes(termId)) {
+          termId = 'term-1';
         }
-        setRecords(newRecords);
+        
+        setSelectedTerm(termId);
+        await loadRecords(termId, enrolledStudents);
       }
       setLoading(false);
     };
     fetchData();
   }, [user]);
+
+  const handleTermChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const termId = e.target.value;
+    setSelectedTerm(termId);
+    if (user?.assignedClass) {
+      setLoading(true);
+      await loadRecords(termId, students);
+      setLoading(false);
+    }
+  };
 
   const handleRatingChange = async (studentId: string, rating: AssessmentRating) => {
     const currentRecord = records[studentId];
@@ -104,9 +126,22 @@ export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) =
       </button>
 
       {/* Header */}
-      <div className="bg-white border-2 border-gray-200 shadow-sm p-6 mb-6">
-        <h2 className="text-3xl font-black uppercase tracking-tighter leading-none mb-1">Component Mode</h2>
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Rate all students on a single skill</p>
+      <div className="bg-white border-2 border-gray-200 shadow-sm p-6 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-black uppercase tracking-tighter leading-none mb-1">Component Mode</h2>
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Rate all students on a single skill</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedTerm}
+            onChange={handleTermChange}
+            className="p-2 border-2 border-gray-200 text-[10px] font-black uppercase tracking-widest text-gray-700 bg-white outline-none focus:border-coha-900 transition-colors"
+          >
+            {settings?.schoolCalendars?.map(term => (
+              <option key={term.id} value={term.id}>{term.termName}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Area Selection */}

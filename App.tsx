@@ -69,6 +69,8 @@ const AppLayout: React.FC<{
 
 import { TeacherSettings } from './pages/teacher/TeacherSettings';
 
+import { MyClass } from './pages/teacher/MyClass';
+
 const ProtectedRoute: React.FC<{
   isAuthenticated: boolean;
   userRole: UserRole | null;
@@ -81,8 +83,14 @@ const ProtectedRoute: React.FC<{
 };
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<any>(null);
-  const [role, setRole] = useState<UserRole | null>(null);
+  const [user, setUser] = useState<any>(() => {
+    const savedUser = localStorage.getItem('coha_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  const [role, setRole] = useState<UserRole | null>(() => {
+    const savedRole = localStorage.getItem('coha_role');
+    return savedRole ? (savedRole as UserRole) : null;
+  });
   
   // Toast State
   const [toastMessage, setToastMessage] = useState('');
@@ -103,11 +111,16 @@ const App: React.FC = () => {
   const handleLogin = (newRole: UserRole, newUser: any) => {
     setUser(newUser);
     setRole(newRole);
+    localStorage.setItem('coha_user', JSON.stringify(newUser));
+    localStorage.setItem('coha_role', newRole);
   };
 
   const handleLogout = () => {
     setUser(null);
     setRole(null);
+    localStorage.removeItem('coha_user');
+    localStorage.removeItem('coha_role');
+    sessionStorage.clear(); // Clear cached data on logout
   };
 
   const showToast = (message: string) => {
@@ -158,7 +171,7 @@ const App: React.FC = () => {
               <AppLayout role={UserRole.TEACHER} user={user} onLogout={handleLogout}>
                 <Routes>
                     <Route path="dashboard" element={<TeacherDashboard user={user} />} />
-                    <Route path="classes" element={<TeacherDashboard user={user} />} />
+                    <Route path="classes" element={<MyClass user={user} />} />
                     <Route path="register" element={<DailyRegister user={user} />} />
                     <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.TEACHER} user={user} />} />
                     <Route path="term-assessment/:id" element={<TermAssessmentPage user={user} />} />

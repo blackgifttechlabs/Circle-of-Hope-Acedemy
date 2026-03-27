@@ -15,6 +15,7 @@ import {
   TrendingUp, Eye, UserPlus, Edit2, ClipboardList, Calendar
 } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
+import { generateSummaryReportPDF } from '../../utils/pdfGenerator';
 
 interface TeacherDashboardProps { user: any; }
 
@@ -111,7 +112,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [records, setRecords] = useState<Record<string, TermAssessmentRecord>>({});
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
   const [toast, setToast] = useState({ show:false, msg:'' });
   const [terms, setTerms] = useState<TermCalendar[]>([]);
   const [activeTermId, setActiveTermId] = useState<string>('');
@@ -153,7 +153,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
             setTerms(settings.schoolCalendars);
           }
           
-          let termId = activeTermId || settings?.activeTermId || 'Term 1';
+          let termId = activeTermId || settings?.activeTermId || 'term-1';
           if (!activeTermId && user?.id) {
             const teacher = await getTeacherById(user.id);
             if (teacher?.activeTermId) {
@@ -161,7 +161,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
             }
           }
           
-          if (!activeTermId) {
+          // Ensure termId is valid (one of the 3 terms)
+          const validTermIds = ['term-1', 'term-2', 'term-3'];
+          if (!validTermIds.includes(termId)) {
+            termId = 'term-1';
+          }
+          
+          if (activeTermId !== termId) {
             setActiveTermId(termId);
           }
 
@@ -251,7 +257,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   }));
 
   const recentStudents = [...enrolled].slice(-5).reverse();
-  const filtered = enrolled.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
 
   /* ── css helpers ── */
   const card: React.CSSProperties = {
@@ -330,6 +335,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
               </select>
             </div>
           )}
+          <button 
+            onClick={() => {
+              const termName = terms.find(t => t.id === activeTermId)?.termName || 'Term 1';
+              generateSummaryReportPDF(students, records, activeTermId, termName, user.name || 'Teacher');
+            }}
+            style={{ background:'#0f172a', color:'white', border:'none', borderRadius:10,
+              padding:'0 16px', height:40, display:'flex', alignItems:'center', gap:8,
+              cursor:'pointer', fontSize:12, fontWeight:800, letterSpacing:'.05em', textTransform:'uppercase' }}>
+            <ClipboardList size={16}/> Print Summary
+          </button>
           <button style={{ background:'white', border:'1.5px solid #e2e8f0', borderRadius:10,
             width:40, height:40, display:'flex', alignItems:'center', justifyContent:'center',
             cursor:'pointer', position:'relative' }}>
@@ -506,154 +521,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* CLASS REGISTER */}
-            <div style={{ ...card }}>
-              <div style={{ padding:'18px 20px', borderBottom:'1px solid #f1f5f9',
-                display:'flex', flexWrap:'wrap', gap:12,
-                justifyContent:'space-between', alignItems:'center' }}>
-                <div>
-                  <p style={{ fontSize:10, fontWeight:800, letterSpacing:'.14em',
-                    textTransform:'uppercase', color:'#94a3b8', margin:'0 0 3px' }}>Class Register</p>
-                  <p style={{ fontSize:11, color:'#64748b', fontWeight:600, margin:0 }}>
-                    {filtered.length} learner{filtered.length!==1?'s':''} enrolled
-                  </p>
-                </div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:10, alignItems:'center' }}>
-                  <button className="bp" style={{ background:'#10b981' }}
-                    onClick={() => navigate('/teacher/register')}>
-                    <ClipboardList size={13}/> Mark Register
-                  </button>
-                  <button className="bp" style={{ background:'#6366f1' }}
-                    onClick={() => setToast({show:true, msg:'Assessments submitted to admin!'})}>
-                    <Send size={13}/> Submit
-                  </button>
-                  <button className="bo"
-                    onClick={() => navigate('/teacher/class-list-form')}>
-                    Class List Form
-                  </button>
-                  <button className="bo"
-                    onClick={() => navigate('/teacher/summary-form')}>
-                    Summary Form
-                  </button>
-                  <div style={{ position:'relative', minWidth:160 }}>
-                    <Search size={14} style={{ position:'absolute', left:10, top:'50%',
-                      transform:'translateY(-50%)', color:'#94a3b8', pointerEvents:'none' }}/>
-                    <input className="si" placeholder="Search…"
-                      value={search} onChange={e => setSearch(e.target.value)}/>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                  <thead>
-                    <tr style={{ background:'#f8fafc' }}>
-                      <th className="rth">Student</th>
-                      <th className="rth hm">Status</th>
-                      <th className="rth hm">Stage</th>
-                      <th className="rth">Assessment</th>
-                      <th className="rth" style={{ textAlign:'right' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map(s => {
-                      const isC = records[s.id]?.isComplete;
-                      const g0 = s.grade === 'Grade 0';
-                      return (
-                        <tr key={s.id} className="hrow" style={{ borderBottom:'1px solid #f8fafc' }}>
-                          <td className="rtd">
-                            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                              <Av name={s.name} size={32}/>
-                              <div>
-                                <p style={{ fontWeight:800, color:'#0f172a', margin:0,
-                                  fontSize:13, letterSpacing:-.3 }}>{s.name}</p>
-                                <p style={{ fontSize:10, color:'#94a3b8', fontWeight:600,
-                                  margin:'2px 0 0', textTransform:'uppercase', letterSpacing:'.05em' }}>
-                                  {s.grade}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="rtd hm">
-                            <span style={{ background:'#dcfce7', color:'#16a34a', padding:'3px 10px',
-                              borderRadius:20, fontSize:10, fontWeight:800, textTransform:'uppercase',
-                              letterSpacing:'.06em', display:'inline-flex', alignItems:'center', gap:4 }}>
-                              <span style={{ width:6, height:6, borderRadius:'50%',
-                                background:'#22c55e', display:'inline-block' }}/>
-                              Enrolled
-                            </span>
-                          </td>
-                          <td className="rtd hm">
-                            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                              <span style={{ fontSize:12, fontWeight:700, color:'#334155' }}>
-                                {s.assignedClass || s.grade}
-                              </span>
-                              {s.stage && (
-                                <span style={{ background:'#0f172a', color:'white', fontSize:9,
-                                  fontWeight:800, padding:'2px 7px', borderRadius:4,
-                                  textTransform:'uppercase' }}>S{s.stage}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="rtd">
-                            {g0 ? (
-                              isC ? (
-                                <span style={{ display:'inline-flex', alignItems:'center', gap:5,
-                                  color:'#16a34a', fontWeight:800, fontSize:11,
-                                  textTransform:'uppercase', letterSpacing:'.06em' }}>
-                                  <CheckCircle size={13}/> Complete
-                                </span>
-                              ) : (
-                                <span style={{ display:'inline-flex', alignItems:'center', gap:5,
-                                  color:'#b45309', fontWeight:800, fontSize:11,
-                                  textTransform:'uppercase', letterSpacing:'.06em' }}>
-                                  <Clock size={13}/> Pending
-                                </span>
-                              )
-                            ) : <span style={{ color:'#cbd5e1', fontWeight:700 }}>—</span>}
-                          </td>
-                          <td className="rtd" style={{ textAlign:'right' }}>
-                            {g0 && (
-                              <button
-                                onClick={() => navigate(`/teacher/term-assessment/${s.id}`)}
-                                className={isC ? 'bo' : 'bp'}
-                                style={{ background: isC ? 'white' : '#6366f1',
-                                  padding:'7px 14px' }}>
-                                {isC ? <><Edit2 size={12}/> Edit</> : <><ArrowRight size={12}/> Add</>}
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {filtered.length === 0 && (
-                      <tr>
-                        <td colSpan={5} style={{ padding:'40px 16px', textAlign:'center',
-                          color:'#cbd5e1', fontWeight:800, fontSize:11,
-                          textTransform:'uppercase', letterSpacing:'.1em' }}>
-                          No learners found
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {filtered.length > 0 && (
-                <div style={{ padding:'10px 20px', borderTop:'1px solid #f8fafc',
-                  display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:8 }}>
-                  <span style={{ fontSize:10, fontWeight:700, color:'#94a3b8',
-                    textTransform:'uppercase', letterSpacing:'.08em' }}>
-                    Showing {filtered.length} of {enrolled.length}
-                  </span>
-                  <span style={{ fontSize:10, fontWeight:700, color:'#94a3b8',
-                    textTransform:'uppercase', letterSpacing:'.08em' }}>
-                    {done.length}/{grade0.length} assessments complete
-                  </span>
-                </div>
-              )}
             </div>
           </div>
 

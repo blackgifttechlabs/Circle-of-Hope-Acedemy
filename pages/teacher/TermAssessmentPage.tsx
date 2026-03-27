@@ -30,6 +30,23 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
   const [activeTab, setActiveTab] = useState(PRE_PRIMARY_AREAS[0].id);
   const [record, setRecord] = useState<TermAssessmentRecord | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
+  const [selectedTerm, setSelectedTerm] = useState<string>('');
+
+  const loadRecord = async (termId: string, s: Student) => {
+    const existingRecord = await getAssessmentRecord(s.grade, s.id, termId);
+    if (existingRecord) {
+      setRecord(existingRecord);
+    } else {
+      setRecord({
+        studentId: s.id,
+        termId: termId,
+        grade: s.grade,
+        ratings: {},
+        isComplete: false,
+        updatedAt: new Date().toISOString()
+      });
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,32 +62,38 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
         }
 
         if (s && setts) {
-          let termId = setts.activeTermId || 'Term 1'; // Fallback
+          let termId = setts.activeTermId || 'term-1'; // Fallback
           if (user?.id) {
             const teacher = await getTeacherById(user.id);
             if (teacher && teacher.activeTermId) {
               termId = teacher.activeTermId;
             }
           }
-          const existingRecord = await getAssessmentRecord(s.grade, s.id, termId);
-          if (existingRecord) {
-            setRecord(existingRecord);
-          } else {
-            setRecord({
-              studentId: s.id,
-              termId: termId,
-              grade: s.grade,
-              ratings: {},
-              isComplete: false,
-              updatedAt: new Date().toISOString()
-            });
+          
+          // Ensure termId is valid (one of the 3 terms)
+          const validTermIds = ['term-1', 'term-2', 'term-3'];
+          if (!validTermIds.includes(termId)) {
+            termId = 'term-1';
           }
+
+          setSelectedTerm(termId);
+          await loadRecord(termId, s);
         }
       }
       setLoading(false);
     };
     fetchData();
   }, [id, user]);
+
+  const handleTermChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const termId = e.target.value;
+    setSelectedTerm(termId);
+    if (student) {
+      setLoading(true);
+      await loadRecord(termId, student);
+      setLoading(false);
+    }
+  };
 
   const handleRawScoreChange = async (componentId: string, skillId: string, score: 1 | 2 | 3 | null) => {
     if (!record) return;
@@ -216,11 +239,22 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
             <h2 className="text-3xl font-black uppercase tracking-tighter leading-none mb-1">{student.name}</h2>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ID: {student.id} | Term: {record.termId}</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ID: {student.id}</p>
           </div>
-          <div className="text-right">
-            <p className="text-3xl font-black text-coha-900">{performanceProgress}%</p>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Performance</p>
+          <div className="flex items-center gap-4">
+            <select
+              value={selectedTerm}
+              onChange={handleTermChange}
+              className="p-2 border-2 border-gray-200 text-[10px] font-black uppercase tracking-widest text-gray-700 bg-white outline-none focus:border-coha-900 transition-colors"
+            >
+              {settings?.schoolCalendars?.map(term => (
+                <option key={term.id} value={term.id}>{term.termName}</option>
+              ))}
+            </select>
+            <div className="text-right">
+              <p className="text-3xl font-black text-coha-900">{performanceProgress}%</p>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Performance</p>
+            </div>
           </div>
         </div>
         
@@ -255,6 +289,9 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
       <div className="bg-white border-2 border-gray-200 shadow-sm p-0 mb-6">
         {PRE_PRIMARY_AREAS.map((area, index) => {
           const colors = TAB_COLORS[index % TAB_COLORS.length];
+          const termSkills = CLASS_LIST_SKILLS[record.termId] || {};
+          const areaThemes = termSkills[area.id] || [];
+          
           return (
           <div key={area.id} className={activeTab === area.id ? 'block' : 'hidden'}>
             <div className={`p-6 border-b-2 ${colors.border} ${colors.headerBg}`}>
@@ -262,84 +299,58 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
             </div>
             
             <div className="divide-y divide-gray-100">
-              {area.components.map(comp => {
-                const termSkills = CLASS_LIST_SKILLS[record.termId] || {};
-                const areaSkills = termSkills[area.id] || [];
-                const compSkills = areaSkills.map((theme: any) => {
-                  return {
-                    theme: theme.theme,
-                    skills: theme.skills.filter((s: any) => s.componentId === comp.id)
-                  };
-                }).filter((theme: any) => theme.skills.length > 0);
-
-                return (
-                <div key={comp.id} className="p-4 sm:p-6 flex flex-col gap-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex justify-between items-center">
-                    <p className="font-bold text-gray-900">{comp.name}</p>
-                    <div className="flex gap-2">
-                       {/* Show calculated rating */}
-                       {record.ratings[comp.id] && (
-                          <span className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 ${record.ratings[comp.id] === 'FM' ? 'bg-green-100 border-green-500 text-green-800' : record.ratings[comp.id] === 'AM' ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-red-100 border-red-500 text-red-800'}`}>
-                            {record.ratings[comp.id]}
-                          </span>
-                       )}
-                    </div>
-                  </div>
-                  
-                  {compSkills.length > 0 ? (
-                    <div className="pl-4 border-l-2 border-gray-200 space-y-4">
-                      {compSkills.map((theme: any) => (
-                        <div key={theme.theme}>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">{theme.theme}</p>
-                          <div className="space-y-2">
-                            {theme.skills.map((skill: any) => (
-                              <div key={skill.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                                <p className="text-sm text-gray-700 flex-1">{skill.name}</p>
-                                <div className="flex gap-1">
-                                  {[1, 2, 3].map(score => (
-                                    <button
-                                      key={score}
-                                      onClick={() => handleRawScoreChange(comp.id, skill.id, score as 1|2|3)}
-                                      className={`w-8 h-8 flex items-center justify-center text-xs font-black border-2 transition-all ${record.rawScores?.[skill.id] === score ? 'bg-coha-900 border-coha-900 text-white' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
-                                    >
-                                      {score}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
+              {areaThemes.length > 0 ? (
+                areaThemes.map((theme: any) => (
+                  <div key={theme.theme} className="p-4 sm:p-6 flex flex-col gap-4 hover:bg-gray-50 transition-colors">
+                    <h4 className="font-bold text-gray-900 uppercase tracking-tight">{theme.theme}</h4>
+                    <div className="space-y-3">
+                      {theme.skills.map((skill: any) => (
+                        <div key={skill.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pl-4 border-l-2 border-gray-200">
+                          <p className="text-sm text-gray-700 flex-1">{skill.name}</p>
+                          <div className="flex gap-1">
+                            {[1, 2, 3].map(score => (
+                              <button
+                                key={score}
+                                onClick={() => handleRawScoreChange(skill.componentId, skill.id, score as 1|2|3)}
+                                className={`w-8 h-8 flex items-center justify-center text-xs font-black border-2 transition-all ${record.rawScores?.[skill.id] === score ? 'bg-coha-900 border-coha-900 text-white' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
+                              >
+                                {score}
+                              </button>
                             ))}
                           </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="pl-4 border-l-2 border-gray-200">
-                      <p className="text-sm text-gray-500 italic">No specific skills defined for this component in {record.termId}.</p>
-                      {/* Fallback to manual rating if no skills defined */}
-                      <div className="flex gap-2 mt-2">
-                        <button 
-                          onClick={() => handleRatingChange(comp.id, 'FM')}
-                          className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 transition-all ${record.ratings[comp.id] === 'FM' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
-                        >
-                          FM
-                        </button>
-                        <button 
-                          onClick={() => handleRatingChange(comp.id, 'AM')}
-                          className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 transition-all ${record.ratings[comp.id] === 'AM' ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
-                        >
-                          AM
-                        </button>
-                        <button 
-                          onClick={() => handleRatingChange(comp.id, 'NM')}
-                          className={`px-4 py-2 text-xs font-black uppercase tracking-widest border-2 transition-all ${record.ratings[comp.id] === 'NM' ? 'bg-red-100 border-red-500 text-red-800' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400'}`}
-                        >
-                          NM
-                        </button>
+                  </div>
+                ))
+              ) : (
+                <div className="p-6 text-sm text-gray-500 italic">
+                  No themes defined for this area in {record.termId}.
+                </div>
+              )}
+
+              {/* Component Ratings Summary at the bottom */}
+              <div className="p-4 sm:p-6 bg-gray-50 border-t-2 border-gray-200">
+                <h4 className="font-bold text-gray-900 mb-4 uppercase tracking-tight text-sm">Component Ratings (Auto-calculated)</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {area.components.map(comp => (
+                    <div key={comp.id} className="flex justify-between items-center p-3 bg-white border-2 border-gray-200">
+                      <span className="text-xs font-bold text-gray-700 uppercase tracking-widest">{comp.name}</span>
+                      <div className="flex gap-2">
+                        {record.ratings[comp.id] ? (
+                          <span className={`px-3 py-1 text-xs font-black uppercase tracking-widest border-2 ${record.ratings[comp.id] === 'FM' ? 'bg-green-100 border-green-500 text-green-800' : record.ratings[comp.id] === 'AM' ? 'bg-yellow-100 border-yellow-500 text-yellow-800' : 'bg-red-100 border-red-500 text-red-800'}`}>
+                            {record.ratings[comp.id]}
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 text-xs font-black uppercase tracking-widest border-2 bg-gray-100 border-gray-300 text-gray-500">
+                            N/A
+                          </span>
+                        )}
                       </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-              )})}
+              </div>
             </div>
           </div>
           );

@@ -38,6 +38,23 @@ export const SettingsPage: React.FC = () => {
     const loadSettings = async () => {
       const data = await getSystemSettings();
       if (data) {
+        let schoolCals = data.schoolCalendars || [];
+        if (schoolCals.length !== 3) {
+          schoolCals = [
+            { id: 'term-1', termName: 'Term 1', learnersOpeningDate: '', learnersClosingDate: '', teachersOpeningDate: '', teachersClosingDate: '', holidays: [], schoolDays: 0 },
+            { id: 'term-2', termName: 'Term 2', learnersOpeningDate: '', learnersClosingDate: '', teachersOpeningDate: '', teachersClosingDate: '', holidays: [], schoolDays: 0 },
+            { id: 'term-3', termName: 'Term 3', learnersOpeningDate: '', learnersClosingDate: '', teachersOpeningDate: '', teachersClosingDate: '', holidays: [], schoolDays: 0 }
+          ];
+        }
+        let hostelCals = data.hostelCalendars || [];
+        if (hostelCals.length !== 3) {
+          hostelCals = [
+            { id: 'term-1', termName: 'Term 1', hostelOpeningDate: '', hostelClosingDate: '', staffOpeningDate: '', staffClosingDate: '', holidays: [], hostelDays: 0 },
+            { id: 'term-2', termName: 'Term 2', hostelOpeningDate: '', hostelClosingDate: '', staffOpeningDate: '', staffClosingDate: '', holidays: [], hostelDays: 0 },
+            { id: 'term-3', termName: 'Term 3', hostelOpeningDate: '', hostelClosingDate: '', staffOpeningDate: '', staffClosingDate: '', holidays: [], hostelDays: 0 }
+          ];
+        }
+
         setSettings({
             ...data,
             fees: data.fees || [],
@@ -45,8 +62,8 @@ export const SettingsPage: React.FC = () => {
             stationery: data.stationery || [],
             grades: data.grades || [],
             specialNeedsLevels: data.specialNeedsLevels || ['Level 1A', 'Level 1B', 'Level 2', 'Level 3'],
-            schoolCalendars: data.schoolCalendars || [],
-            hostelCalendars: data.hostelCalendars || []
+            schoolCalendars: schoolCals,
+            hostelCalendars: hostelCals
         });
       }
     };

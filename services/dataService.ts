@@ -713,7 +713,27 @@ export const getSystemSettings = async (): Promise<SystemSettings | null> => {
   const docRef = doc(db, SETTINGS_COLLECTION, 'general');
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
-    return docSnap.data() as SystemSettings;
+    const data = docSnap.data() as SystemSettings;
+    
+    // Enforce strict 3 terms with programmatic IDs
+    const ensureTerms = (calendars: any[] | undefined, prefix: string) => {
+      const cals = calendars || [];
+      const result = [];
+      for (let i = 0; i < 3; i++) {
+        const existing = cals[i] || {};
+        result.push({
+          ...existing,
+          id: `term-${i + 1}`,
+          termName: existing.termName || `Term ${i + 1}`
+        });
+      }
+      return result;
+    };
+
+    data.schoolCalendars = ensureTerms(data.schoolCalendars, 'school');
+    data.hostelCalendars = ensureTerms(data.hostelCalendars, 'hostel');
+
+    return data;
   }
   return null;
 };
