@@ -84,11 +84,18 @@ export interface HostelCalendar {
   hostelDays: number;
 }
 
+export interface SubAdmin {
+  id: string;
+  name: string;
+  pin: string;
+}
+
 export interface SystemSettings {
   id?: string;
   schoolName?: string;
   adminName: string;
   adminPin: string;
+  admins?: SubAdmin[];
   
   fees: FeeItem[];
   uniforms: SupplyItem[];
@@ -344,6 +351,20 @@ export interface Application {
   officeStatus?: string;
   officeResponseDate?: string;
   officeResponseMethod?: string;
+}
+
+export interface WeeklyLessonPlan {
+  id?: string;
+  teacherId: string;
+  classLevel: string;
+  termId: string;
+  theme: string;
+  weekNumber: number;
+  grade: string;
+  dates: string;
+  coreSubjects: Record<string, Record<string, string>>; // day -> subject -> activity
+  extendedSubjects: Record<string, Record<string, string>>; // day -> subject -> activity
+  uploadedAt: string;
 }
 
 export type StudentStatus = 'WAITING_PAYMENT' | 'PAYMENT_VERIFICATION' | 'ASSESSMENT' | 'ENROLLED';

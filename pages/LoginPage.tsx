@@ -43,11 +43,11 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
     setLoading(true);
     setError('');
     
-    const isValid = await verifyAdminPin(pin);
+    const adminUser = await verifyAdminPin(pin);
     
-    if (isValid) {
-      if (showToast) showToast('Welcome back, Admin!');
-      onLogin(UserRole.ADMIN, { name: 'Administrator', id: 'admin' });
+    if (adminUser) {
+      if (showToast) showToast(`Welcome back, ${adminUser.name}!`);
+      onLogin(UserRole.ADMIN, adminUser);
       navigate('/admin/dashboard');
     } else {
       setError('Invalid PIN.');

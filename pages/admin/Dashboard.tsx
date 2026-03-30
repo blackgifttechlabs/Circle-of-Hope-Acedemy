@@ -8,8 +8,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, AreaChart, Area, Cell
 } from 'recharts';
-import { getDashboardStats } from '../../services/dataService';
+import { getDashboardStats, createSubAdmin } from '../../services/dataService';
 import { Loader } from '../../components/ui/Loader';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 
 /* ─── Avatar ─── */
 const Av = ({ name, size = 36 }: { name: string; size?: number }) => {
@@ -58,12 +60,45 @@ export const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showDefaulters, setShowDefaulters] = useState(false);
+  const [showCreateAdmin, setShowCreateAdmin] = useState(false);
+  const [newAdminName, setNewAdminName] = useState('');
+  const [newAdminPin, setNewAdminPin] = useState('');
+  const [createAdminLoading, setCreateAdminLoading] = useState(false);
+  const [createAdminError, setCreateAdminError] = useState('');
+  const [createAdminSuccess, setCreateAdminSuccess] = useState('');
 
   useEffect(() => {
     getDashboardStats().then(data => { setStats(data); setLoading(false); });
   }, []);
 
   if (loading) return <Loader />;
+
+  const handleCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateAdminLoading(true);
+    setCreateAdminError('');
+    setCreateAdminSuccess('');
+
+    if (newAdminPin.length < 4) {
+      setCreateAdminError('PIN must be at least 4 characters long.');
+      setCreateAdminLoading(false);
+      return;
+    }
+
+    const result = await createSubAdmin(newAdminName, newAdminPin);
+    if (result.success) {
+      setCreateAdminSuccess(result.message);
+      setNewAdminName('');
+      setNewAdminPin('');
+      setTimeout(() => {
+        setShowCreateAdmin(false);
+        setCreateAdminSuccess('');
+      }, 2000);
+    } else {
+      setCreateAdminError(result.message);
+    }
+    setCreateAdminLoading(false);
+  };
 
   const totalStudents   = stats?.totalStudents || 0;
   const totalTeachers   = stats?.totalTeachers || 0;
@@ -142,6 +177,12 @@ export const AdminDashboard: React.FC = () => {
           </p>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <Button 
+            onClick={() => setShowCreateAdmin(true)}
+            className="!bg-coha-900 hover:!bg-coha-800 text-white !py-2 !px-4 !rounded-lg !text-sm !font-bold"
+          >
+            Create Admin
+          </Button>
           <button style={{ background:'white', border:'1.5px solid #e2e8f0', borderRadius:10,
             width:40, height:40, display:'flex', alignItems:'center', justifyContent:'center',
             cursor:'pointer', position:'relative' }}>
@@ -626,6 +667,58 @@ export const AdminDashboard: React.FC = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ CREATE ADMIN MODAL ══ */}
+      {showCreateAdmin && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.6)', zIndex:100,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)' }}>
+          <div style={{ background:'white', borderRadius:20, width:'100%', maxWidth:400,
+            boxShadow:'0 20px 40px rgba(0,0,0,.15)', overflow:'hidden', animation:'fadeup .3s ease' }}>
+            <div style={{ padding:'20px 24px', borderBottom:'1px solid #f1f5f9', display:'flex',
+              justifyContent:'space-between', alignItems:'center' }}>
+              <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:'#0f172a' }}>Create Sub-Admin</h3>
+              <button onClick={() => setShowCreateAdmin(false)}
+                style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8' }}>
+                <X size={20}/>
+              </button>
+            </div>
+            <form onSubmit={handleCreateAdmin} style={{ padding:24 }}>
+              {createAdminError && (
+                <div style={{ background:'#fef2f2', color:'#ef4444', padding:'10px 14px', borderRadius:8, fontSize:13, fontWeight:600, marginBottom:16 }}>
+                  {createAdminError}
+                </div>
+              )}
+              {createAdminSuccess && (
+                <div style={{ background:'#f0fdf4', color:'#10b981', padding:'10px 14px', borderRadius:8, fontSize:13, fontWeight:600, marginBottom:16 }}>
+                  {createAdminSuccess}
+                </div>
+              )}
+              <div style={{ marginBottom:16 }}>
+                <Input 
+                  label="Admin Name" 
+                  placeholder="e.g. John Doe" 
+                  value={newAdminName}
+                  onChange={(e) => setNewAdminName(e.target.value)}
+                  required
+                />
+              </div>
+              <div style={{ marginBottom:24 }}>
+                <Input 
+                  label="Admin PIN" 
+                  type="password"
+                  placeholder="Enter a unique PIN" 
+                  value={newAdminPin}
+                  onChange={(e) => setNewAdminPin(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" fullWidth disabled={createAdminLoading}>
+                {createAdminLoading ? 'Creating...' : 'Create Admin'}
+              </Button>
+            </form>
           </div>
         </div>
       )}

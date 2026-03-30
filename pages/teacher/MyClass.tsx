@@ -37,6 +37,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
   const [toast, setToast] = useState({ show:false, msg:'' });
   const [terms, setTerms] = useState<TermCalendar[]>([]);
   const [activeTermId, setActiveTermId] = useState<string>('');
+  const [isSpecialNeedsTeacher, setIsSpecialNeedsTeacher] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -49,6 +50,9 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
           const settings = await getSystemSettings();
           if (settings?.schoolCalendars) {
             setTerms(settings.schoolCalendars);
+          }
+          if (settings?.specialNeedsLevels && user.assignedClass) {
+            setIsSpecialNeedsTeacher(settings.specialNeedsLevels.includes(user.assignedClass));
           }
           
           let termId = activeTermId || settings?.activeTermId || 'term-1';
@@ -161,6 +165,15 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
           </p>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          {isSpecialNeedsTeacher && (
+            <button 
+              onClick={() => navigate('/teacher/lesson-plan')}
+              style={{ background:'#2563eb', color:'white', border:'none', borderRadius:10,
+                padding:'0 16px', height:40, display:'flex', alignItems:'center', gap:8,
+                cursor:'pointer', fontSize:12, fontWeight:800, letterSpacing:'.05em', textTransform:'uppercase' }}>
+              <ClipboardList size={16}/> Enter Lesson Plan
+            </button>
+          )}
           {terms.length > 0 && (
             <div style={{ display:'flex', alignItems:'center', gap:8, background:'white',
               border:'1.5px solid #e2e8f0', borderRadius:10, padding:'6px 12px' }}>

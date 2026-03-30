@@ -173,7 +173,7 @@ Circle of Hope Academy (COHA)
   );
 
   return (
-    <div className="w-full px-5 pb-10">
+    <div className="-m-5 pb-20 font-sans text-black bg-gray-50 min-h-[calc(100vh-64px)]">
         <ConfirmModal 
             isOpen={rejectModalOpen}
             onClose={() => setRejectModalOpen(false)}
@@ -183,24 +183,34 @@ Circle of Hope Academy (COHA)
             isLoading={isProcessing}
         />
 
-        <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-                <button onClick={() => navigate('/admin/applications')} className="bg-white p-2 border hover:bg-gray-50">
-                    <ArrowLeft size={20} />
+        {/* HERO SECTION / HEADER */}
+        <div className="bg-coha-900 text-white p-6 sm:p-8 shadow-md relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
+            <div className="relative z-10">
+                <button onClick={() => navigate('/admin/applications')} className="mb-4 p-2 hover:bg-white/10 transition-all flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest border border-white/20 w-fit">
+                    <ArrowLeft size={16} /> Back to Applications
                 </button>
-                <div>
-                    <h2 className="text-2xl font-bold text-coha-900">{app.surname}, {app.firstName}</h2>
-                    <p className="text-gray-600">Application ID: {app.id}</p>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                    <div>
+                        <div className="flex items-center gap-3 mb-1">
+                            <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-tighter leading-none">{app.surname}, {app.firstName}</h2>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] font-bold text-coha-300 uppercase tracking-widest">
+                            <span>Application ID: <span className="text-white">{app.id}</span></span>
+                            <span>{app.grade}</span>
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button onClick={() => window.print()} className="bg-white !text-coha-900 border border-gray-300 px-4 py-2 font-black uppercase text-[10px] tracking-widest hover-pop">
+                            <Printer size={16} /> Print
+                        </Button>
+                    </div>
                 </div>
-            </div>
-            <div className="flex gap-2">
-                <Button variant="outline" onClick={() => window.print()}>
-                    <Printer size={18} /> Print
-                </Button>
             </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="p-4 sm:p-8 max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
                 <Section title="Learner Details">
                     <InfoRow label="Full Name" value={`${app.firstName} ${app.surname}`} />
@@ -302,6 +312,7 @@ Circle of Hope Academy (COHA)
                     )}
                 </div>
             </div>
+        </div>
         </div>
     </div>
   );

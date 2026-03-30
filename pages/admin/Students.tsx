@@ -7,7 +7,7 @@ import { Plus, Search, Eye, Download, CheckSquare, Activity, Filter, Key } from 
 import { Toast } from '../../components/ui/Toast';
 import { printStudentList } from '../../utils/printStudentList';
 
-export const StudentsPage: React.FC = () => {
+export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
   const [viewMode, setViewMode] = useState<'ENROLLED' | 'ASSESSMENT'>('ENROLLED');
   const [students, setStudents] = useState<Student[]>([]);
   const navigate = useNavigate();
@@ -173,10 +173,10 @@ export const StudentsPage: React.FC = () => {
               <tr>
                 <th className="px-6 py-4">ID</th>
                 <th className="px-6 py-4">Student</th>
-                <th className="px-6 py-4">Login PIN</th>
+                {user?.adminRole !== 'sub_admin' && <th className="px-6 py-4">Login PIN</th>}
                 <th className="px-6 py-4">Division</th>
                 <th className="px-6 py-4">Current Grade</th>
-                <th className="px-6 py-4">Actions</th>
+                {user?.adminRole !== 'sub_admin' && <th className="px-6 py-4">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -184,12 +184,14 @@ export const StudentsPage: React.FC = () => {
                 <tr key={student.id} className="hover:bg-gray-50 group">
                   <td className="px-6 py-4 font-mono text-xs text-gray-400">{student.id}</td>
                   <td className="px-6 py-4 font-bold text-coha-900">{student.name}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <Key size={12} className="text-gray-400" />
-                      <span className="font-mono font-black text-coha-700 bg-gray-100 px-2 py-0.5">{student.parentPin}</span>
-                    </div>
-                  </td>
+                  {user?.adminRole !== 'sub_admin' && (
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Key size={12} className="text-gray-400" />
+                        <span className="font-mono font-black text-coha-700 bg-gray-100 px-2 py-0.5">{student.parentPin}</span>
+                      </div>
+                    </td>
+                  )}
                   <td className="px-6 py-4">
                      <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded-none border ${student.division === Division.SPECIAL_NEEDS ? 'bg-blue-50 text-blue-800 border-blue-200' : 'bg-gray-50 text-gray-800 border-gray-200'}`}>
                          {student.division || 'Mainstream'}
@@ -198,32 +200,34 @@ export const StudentsPage: React.FC = () => {
                   <td className="px-6 py-4 font-medium text-sm">
                       {student.assignedClass || student.grade || student.level}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                        {viewMode === 'ASSESSMENT' ? (
-                            <>
-                                <button onClick={() => navigate(`/admin/assessment/${student.id}`)} className="p-2 border border-gray-200 hover:bg-coha-900 hover:text-white transition-all">
-                                    <Eye size={14} />
-                                </button>
-                                <Button onClick={() => handleFinalizeAssessment(student.id)} className="py-1 px-3 text-[10px] font-black uppercase">
-                                    Finalize
-                                </Button>
-                            </>
-                        ) : (
-                            <button 
-                              onClick={() => navigate(`/admin/students/${student.id}`)}
-                              className="text-coha-500 hover:underline font-bold text-sm flex items-center gap-1"
-                            >
-                              <Eye size={16} /> Profile
-                            </button>
-                        )}
-                    </div>
-                  </td>
+                  {user?.adminRole !== 'sub_admin' && (
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                          {viewMode === 'ASSESSMENT' ? (
+                              <>
+                                  <button onClick={() => navigate(`/admin/assessment/${student.id}`)} className="p-2 border border-gray-200 hover:bg-coha-900 hover:text-white transition-all">
+                                      <Eye size={14} />
+                                  </button>
+                                  <Button onClick={() => handleFinalizeAssessment(student.id)} className="py-1 px-3 text-[10px] font-black uppercase">
+                                      Finalize
+                                  </Button>
+                              </>
+                          ) : (
+                              <button 
+                                onClick={() => navigate(`/admin/students/${student.id}`)}
+                                className="text-coha-500 hover:underline font-bold text-sm flex items-center gap-1"
+                              >
+                                <Eye size={16} /> Profile
+                              </button>
+                          )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
                {filteredStudents.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500 italic">No student records found matching filters.</td>
+                  <td colSpan={user?.adminRole === 'sub_admin' ? 4 : 6} className="px-6 py-8 text-center text-gray-500 italic">No student records found matching filters.</td>
                 </tr>
               )}
             </tbody>

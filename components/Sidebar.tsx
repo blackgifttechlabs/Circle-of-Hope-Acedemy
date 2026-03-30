@@ -51,6 +51,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Settings', path: '/admin/settings', icon: <Settings size={20} /> },
   ];
 
+  const subAdminLinks = [
+    { label: 'Applications', path: '/admin/applications', icon: <FileText size={20} />, badge: badgeCount },
+    { label: 'VTC Applications', path: '/admin/vtc-applications', icon: <FileText size={20} />, badge: vtcBadgeCount },
+    { label: 'Students', path: '/admin/students', icon: <GraduationCap size={20} /> },
+  ];
+
   const teacherLinks = [
     { label: 'Dashboard', path: '/teacher/dashboard', icon: <LayoutDashboard size={20} /> },
     { label: 'My Class', path: '/teacher/classes', icon: <GraduationCap size={20} /> },
@@ -70,7 +76,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   ];
 
   let links = parentLinks;
-  if (role === UserRole.ADMIN) links = adminLinks;
+  if (role === UserRole.ADMIN) {
+    links = user?.adminRole === 'sub_admin' ? subAdminLinks : adminLinks;
+  }
   if (role === UserRole.TEACHER) links = teacherLinks;
   if (role === UserRole.VTC_STUDENT) links = vtcLinks;
 

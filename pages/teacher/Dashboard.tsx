@@ -116,6 +116,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   const [terms, setTerms] = useState<TermCalendar[]>([]);
   const [activeTermId, setActiveTermId] = useState<string>('');
   const [isCached, setIsCached] = useState(false);
+  const [isSpecialNeedsTeacher, setIsSpecialNeedsTeacher] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -151,6 +152,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
           const settings = await getSystemSettings();
           if (settings?.schoolCalendars) {
             setTerms(settings.schoolCalendars);
+          }
+          if (settings?.specialNeedsLevels && user.assignedClass) {
+            setIsSpecialNeedsTeacher(settings.specialNeedsLevels.includes(user.assignedClass));
           }
           
           let termId = activeTermId || settings?.activeTermId || 'term-1';
@@ -334,6 +338,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                 ))}
               </select>
             </div>
+          )}
+          {isSpecialNeedsTeacher && (
+            <button 
+              onClick={() => navigate('/teacher/lesson-plan')}
+              style={{ background:'#2563eb', color:'white', border:'none', borderRadius:10,
+                padding:'0 16px', height:40, display:'flex', alignItems:'center', gap:8,
+                cursor:'pointer', fontSize:12, fontWeight:800, letterSpacing:'.05em', textTransform:'uppercase' }}>
+              <ClipboardList size={16}/> Enter Lesson Plan
+            </button>
           )}
           <button 
             onClick={() => {

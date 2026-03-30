@@ -4,7 +4,7 @@ import { Input } from '../../components/ui/Input';
 import { CustomSelect } from '../../components/ui/CustomSelect';
 import { addTeacher, getTeachers, deleteTeacher, updateTeacher, getSystemSettings } from '../../services/dataService';
 import { Teacher, SystemSettings } from '../../types';
-import { Plus, Search, Trash2, Edit2, BarChart2 } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, BarChart2, FileText } from 'lucide-react';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { useNavigate } from 'react-router-dom';
 
@@ -167,8 +167,8 @@ export const TeachersPage: React.FC = () => {
       )}
 
       <div className="bg-white border border-gray-200 shadow-sm">
-        <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4 items-center">
+          <div className="relative flex-1 max-w-md w-full">
             <Search className="absolute left-3 top-3 text-gray-400" size={20} />
             <input 
               className="w-full pl-10 pr-4 py-2 border border-gray-300 focus:border-coha-500 outline-none rounded-none"
@@ -183,7 +183,16 @@ export const TeachersPage: React.FC = () => {
               onChange={setFilterClass}
               options={[{ label: 'All Classes', value: '' }, ...getClassOptions()]}
               placeholder="Filter by class..."
+              className="!mb-0"
             />
+          </div>
+          <div className="w-full sm:w-auto sm:ml-auto">
+            <Button 
+              onClick={() => navigate('/admin/lesson-plans')} 
+              className="w-full sm:w-auto !bg-green-600 hover:!bg-green-700 !border-0 text-white flex items-center justify-center gap-2 px-6"
+            >
+              <FileText size={20} /> View Lesson Plans
+            </Button>
           </div>
         </div>
         <div className="overflow-x-auto">

@@ -17,6 +17,7 @@ import { ApplicationDetailsPage } from './pages/admin/ApplicationDetails';
 import { VtcApplicationsPage } from './pages/admin/VtcApplications';
 import { VtcApplicationDetails } from './pages/admin/VtcApplicationDetails';
 import { SettingsPage } from './pages/admin/Settings';
+import { ViewLessonPlans } from './pages/admin/ViewLessonPlans';
 import { ParentDashboard } from './pages/parent/Dashboard';
 import { ParentAssessmentForm } from './pages/parent/AssessmentForm';
 import { ParentAssessmentProgress } from './pages/parent/AssessmentProgress';
@@ -28,6 +29,7 @@ import { TermAssessmentComponentPage } from './pages/teacher/TermAssessmentCompo
 import { ClassListFormPage } from './pages/teacher/ClassListFormPage';
 import { SummaryFormPage } from './pages/teacher/SummaryFormPage';
 import { DailyRegister } from './pages/teacher/DailyRegister';
+import LessonPlanPage from './pages/teacher/LessonPlan';
 import { VtcDashboard } from './pages/vtc/Dashboard';
 import { UserRole } from './types';
 import { seedAdminUser, getAdminProfile } from './services/dataService';
@@ -148,18 +150,32 @@ const App: React.FC = () => {
             <ProtectedRoute isAuthenticated={!!user} userRole={role} allowedRoles={[UserRole.ADMIN]}>
               <AppLayout role={UserRole.ADMIN} user={user} onLogout={handleLogout}>
                 <Routes>
-                  <Route path="dashboard" element={<AdminDashboard />} />
-                  <Route path="applications" element={<ApplicationsPage />} />
-                  <Route path="applications/:id" element={<ApplicationDetailsPage />} />
-                  <Route path="vtc-applications" element={<VtcApplicationsPage />} />
-                  <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
-                  <Route path="teachers" element={<TeachersPage />} />
-                  <Route path="teachers/:id/progress" element={<TeacherProgressPage />} />
-                  <Route path="students" element={<StudentsPage />} />
-                  <Route path="students/:id" element={<StudentDetailsPage />} />
-                  <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.ADMIN} user={user} />} />
-                  <Route path="settings" element={<SettingsPage />} />
-                  <Route path="*" element={<Navigate to="dashboard" />} />
+                  {user?.adminRole === 'sub_admin' ? (
+                    <>
+                      <Route path="applications" element={<ApplicationsPage />} />
+                      <Route path="applications/:id" element={<ApplicationDetailsPage />} />
+                      <Route path="vtc-applications" element={<VtcApplicationsPage />} />
+                      <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
+                      <Route path="students" element={<StudentsPage user={user} />} />
+                      <Route path="*" element={<Navigate to="applications" />} />
+                    </>
+                  ) : (
+                    <>
+                      <Route path="dashboard" element={<AdminDashboard />} />
+                      <Route path="applications" element={<ApplicationsPage />} />
+                      <Route path="applications/:id" element={<ApplicationDetailsPage />} />
+                      <Route path="vtc-applications" element={<VtcApplicationsPage />} />
+                      <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
+                      <Route path="teachers" element={<TeachersPage />} />
+                      <Route path="teachers/:id/progress" element={<TeacherProgressPage />} />
+                      <Route path="lesson-plans" element={<ViewLessonPlans />} />
+                      <Route path="students" element={<StudentsPage user={user} />} />
+                      <Route path="students/:id" element={<StudentDetailsPage />} />
+                      <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.ADMIN} user={user} />} />
+                      <Route path="settings" element={<SettingsPage />} />
+                      <Route path="*" element={<Navigate to="dashboard" />} />
+                    </>
+                  )}
                 </Routes>
               </AppLayout>
             </ProtectedRoute>
@@ -178,6 +194,7 @@ const App: React.FC = () => {
                     <Route path="term-assessment-component" element={<TermAssessmentComponentPage user={user} />} />
                     <Route path="class-list-form" element={<ClassListFormPage user={user} />} />
                     <Route path="summary-form" element={<SummaryFormPage user={user} />} />
+                    <Route path="lesson-plan" element={<LessonPlanPage user={user} />} />
                     <Route path="settings" element={<TeacherSettings user={user} />} />
                     <Route path="*" element={<Navigate to="dashboard" />} />
                 </Routes>

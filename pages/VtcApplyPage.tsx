@@ -225,7 +225,7 @@ export const VtcApplyPage: React.FC = () => {
       {step === 'instructions' ? (
         <>
           <div className="sticky top-0 bg-white z-40 border-b border-gray-100 shadow-sm">
-            <div className="px-5 py-3 flex items-center gap-4">
+            <div className="max-w-4xl mx-auto px-5 py-3 flex items-center gap-4">
               <button onClick={() => navigate('/')} className="text-gray-500 hover:text-coha-900">
                 <ArrowLeft size={20} />
               </button>
@@ -314,49 +314,51 @@ export const VtcApplyPage: React.FC = () => {
         <>
           {/* Header */}
           <div className="sticky top-0 bg-white z-40 border-b border-gray-100 shadow-sm">
-            <div className="px-5 py-3 flex items-center gap-4">
-              <button 
-                onClick={() => {
-                  setStep('instructions');
-                  scrollToTop();
-                }} 
-                className="text-gray-500 hover:text-coha-900"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <h1 className="text-sm font-bold text-gray-600">VTC Application</h1>
-            </div>
-            
-            {/* Stepper */}
-            <div className="px-5 pb-3 pt-1">
-              <div className="flex items-center justify-between relative">
-                <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 -z-10 transform -translate-y-1/2"></div>
-                <div 
-                  className="absolute top-1/2 left-0 h-0.5 bg-coha-500 -z-10 transform -translate-y-1/2 transition-all duration-300"
-                  style={{ width: `${(currentFormStep / (STEPS.length - 1)) * 100}%` }}
-                ></div>
-
-                {STEPS.map((stepName, index) => {
-                  const isCompleted = index < currentFormStep;
-                  const isCurrent = index === currentFormStep;
-                  
-                  return (
-                    <div key={index} className="flex flex-col items-center bg-white px-1">
-                      <div 
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300 ${
-                          isCompleted ? 'bg-coha-500 border-coha-500 text-white' : 
-                          isCurrent ? 'bg-white border-coha-500 text-coha-500 scale-110' : 
-                          'bg-white border-gray-300 text-gray-400'
-                        }`}
-                      >
-                        {isCompleted ? <Check size={14} /> : index + 1}
-                      </div>
-                    </div>
-                  );
-                })}
+            <div className="max-w-4xl mx-auto">
+              <div className="px-5 py-3 flex items-center gap-4">
+                <button 
+                  onClick={() => {
+                    setStep('instructions');
+                    scrollToTop();
+                  }} 
+                  className="text-gray-500 hover:text-coha-900"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+                <h1 className="text-sm font-bold text-gray-600">VTC Application</h1>
               </div>
-              <div className="text-center mt-2">
-                <span className="text-xs font-bold text-coha-900 uppercase tracking-wide">{STEPS[currentFormStep]}</span>
+              
+              {/* Stepper */}
+              <div className="px-5 pb-3 pt-1">
+                <div className="flex items-center justify-between relative">
+                  <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 -z-10 transform -translate-y-1/2"></div>
+                  <div 
+                    className="absolute top-1/2 left-0 h-0.5 bg-coha-500 -z-10 transform -translate-y-1/2 transition-all duration-300"
+                    style={{ width: `${(currentFormStep / (STEPS.length - 1)) * 100}%` }}
+                  ></div>
+
+                  {STEPS.map((stepName, index) => {
+                    const isCompleted = index < currentFormStep;
+                    const isCurrent = index === currentFormStep;
+                    
+                    return (
+                      <div key={index} className="flex flex-col items-center bg-white px-1">
+                        <div 
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300 ${
+                            isCompleted ? 'bg-coha-500 border-coha-500 text-white' : 
+                            isCurrent ? 'bg-white border-coha-500 text-coha-500 scale-110' : 
+                            'bg-white border-gray-300 text-gray-400'
+                          }`}
+                        >
+                          {isCompleted ? <Check size={14} /> : index + 1}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-center mt-2">
+                  <span className="text-xs font-bold text-coha-900 uppercase tracking-wide">{STEPS[currentFormStep]}</span>
+                </div>
               </div>
             </div>
           </div>

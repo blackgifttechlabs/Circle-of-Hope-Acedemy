@@ -1,7 +1,7 @@
 import { db, auth } from '../firebase';
 import { collection, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan } from '../types';
 
 // Collections
 const TEACHERS_COLLECTION = 'teachers';
@@ -89,6 +89,45 @@ export const updateTeacher = async (id: string, data: Partial<Teacher>) => {
   } catch (error) {
     console.error("Error updating teacher:", error);
     return false;
+  }
+};
+
+export const uploadLessonPlan = async (plan: Omit<WeeklyLessonPlan, 'id' | 'uploadedAt'>) => {
+  try {
+    const docRef = await addDoc(collection(db, 'lesson_plans'), {
+      ...plan,
+      uploadedAt: new Date().toISOString()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error uploading lesson plan:", error);
+    throw error;
+  }
+};
+
+export const getLessonPlans = async (teacherId: string, classLevel: string) => {
+  try {
+    const q = query(
+      collection(db, 'lesson_plans'),
+      where('teacherId', '==', teacherId),
+      where('classLevel', '==', classLevel)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WeeklyLessonPlan));
+  } catch (error) {
+    console.error("Error fetching lesson plans:", error);
+    return [];
+  }
+};
+
+export const getAllLessonPlans = async () => {
+  try {
+    const q = query(collection(db, 'lesson_plans'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WeeklyLessonPlan));
+  } catch (error) {
+    console.error("Error fetching all lesson plans:", error);
+    return [];
   }
 };
 
@@ -477,26 +516,84 @@ export const calculateFinalStage = async (studentId: string): Promise<{ success:
     }
 };
 
-export const verifyAdminPin = async (pin: string): Promise<boolean> => {
+export const verifyAdminPin = async (pin: string): Promise<any | null> => {
   const settings = await getSystemSettings();
   const validPin = settings ? settings.adminPin : '1111';
 
-  if (pin !== validPin) return false;
+  let adminUser = null;
+
+  if (pin === validPin) {
+    adminUser = { id: 'admin', name: settings?.adminName || 'Victoria Joel', adminRole: 'super_admin' };
+  } else if (settings?.admins) {
+    const subAdmin = settings.admins.find(a => a.pin === pin);
+    if (subAdmin) {
+      adminUser = { id: subAdmin.id, name: subAdmin.name, adminRole: 'sub_admin' };
+    }
+  }
+
+  if (!adminUser) return null;
 
   try {
     await signInWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_AUTH_PASSWORD);
-    return true;
+    return adminUser;
   } catch (error) {
     console.error("Admin login failed:", error);
-    return false;
+    return null;
   }
 };
 
-export const getAdminProfile = async () => {
+export const createSubAdmin = async (name: string, pin: string): Promise<{success: boolean, message: string}> => {
+  try {
+    const settings = await getSystemSettings();
+    if (!settings) return { success: false, message: 'System settings not found' };
+
+    // Check if PIN matches super admin
+    if (pin === settings.adminPin) {
+      return { success: false, message: 'This PIN is already in use by the Super Admin.' };
+    }
+
+    // Check if PIN matches any existing sub-admin
+    if (settings.admins && settings.admins.some(a => a.pin === pin)) {
+      return { success: false, message: 'This PIN is already in use by another Admin.' };
+    }
+
+    const newAdmin = {
+      id: `admin_${Date.now()}`,
+      name,
+      pin
+    };
+
+    const updatedAdmins = [...(settings.admins || []), newAdmin];
+    await saveSystemSettings({ admins: updatedAdmins });
+
+    return { success: true, message: 'Admin created successfully.' };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'Failed to create admin.' };
+  }
+};
+
+export const getAdminProfile = async (adminId: string = 'admin') => {
   const settings = await getSystemSettings();
+  if (adminId === 'admin') {
+    return { 
+      name: settings?.adminName || 'Victoria Joel', 
+      id: 'admin',
+      adminRole: 'super_admin'
+    };
+  } else if (settings?.admins) {
+    const subAdmin = settings.admins.find(a => a.id === adminId);
+    if (subAdmin) {
+      return {
+        name: subAdmin.name,
+        id: subAdmin.id,
+        adminRole: 'sub_admin'
+      };
+    }
+  }
   return { 
     name: settings?.adminName || 'Victoria Joel', 
-    id: 'admin' 
+    id: 'admin',
+    adminRole: 'super_admin'
   };
 };
 
