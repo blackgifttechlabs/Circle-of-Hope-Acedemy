@@ -30,6 +30,12 @@ import { ClassListFormPage } from './pages/teacher/ClassListFormPage';
 import { SummaryFormPage } from './pages/teacher/SummaryFormPage';
 import { DailyRegister } from './pages/teacher/DailyRegister';
 import LessonPlanPage from './pages/teacher/LessonPlan';
+import LessonPlanGradePage from './pages/teacher/LessonPlanGrade';
+import SubjectSelection from './pages/teacher/assessment/SubjectSelection';
+import TopicSelection from './pages/teacher/assessment/TopicSelection';
+import TopicAssessment from './pages/teacher/assessment/TopicAssessment';
+import StudentAssessment from './pages/teacher/assessment/StudentAssessment';
+import TermReview from './pages/teacher/assessment/TermReview';
 import { VtcDashboard } from './pages/vtc/Dashboard';
 import { UserRole } from './types';
 import { seedAdminUser, getAdminProfile } from './services/dataService';
@@ -194,7 +200,16 @@ const App: React.FC = () => {
                     <Route path="term-assessment-component" element={<TermAssessmentComponentPage user={user} />} />
                     <Route path="class-list-form" element={<ClassListFormPage user={user} />} />
                     <Route path="summary-form" element={<SummaryFormPage user={user} />} />
-                    <Route path="lesson-plan" element={<LessonPlanPage user={user} />} />
+                    <Route path="assess" element={<SubjectSelection user={user} />} />
+                    <Route path="assess/:subject" element={<TopicSelection user={user} />} />
+                    <Route path="assess/:subject/:term/:topic" element={<TopicAssessment user={user} />} />
+                    <Route path="assess/:subject/:term/review" element={<TermReview user={user} />} />
+                    <Route path="assess/student/:id" element={<StudentAssessment user={user} />} />
+                    <Route path="lesson-plan" element={
+                      user?.assignedClass?.toLowerCase().includes('grade') 
+                        ? <LessonPlanGradePage user={user} /> 
+                        : <LessonPlanPage user={user} />
+                    } />
                     <Route path="settings" element={<TeacherSettings user={user} />} />
                     <Route path="*" element={<Navigate to="dashboard" />} />
                 </Routes>

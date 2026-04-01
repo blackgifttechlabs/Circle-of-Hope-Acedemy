@@ -207,6 +207,17 @@ export interface TermAssessmentRecord {
   updatedAt: string;
 }
 
+export interface TopicAssessmentRecord {
+  id?: string;
+  studentId: string;
+  grade: string;
+  termId: string;
+  subject: string;
+  topic: string;
+  mark: number;
+  updatedAt: string;
+}
+
 export interface DailyRegisterRecord {
   status: 'present' | 'absent';
   timestamp: string;

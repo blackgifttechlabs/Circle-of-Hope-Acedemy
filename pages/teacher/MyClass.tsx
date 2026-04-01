@@ -38,21 +38,42 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
   const [terms, setTerms] = useState<TermCalendar[]>([]);
   const [activeTermId, setActiveTermId] = useState<string>('');
   const [isSpecialNeedsTeacher, setIsSpecialNeedsTeacher] = useState(false);
+  const isGrade1To7Teacher = user?.assignedClass?.match(/Grade [1-7]/i);
   const navigate = useNavigate();
 
   useEffect(() => {
     (async () => {
       if (user?.assignedClass) {
         setLoading(true);
+        
+        const cacheKey = `myclass_${user.id}_${user.assignedClass}_${activeTermId || 'default'}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed.students) setStudents(parsed.students);
+            if (parsed.terms) setTerms(parsed.terms);
+            if (parsed.isSpecialNeedsTeacher !== undefined) setIsSpecialNeedsTeacher(parsed.isSpecialNeedsTeacher);
+            if (parsed.records) setRecords(parsed.records);
+            setLoading(false); // Stop loading early to show UI immediately
+          } catch (e) {
+            console.error("Cache parse error", e);
+          }
+        }
+
         try {
           const data = await getStudentsByAssignedClass(user.assignedClass);
           setStudents(data);
           const settings = await getSystemSettings();
+          let termsData = terms;
           if (settings?.schoolCalendars) {
-            setTerms(settings.schoolCalendars);
+            termsData = settings.schoolCalendars;
+            setTerms(termsData);
           }
+          let isSpecial = isSpecialNeedsTeacher;
           if (settings?.specialNeedsLevels && user.assignedClass) {
-            setIsSpecialNeedsTeacher(settings.specialNeedsLevels.includes(user.assignedClass));
+            isSpecial = settings.specialNeedsLevels.includes(user.assignedClass);
+            setIsSpecialNeedsTeacher(isSpecial);
           }
           
           let termId = activeTermId || settings?.activeTermId || 'term-1';
@@ -79,6 +100,15 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
             recs.forEach(r => { map[r.studentId] = r; });
             setRecords(map);
           }
+
+          // Save to cache
+          sessionStorage.setItem(`myclass_${user.id}_${user.assignedClass}_${termId}`, JSON.stringify({
+            students: data,
+            terms: termsData,
+            isSpecialNeedsTeacher: isSpecial,
+            records: map
+          }));
+
         } catch (error) {
           console.error("Error fetching class data:", error);
         }
@@ -165,7 +195,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
           </p>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          {isSpecialNeedsTeacher && (
+          {(isSpecialNeedsTeacher || user?.assignedClass?.toLowerCase().includes('grade')) && (
             <button 
               onClick={() => navigate('/teacher/lesson-plan')}
               style={{ background:'#2563eb', color:'white', border:'none', borderRadius:10,
@@ -215,14 +245,24 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                 onClick={() => setToast({show:true, msg:'Assessments submitted to admin!'})}>
                 <Send size={13}/> Submit
               </button>
-              <button className="bo"
-                onClick={() => navigate('/teacher/class-list-form')}>
-                Class List Form
-              </button>
-              <button className="bo"
-                onClick={() => navigate('/teacher/summary-form')}>
-                Summary Form
-              </button>
+              {!isGrade1To7Teacher && (
+                <>
+                  <button className="bo"
+                    onClick={() => navigate('/teacher/class-list-form')}>
+                    Class List Form
+                  </button>
+                  <button className="bo"
+                    onClick={() => navigate('/teacher/summary-form')}>
+                    Summary Form
+                  </button>
+                </>
+              )}
+              {isGrade1To7Teacher && (
+                <button className="bp" style={{ background:'#f59e0b' }}
+                  onClick={() => navigate('/teacher/assess')}>
+                  <ClipboardList size={13}/> Assess Students
+                </button>
+              )}
               <div style={{ position:'relative', minWidth:160 }}>
                 <Search size={14} style={{ position:'absolute', left:10, top:'50%',
                   transform:'translateY(-50%)', color:'#94a3b8', pointerEvents:'none' }}/>
@@ -308,6 +348,14 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                             style={{ background: isC ? 'white' : '#6366f1',
                               padding:'7px 14px' }}>
                             {isC ? <><Edit2 size={12}/> Edit</> : <><ArrowRight size={12}/> Add</>}
+                          </button>
+                        )}
+                        {isGrade1To7Teacher && (
+                          <button
+                            onClick={() => navigate(`/teacher/assess/student/${s.id}`)}
+                            className="bp"
+                            style={{ background: '#3b82f6', padding:'7px 14px' }}>
+                            <Edit2 size={12}/> Record
                           </button>
                         )}
                       </td>

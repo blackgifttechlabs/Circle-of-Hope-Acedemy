@@ -339,7 +339,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
               </select>
             </div>
           )}
-          {isSpecialNeedsTeacher && (
+          {(isSpecialNeedsTeacher || user?.assignedClass?.toLowerCase().includes('grade')) && (
             <button 
               onClick={() => navigate('/teacher/lesson-plan')}
               style={{ background:'#2563eb', color:'white', border:'none', borderRadius:10,

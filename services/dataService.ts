@@ -1,5 +1,5 @@
 import { db, auth } from '../firebase';
-import { collection, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt } from 'firebase/firestore';
+import { collection, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan } from '../types';
 
@@ -907,6 +907,55 @@ export const getAssessmentRecordsForClass = async (grade: string, termId: string
     return records;
   } catch (error) {
     console.error("Error getting assessment records for class:", error);
+    return [];
+  }
+};
+
+export const saveTopicAssessments = async (
+  grade: string,
+  termId: string,
+  subject: string,
+  topic: string,
+  marks: Record<string, number>
+) => {
+  try {
+    const batch = writeBatch(db);
+    for (const [studentId, mark] of Object.entries(marks)) {
+      const docId = `${studentId}_${termId}_${subject.replace(/\s+/g, '')}_${topic.replace(/\s+/g, '')}`;
+      const ref = doc(db, 'topic_assessments', docId);
+      batch.set(ref, {
+        studentId,
+        grade,
+        termId,
+        subject,
+        topic,
+        mark,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+    await batch.commit();
+  } catch (error) {
+    console.error("Error saving topic assessments:", error);
+    throw error;
+  }
+};
+
+export const getTopicAssessments = async (
+  grade: string,
+  termId: string,
+  subject: string
+): Promise<import('../types').TopicAssessmentRecord[]> => {
+  try {
+    const q = query(
+      collection(db, 'topic_assessments'),
+      where('grade', '==', grade),
+      where('termId', '==', termId),
+      where('subject', '==', subject)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as import('../types').TopicAssessmentRecord));
+  } catch (error) {
+    console.error("Error getting topic assessments:", error);
     return [];
   }
 };

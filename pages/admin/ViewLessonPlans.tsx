@@ -7,6 +7,8 @@ import { getAllLessonPlans, getSystemSettings, getTeachers } from '../../service
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 const CORE_SUBJECTS = ['REL. ED.', 'MATHEMATICS', 'ENGLISH', 'HANDWRITING'];
 const EXTENDED_SUBJECTS = ['ENV. STUDIES', 'ARTS', 'PHYSICAL EDUCATION'];
+const PROMOTIONAL_SUBJECTS = ['MATHEMATICS', 'ENGLISH', 'HANDWRITING', 'ENV. STUDIES', 'REL. ED.'];
+const NON_PROMOTIONAL_SUBJECTS = ['PHYSICAL EDUCATION', 'ARTS', 'LIFE SKILLS'];
 
 const SUB_HEADINGS: Record<string, Record<string, string>> = {
   'MATHEMATICS': {
@@ -99,7 +101,10 @@ export const ViewLessonPlans: React.FC = () => {
   const filteredPlans = plans.filter(p => p.classLevel === activeClass && p.teacherId === activeTeacherId);
 
   const renderTable = (isCore: boolean, plan: WeeklyLessonPlan) => {
-    const subjects = isCore ? CORE_SUBJECTS : EXTENDED_SUBJECTS;
+    const isGradeLevel = plan.classLevel?.toLowerCase().includes('grade');
+    const subjects = isGradeLevel 
+      ? (isCore ? PROMOTIONAL_SUBJECTS : NON_PROMOTIONAL_SUBJECTS)
+      : (isCore ? CORE_SUBJECTS : EXTENDED_SUBJECTS);
     const data = isCore ? plan.coreSubjects : plan.extendedSubjects;
 
     return (
@@ -117,6 +122,7 @@ export const ViewLessonPlans: React.FC = () => {
                     subject === 'HANDWRITING' ? 'bg-orange-100 text-orange-700' :
                     subject === 'ENV. STUDIES' ? 'bg-green-100 text-green-700' :
                     subject === 'ARTS' ? 'bg-pink-100 text-pink-700' :
+                    subject === 'LIFE SKILLS' ? 'bg-yellow-100 text-yellow-700' :
                     'bg-red-100 text-red-700'
                   }`}>
                     {subject}
@@ -199,14 +205,14 @@ export const ViewLessonPlans: React.FC = () => {
                 onClick={() => setActiveTab('core')}
                 className={`pb-3 text-sm font-bold transition-colors relative ${activeTab === 'core' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-800'}`}
               >
-                Core subjects
+                {selectedPlan.classLevel?.toLowerCase().includes('grade') ? 'Promotional subjects' : 'Core subjects'}
                 {activeTab === 'core' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t-full" />}
               </button>
               <button 
                 onClick={() => setActiveTab('extended')}
                 className={`pb-3 text-sm font-bold transition-colors relative ${activeTab === 'extended' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-800'}`}
               >
-                Extended subjects
+                {selectedPlan.classLevel?.toLowerCase().includes('grade') ? 'Non-promotional subjects' : 'Extended subjects'}
                 {activeTab === 'extended' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t-full" />}
               </button>
             </div>
