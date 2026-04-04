@@ -16,38 +16,38 @@ export const getTopicsForSubjectAndGrade = (subject: string, grade: string): str
       case 'Religious Education':
         if (gradeNum === 1) {
           return [
-            'Belonging: Self and the community',
-            'Phases of Life: Being accepted into a community (welcoming a baby)',
-            'The Sacred: Sacred places and objects',
-            'Festivals: Joyful celebrations — Advent and Christmas',
-            'Social Values: Living together — Interrelationships',
-            'Religion and the Environment: The world around us — what is around us',
-            'Personal Values: Change, loss and growth / Being at peace with oneself / Turning point in life',
-            "Children's Rights and Responsibilities: My basic rights and responsibilities",
+            'Belonging',
+            'Phases of Life',
+            'The Sacred',
+            'Festivals',
+            'Social Values',
+            'Religion and the Environment',
+            'Personal Values',
+            "Children's Rights and Responsibilities",
             'Topic of Own Choice'
           ];
         } else if (gradeNum === 2) {
           return [
-            'Belonging: Families in harmony and in conflict',
-            'Phases of Life: Elders and ancestors',
-            'The Sacred: Sacred time — special times in our lives and sacred time',
-            'Festivals: Passover and Easter',
-            'Social Values: Forgiveness and reconciliation',
-            'Religion and the Environment: Where our food comes from / The beauty of nature',
-            'Personal Values: Being at peace together',
-            "Children's Rights and Responsibilities: Rights and responsibilities in the home / Rights and responsibilities at school",
+            'Belonging',
+            'Phases of Life',
+            'The Sacred',
+            'Festivals',
+            'Social Values',
+            'Religion and the Environment',
+            'Personal Values',
+            "Children's Rights and Responsibilities",
             'Topic of Own Choice'
           ];
         } else if (gradeNum === 3) {
           return [
-            'Belonging: Community as a resource',
-            'Phases of Life: Growing up — new responsibilities at adolescence',
-            'The Sacred: Texts, music and art — sacred texts',
-            'Festivals: African traditions and religion / Palm Sunday and Holy Week',
-            'Social Values: Democracy — making our own rules by majority decision and following them',
-            'Religion and the Environment: Trees in religious traditions',
-            'Personal Values: Friendship in everyday life',
-            "Children's Rights and Responsibilities: The right to say No — training in assertiveness",
+            'Belonging',
+            'Phases of Life',
+            'The Sacred',
+            'Festivals',
+            'Social Values',
+            'Religion and the Environment',
+            'Personal Values',
+            "Children's Rights and Responsibilities",
             'Topic of Own Choice'
           ];
         }
@@ -57,8 +57,9 @@ export const getTopicsForSubjectAndGrade = (subject: string, grade: string): str
           'Listening and Responding',
           'Speaking and Communicating',
           'Reading and Viewing',
+          'Language',
           'Writing',
-          'Language Structure, Grammar and Language Use'
+          'Phonics'
         ];
       case 'Environmental Studies':
         return [
@@ -66,6 +67,8 @@ export const getTopicsForSubjectAndGrade = (subject: string, grade: string): str
           'Health, Safety and Nutrition',
           'The Natural Environment'
         ];
+      case 'Handwriting':
+        return [];
       case 'Arts':
         return [
           'Visual Art',
@@ -77,8 +80,115 @@ export const getTopicsForSubjectAndGrade = (subject: string, grade: string): str
         return [];
     }
   } else if (gradeNum >= 4 && gradeNum <= 7) {
-    // For grades 4-7, return empty array for now
-    return [];
+    switch (subject) {
+      case 'Physical Education':
+      case 'PE':
+        if (gradeNum === 4) {
+          return [
+            'Preparatory activities',
+            'Imitative activities',
+            'Athletics (the start)',
+            'Acrobatics tumbling',
+            'Large group activities',
+            'Games',
+            'Creative dance',
+            'Water activities – entry into water',
+            'Sport skills',
+            'Health and physical well-being'
+          ];
+        } else if (gradeNum === 5) {
+          return [
+            'Endurance activities',
+            'Cardiorespiratory endurance activities',
+            'Sprints',
+            'Middle distance running',
+            'Acrobatics tumbling',
+            'Competition in small group activities',
+            'Games',
+            'Creative dance',
+            'Swimming strokes',
+            'Sport skills',
+            'Health and physical well-being',
+            'Healthy living habits'
+          ];
+        } else if (gradeNum === 6) {
+          return [
+            'Muscular strength and endurance activities',
+            'Flexibility activities',
+            'Relays',
+            'Hurdles',
+            'High jump',
+            'Acrobatics jumping and vaulting',
+            'Acrobatics balancing activities',
+            'Competition in large group activities',
+            'Tag and dodging games',
+            'Social dance',
+            'Water safety and life-saving skills and techniques',
+            'Water activities with apparatus and stunts',
+            'Sport skills',
+            'Healthy living habits',
+            'Posture'
+          ];
+        } else if (gradeNum === 7) {
+          return [
+            'Speed activities',
+            'Fitness evaluation',
+            'Knowledge and value of general fitness',
+            'Long jump',
+            'Shot put',
+            'Turbo javelin throwing',
+            'Sportsmanship',
+            'Fitness',
+            'Challenging activities',
+            'Races and relays',
+            'Participation in games',
+            'Traditional games',
+            'Self-designed games',
+            'Traditional rhythmical movement with hand apparatus',
+            'Water games and competitions / Water games and safety',
+            'Traffic rules and regulations',
+            'Sport skills',
+            'Nutrition',
+            'Harmful substance/habits/practices'
+          ];
+        }
+        break;
+      case 'Life Skills':
+        return [
+          'Career Guidance',
+          'Holistic Wellness',
+          'Civic Affairs'
+        ];
+      case 'Mathematics':
+        return [
+          'Whole Numbers',
+          'Computation',
+          'Common Fractions',
+          'Decimal Fractions',
+          'Percentages',
+          'Money and Finance',
+          'Measurement: Length, Mass, and Capacity',
+          'Measurement: Time',
+          'Geometry',
+          'Mensuration',
+          'Data Handling',
+          'Patterns, Functions, and Algebra'
+        ];
+      case 'Religious and Moral Education':
+      case 'RME':
+        return [
+          'Religion',
+          'Moral Issues'
+        ];
+      case 'Arts':
+        return [
+          'Exploring',
+          'Creating',
+          'Appreciating'
+        ];
+      default:
+        return [];
+    }
   }
 
   return [];

@@ -3,14 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, FileText, Download, Eye, ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { Teacher, WeeklyLessonPlan, SystemSettings } from '../../types';
 import { uploadLessonPlan, getLessonPlans, getSystemSettings } from '../../services/dataService';
+import { getPromotionalSubjects, getNonPromotionalSubjects } from '../../utils/subjects';
 
 interface LessonPlanProps {
   user: Teacher | null;
 }
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
-const PROMOTIONAL_SUBJECTS = ['MATHEMATICS', 'ENGLISH', 'HANDWRITING', 'ENV. STUDIES', 'REL. ED.'];
-const NON_PROMOTIONAL_SUBJECTS = ['PHYSICAL EDUCATION', 'ARTS', 'LIFE SKILLS'];
 
 const getWeekNumber = (startDateStr: string | undefined, currentDate: Date) => {
   if (!startDateStr) return 1;
@@ -167,7 +166,15 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
   };
 
   const renderTable = (isPromotional: boolean) => {
-    const subjects = isPromotional ? PROMOTIONAL_SUBJECTS : NON_PROMOTIONAL_SUBJECTS;
+    const grade = user?.assignedClass || '';
+    const promotionalSubjects = getPromotionalSubjects(grade).map(s => {
+      if (s === 'Environmental Studies') return 'ENV. STUDIES';
+      if (s === 'Religious Education') return 'REL. ED.';
+      return s.toUpperCase();
+    });
+    const nonPromotionalSubjects = getNonPromotionalSubjects(grade).map(s => s.toUpperCase());
+
+    const subjects = isPromotional ? promotionalSubjects : nonPromotionalSubjects;
     const data = selectedPlan ? (isPromotional ? selectedPlan.coreSubjects : selectedPlan.extendedSubjects) : (isPromotional ? formData.coreSubjects : formData.extendedSubjects);
 
     return (

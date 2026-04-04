@@ -5,10 +5,8 @@ import { getStudentById, saveTopicAssessments, getTopicAssessments } from '../..
 import { Student } from '../../../types';
 import { Toast } from '../../../components/ui/Toast';
 import { getTopicsForSubjectAndGrade } from '../../../utils/assessmentTopics';
+import { getPromotionalSubjects, getNonPromotionalSubjects } from '../../../utils/subjects';
 
-const PROMOTIONAL_SUBJECTS = ['Mathematics', 'English', 'Environmental Studies', 'Handwriting', 'Religious Education'];
-const NON_PROMOTIONAL_SUBJECTS = ['Physical Education', 'Arts', 'Life Skills'];
-const ALL_SUBJECTS = [...PROMOTIONAL_SUBJECTS, ...NON_PROMOTIONAL_SUBJECTS];
 const TERMS = ['Term 1', 'Term 2', 'Term 3'];
 
 export default function StudentAssessment({ user }: { user?: any }) {
@@ -19,11 +17,15 @@ export default function StudentAssessment({ user }: { user?: any }) {
   const [subject, setSubject] = useState<string>('');
   const [term, setTerm] = useState<string>('Term 1');
   const [marks, setMarks] = useState<Record<string, string>>({});
+  const [activeTopics, setActiveTopics] = useState<string[]>([]);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState({ show: false, msg: '' });
   
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const grade = user?.assignedClass || student?.grade || '';
+  const allSubjects = [...getPromotionalSubjects(grade), ...getNonPromotionalSubjects(grade)];
 
   useEffect(() => {
     if (id) {
@@ -33,27 +35,46 @@ export default function StudentAssessment({ user }: { user?: any }) {
     }
   }, [id]);
 
-  const topics = getTopicsForSubjectAndGrade(subject || '', user?.assignedClass || student?.grade || '');
-
   useEffect(() => {
+    const defaultTopics = getTopicsForSubjectAndGrade(subject || '', grade);
+    
     if (user?.assignedClass && student && subject && term) {
       const termId = term.toLowerCase().replace(' ', '-');
       getTopicAssessments(user.assignedClass, termId, subject).then(assessments => {
         const studentAssessments = assessments.filter(a => a.studentId === student.id);
+        
+        let finalTopics = [...defaultTopics];
+        
+        // If defaultTopics is empty, use the topics from assessments
+        if (finalTopics.length === 0) {
+            const uniqueTopics = Array.from(new Set(studentAssessments.map(a => a.topic)));
+            finalTopics = uniqueTopics;
+        }
+        
+        // Handle "Topic of Own Choice" replacement
+        const assessedTopics = studentAssessments.map(a => a.topic);
+        const customAssessedTopic = assessedTopics.find(t => !defaultTopics.includes(t));
+        
+        if (defaultTopics.includes('Topic of Own Choice') && customAssessedTopic) {
+            finalTopics = finalTopics.map(t => t === 'Topic of Own Choice' ? customAssessedTopic : t);
+        }
+        
+        setActiveTopics(finalTopics);
+        
         const initialMarks: Record<string, string> = {};
-        topics.forEach(t => initialMarks[t] = '');
+        finalTopics.forEach(t => initialMarks[t] = '');
         studentAssessments.forEach(a => {
           initialMarks[a.topic] = a.mark.toString();
         });
         setMarks(initialMarks);
       });
     } else {
-      // Reset marks when subject changes
+      setActiveTopics(defaultTopics);
       const initialMarks: Record<string, string> = {};
-      topics.forEach(t => initialMarks[t] = '');
+      defaultTopics.forEach(t => initialMarks[t] = '');
       setMarks(initialMarks);
     }
-  }, [user, student, subject, term]);
+  }, [user, student, subject, term, grade]);
 
   const handleMarkChange = (topic: string, value: string) => {
     if (value === '' || (/^\d+$/.test(value) && parseInt(value) >= 0 && parseInt(value) <= 10)) {
@@ -61,10 +82,29 @@ export default function StudentAssessment({ user }: { user?: any }) {
     }
   };
 
+  const handleTopicNameChange = (oldTopic: string, newTopic: string) => {
+    if (oldTopic === newTopic || !newTopic.trim()) return;
+    
+    setActiveTopics(prev => prev.map(t => t === oldTopic ? newTopic : t));
+    
+    setMarks(prev => {
+      const newMarks = { ...prev };
+      newMarks[newTopic] = newMarks[oldTopic];
+      delete newMarks[oldTopic];
+      return newMarks;
+    });
+  };
+
+  const handleAddTopic = () => {
+    const newTopic = `New Topic ${activeTopics.length + 1}`;
+    setActiveTopics(prev => [...prev, newTopic]);
+    setMarks(prev => ({ ...prev, [newTopic]: '' }));
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
     if (e.key === 'Enter' || e.key === 'ArrowDown') {
       e.preventDefault();
-      if (index < topics.length - 1) {
+      if (index < activeTopics.length - 1) {
         inputRefs.current[index + 1]?.focus();
       }
     } else if (e.key === 'ArrowUp') {
@@ -78,8 +118,8 @@ export default function StudentAssessment({ user }: { user?: any }) {
   const calculateStats = () => {
     const values = Object.values(marks).map(v => parseInt(v) || 0);
     const total = values.reduce((sum, val) => sum + val, 0);
-    const maxTotal = topics.length * 10;
-    const average = topics.length > 0 ? Math.round(total / topics.length) : 0;
+    const maxTotal = activeTopics.length * 10;
+    const average = activeTopics.length > 0 ? Math.round(total / activeTopics.length) : 0;
     const percentage = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : 0;
     
     let symbol = 'U';
@@ -156,7 +196,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
           </div>
           <table className="w-full text-left border-collapse">
             <tbody>
-              {topics.map(topic => (
+              {activeTopics.map(topic => (
                 <tr key={topic} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                   <td className="p-4 font-bold text-slate-700">{topic}</td>
                   <td className="p-4 text-right">
@@ -261,7 +301,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
           <div>
             <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Select Subject</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {ALL_SUBJECTS.map(s => (
+              {allSubjects.map(s => (
                 <button
                   key={s}
                   onClick={() => setSubject(s)}
@@ -291,20 +331,39 @@ export default function StudentAssessment({ user }: { user?: any }) {
             </div>
           </div>
 
-          {topics.length === 0 ? (
+          {activeTopics.length === 0 ? (
             <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl">
               <h2 className="text-xl font-bold text-slate-700 mb-2">Topics Coming Soon</h2>
-              <p className="text-slate-500">Topics for {subject} in {student.grade} are not yet available. They will be added in the future.</p>
+              <p className="text-slate-500 mb-4">Topics for {subject} in {student.grade} are not yet available. You can add them manually.</p>
+              <button
+                onClick={handleAddTopic}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
+              >
+                Add Topic
+              </button>
             </div>
           ) : (
             <>
               <div className="space-y-3 mb-8">
-                {topics.map((topic, index) => (
+                {activeTopics.map((topic, index) => {
+                  const isEditable = getTopicsForSubjectAndGrade(subject || '', grade).length === 0 || 
+                                     getTopicsForSubjectAndGrade(subject || '', grade).includes('Topic of Own Choice') && 
+                                     (topic === 'Topic of Own Choice' || !getTopicsForSubjectAndGrade(subject || '', grade).includes(topic));
+                  return (
                   <div 
                     key={topic} 
                     className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 transition-colors focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100"
                   >
-                    <span className="font-bold text-slate-700 text-lg">{topic}</span>
+                    {isEditable ? (
+                      <input
+                        type="text"
+                        value={topic}
+                        onChange={(e) => handleTopicNameChange(topic, e.target.value)}
+                        className="font-bold text-slate-700 text-lg bg-transparent border-b border-dashed border-slate-300 focus:border-blue-500 focus:outline-none w-1/2"
+                      />
+                    ) : (
+                      <span className="font-bold text-slate-700 text-lg">{topic}</span>
+                    )}
                     <div className="flex items-center gap-3">
                       <input
                         ref={el => inputRefs.current[index] = el}
@@ -320,8 +379,19 @@ export default function StudentAssessment({ user }: { user?: any }) {
                       <span className="text-slate-400 font-bold">/ 10</span>
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
+              
+              {getTopicsForSubjectAndGrade(subject || '', grade).length === 0 && (
+                <div className="mb-8">
+                  <button
+                    onClick={handleAddTopic}
+                    className="w-full py-3 border-2 border-dashed border-slate-300 text-slate-500 hover:border-blue-400 hover:text-blue-600 font-bold rounded-xl transition-colors"
+                  >
+                    + Add Another Topic
+                  </button>
+                </div>
+              )}
 
               <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl mb-8">
                 <div className="grid grid-cols-3 gap-4 text-center">
@@ -348,7 +418,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
 
               <button 
                 onClick={() => setIsReviewing(true)}
-                disabled={Object.values(marks).filter(m => m !== '').length !== topics.length}
+                disabled={Object.values(marks).filter(m => m !== '').length !== activeTopics.length}
                 className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Review & Submit

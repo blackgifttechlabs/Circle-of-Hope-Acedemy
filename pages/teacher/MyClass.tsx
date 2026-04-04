@@ -246,17 +246,15 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                 <Send size={13}/> Submit
               </button>
               {!isGrade1To7Teacher && (
-                <>
-                  <button className="bo"
-                    onClick={() => navigate('/teacher/class-list-form')}>
-                    Class List Form
-                  </button>
-                  <button className="bo"
-                    onClick={() => navigate('/teacher/summary-form')}>
-                    Summary Form
-                  </button>
-                </>
+                <button className="bo"
+                  onClick={() => navigate('/teacher/class-list-form')}>
+                  Class List Form
+                </button>
               )}
+              <button className="bo"
+                onClick={() => navigate('/teacher/summary-form')}>
+                Summary Form
+              </button>
               {isGrade1To7Teacher && (
                 <button className="bp" style={{ background:'#f59e0b' }}
                   onClick={() => navigate('/teacher/assess')}>

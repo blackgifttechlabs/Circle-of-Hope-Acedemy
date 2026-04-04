@@ -4,7 +4,8 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { verifyAdminPin, searchTeachers, searchStudents, searchVtcStudents } from '../services/dataService';
 import { UserRole, Teacher, Student } from '../types';
-import { User, ShieldCheck, GraduationCap, ArrowLeft, BookOpen, ChevronRight } from 'lucide-react';
+import { User, ShieldCheck, GraduationCap, ArrowLeft, BookOpen, ChevronRight, Search as SearchIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface LoginProps {
   onLogin: (role: UserRole, user: any) => void;
@@ -13,6 +14,7 @@ interface LoginProps {
 
 export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
   const [activeTab, setActiveTab] = useState<'ADMIN' | 'TEACHER' | 'PARENT' | 'VTC'>('ADMIN');
+  const [step, setStep] = useState<number>(0); // 0: Role Selection, 1: Login Form (Mobile)
   const [pin, setPin] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -21,6 +23,15 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
   const [loading, setLoading] = useState(false);
   const [frame, setFrame] = useState(0);
   const navigate = useNavigate();
+
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const parentImages = [
     'https://i.ibb.co/bg5LbyBP/s3.png',
@@ -81,7 +92,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
   const handleUserSelect = (user: any) => {
     setSelectedUser(user);
     setSearchResults([]);
-    setSearchTerm(activeTab === 'PARENT' ? user.name : user.name);
+    setSearchTerm(user.name);
   };
 
   const handleUserLogin = (e: React.FormEvent) => {
@@ -141,171 +152,133 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
       {/* Light Overlay */}
       <div className="absolute inset-0 bg-white/40 backdrop-blur-sm z-0" />
 
-      {/* Back Button */}
+      {/* Back/Return Button */}
       <button 
-        onClick={() => navigate('/')} 
-        className="absolute top-6 left-6 z-20 text-coha-900 flex items-center gap-2 hover:text-coha-700 transition-colors font-medium group bg-white/80 hover:bg-white px-4 py-2 rounded-full shadow-sm backdrop-blur-md border border-white/50"
-        style={{ fontFamily: '"Libre Franklin", sans-serif' }}
+        onClick={() => {
+          if (step === 1 && isMobile) {
+            setStep(0);
+          } else {
+            navigate('/');
+          }
+        }} 
+        className="absolute top-4 left-4 md:top-8 md:left-8 z-30 flex items-center gap-2 group bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white px-4 py-2 md:px-6 md:py-3 rounded-full transition-all shadow-lg"
+        style={{ fontFamily: '"Google Sans", sans-serif' }}
       >
-        <ArrowLeft size={18} />
-        <span className="text-xs uppercase tracking-[0.2em] font-bold">Return</span>
+        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+        <span className="font-bold text-xs md:text-sm">
+          {step === 1 && isMobile ? 'Back' : 'Return'}
+        </span>
       </button>
 
       {/* Main Container */}
-      <div className="w-full max-w-5xl h-auto min-h-[600px] md:h-[650px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] flex flex-col md:flex-row overflow-hidden z-10 relative border border-white/50">
+      <div className="w-full max-w-5xl h-auto md:h-[650px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] flex flex-col md:flex-row z-10 relative border border-white/50">
         
-        {/* Left Half: Branding & Roles */}
-        <div className="w-full md:w-[45%] bg-gradient-to-br from-coha-900 to-coha-800 p-8 md:p-12 flex flex-col justify-between relative">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+CjxyZWN0IHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgZmlsbD0ibm9uZSIvPgo8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDUpIi8+Cjwvc3ZnPg==')] opacity-10 mix-blend-overlay" />
-          
-          <div className="relative z-10">
-            <div className="flex items-center gap-4 mb-12">
-              <div className="w-16 h-16 bg-white rounded-2xl p-2 shadow-lg">
-                <img src="https://i.ibb.co/LzYXwYfX/logo.png" alt="COHA Logo" className="w-full h-full object-contain" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight" style={{ fontFamily: '"Google Sans", sans-serif' }}>COHA</h1>
-                <p className="text-white text-xs uppercase tracking-[0.2em] font-semibold" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Secure Portal</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-white text-xs uppercase tracking-[0.15em] font-bold mb-4" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Select Access Level</h3>
-              {roles.map((role) => {
-                const isActive = activeTab === role.id;
-                const Icon = role.icon;
-                return (
-                  <button
-                    key={role.id}
-                    onClick={() => { setActiveTab(role.id as any); setSelectedUser(null); setSearchTerm(''); setError(''); }}
-                    className={`w-full text-left p-4 rounded-xl flex items-center justify-between transition-all duration-300 ${
-                      isActive 
-                        ? 'bg-white/15 border border-white/20 shadow-lg' 
-                        : 'bg-transparent border border-transparent hover:bg-white/5 hover:border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`p-2 rounded-lg ${isActive ? 'bg-white/20 text-white' : 'bg-white/10 text-white'}`}>
-                        <Icon size={20} />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-sm text-white" style={{ fontFamily: '"Google Sans", sans-serif' }}>{role.label}</div>
-                        <div className="text-[10px] uppercase tracking-wider mt-0.5 text-white" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{role.desc}</div>
-                      </div>
-                    </div>
-                    {isActive && <ChevronRight size={16} className="text-white" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="relative z-10 mt-12 md:mt-0">
-            <p className="text-white text-xs" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
-              &copy; {new Date().getFullYear()} Circle of Hope Academy.<br/>All rights reserved.
-            </p>
-          </div>
-        </div>
-
-        {/* Right Half: Inputs */}
-        <div className="w-full md:w-[55%] p-8 md:p-16 flex flex-col justify-center relative bg-white">
-          <div className="max-w-sm w-full mx-auto relative z-10">
-            
-            {/* Parent Animation */}
-            {activeTab === 'PARENT' && (
-              <div className="w-32 h-32 md:w-40 md:h-40 mb-6 pointer-events-none opacity-90 transition-opacity duration-300">
-                <img src={parentImages[frame]} alt="Parent Animation" className="w-full h-full object-contain object-left" />
-              </div>
-            )}
-
-            <div className="mb-10">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: '"Google Sans", sans-serif' }}>
-                {activeTab === 'ADMIN' ? 'Admin Access' : `Welcome, ${activeTab.charAt(0) + activeTab.slice(1).toLowerCase()}`}
-              </h2>
-              <p className="text-gray-500 text-sm" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
-                {activeTab === 'ADMIN' 
-                  ? 'Enter your security PIN to continue.' 
-                  : 'Please identify yourself to proceed.'}
-              </p>
-            </div>
-
-            {activeTab === 'ADMIN' && (
-              <form onSubmit={handleAdminLogin} className="animate-fade-in space-y-6">
-                <div>
-                  <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-2" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Security PIN</label>
-                  <input
-                    type="password"
-                    placeholder="••••"
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value)}
-                    maxLength={4}
-                    autoFocus
-                    disabled={loading}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-2 focus:ring-coha-500/20 transition-all font-mono text-lg tracking-widest"
-                  />
-                </div>
-                {error && <p className="text-red-500 text-sm font-medium" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{error}</p>}
-                <button 
-                  type="submit" 
-                  disabled={loading}
-                  className="w-full bg-coha-900 text-white hover:bg-coha-800 shadow-lg shadow-coha-900/30 font-bold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center gap-2 hover:-translate-y-0.5"
-                  style={{ fontFamily: '"Google Sans", sans-serif' }}
-                >
-                  {loading ? 'Authenticating...' : 'Login'}
-                  {!loading && <ArrowLeft size={16} className="rotate-180" />}
-                </button>
-              </form>
-            )}
-
-            {(activeTab === 'TEACHER' || activeTab === 'PARENT' || activeTab === 'VTC') && (
-              <form onSubmit={handleUserLogin} className="animate-fade-in space-y-6">
-                {!selectedUser ? (
-                  <div className="relative">
-                    <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-2" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
-                      {activeTab === 'PARENT' ? 'Student Name' : 'Your Name'}
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Start typing..."
-                      value={searchTerm}
-                      onChange={handleSearch}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-2 focus:ring-coha-500/20 transition-all"
-                      style={{ fontFamily: '"Libre Franklin", sans-serif' }}
-                    />
-                    {searchResults.length > 0 && (
-                      <div className="absolute top-full left-0 w-full mt-2 bg-white border border-gray-200 rounded-xl z-20 max-h-48 overflow-y-auto shadow-xl overflow-hidden">
-                        {searchResults.map((item) => (
-                          <div
-                            key={item.id}
-                            onClick={() => handleUserSelect(item)}
-                            className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 transition-colors"
-                          >
-                            <p className="font-bold text-gray-900" style={{ fontFamily: '"Google Sans", sans-serif' }}>{item.name}</p>
-                            {activeTab === 'PARENT' && <p className="text-xs text-gray-500" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Grade: {item.grade}</p>}
-                            {activeTab === 'TEACHER' && <p className="text-xs text-gray-500" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{item.subject}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+        <AnimatePresence mode="wait">
+          {/* Step 0: Role Selection (Mobile) or Left Panel (Desktop) */}
+          {(step === 0 || !isMobile) && (
+            <motion.div 
+              key="roles-panel"
+              initial={isMobile ? { x: 0 } : { opacity: 0, x: -20 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={isMobile ? { x: '-100%', opacity: 0 } : { opacity: 0, x: -20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 120 }}
+              className="w-full md:w-[45%] bg-gradient-to-br from-coha-900 to-coha-800 p-6 md:p-12 flex flex-col justify-between relative shrink-0 rounded-t-3xl md:rounded-l-3xl md:rounded-tr-none overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+CjxyZWN0IHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgZmlsbD0ibm9uZSIvPgo8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDUpIi8+Cjwvc3ZnPg==')] opacity-10 mix-blend-overlay" />
+              
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-8 md:mb-12">
+                  <div className="w-12 h-12 md:w-16 md:h-16 bg-white rounded-2xl p-2 shadow-lg">
+                    <img src="https://i.ibb.co/LzYXwYfX/logo.png" alt="COHA Logo" className="w-full h-full object-contain" />
                   </div>
-                ) : (
-                  <div className="animate-fade-in space-y-6">
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex justify-between items-center">
-                      <div>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Identified As</p>
-                        <p className="font-bold text-gray-900" style={{ fontFamily: '"Google Sans", sans-serif' }}>{selectedUser.name}</p>
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={() => { setSelectedUser(null); setSearchTerm(''); }} 
-                        className="text-xs text-coha-500 hover:text-coha-700 font-semibold transition-colors"
-                        style={{ fontFamily: '"Libre Franklin", sans-serif' }}
+                  <div>
+                    <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight" style={{ fontFamily: '"Google Sans", sans-serif' }}>COHA</h1>
+                    <p className="text-white text-[10px] uppercase tracking-[0.2em] font-semibold" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Secure Portal</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 md:space-y-4">
+                  <h3 className="text-white text-[10px] md:text-xs uppercase tracking-[0.15em] font-bold mb-3 md:mb-4" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Select Access Level</h3>
+                  {roles.map((role, idx) => {
+                    const isActive = activeTab === role.id;
+                    const Icon = role.icon;
+                    return (
+                      <motion.button
+                        key={role.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                        onClick={() => { 
+                          setActiveTab(role.id as any); 
+                          setSelectedUser(null); 
+                          setSearchTerm(''); 
+                          setError('');
+                          if (isMobile) setStep(1);
+                        }}
+                        className={`w-full text-left p-4 md:p-5 rounded-2xl flex items-center justify-between transition-all duration-300 group ${
+                          isActive && !isMobile
+                            ? 'bg-white/15 border border-white/20 shadow-lg' 
+                            : 'bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10'
+                        }`}
                       >
-                        Change
-                      </button>
-                    </div>
+                        <div className="flex items-center gap-4">
+                          <div className={`p-3 rounded-xl transition-colors ${isActive && !isMobile ? 'bg-white/20 text-white' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>
+                            <Icon size={22} />
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm md:text-base text-white" style={{ fontFamily: '"Google Sans", sans-serif' }}>{role.label}</div>
+                            <div className="text-[10px] md:text-[11px] uppercase tracking-wider mt-0.5 text-white/60" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{role.desc}</div>
+                          </div>
+                        </div>
+                        <ChevronRight size={18} className={`text-white/40 group-hover:text-white transition-all duration-300 ${isActive && !isMobile ? 'translate-x-1 text-white' : ''}`} />
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="relative z-10 mt-8 md:mt-0">
+                <p className="text-white text-[10px] md:text-xs opacity-40" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
+                  &copy; {new Date().getFullYear()} Circle of Hope Academy.<br/>All rights reserved.
+                </p>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 1: Login Form (Mobile) or Right Panel (Desktop) */}
+          {(step === 1 || !isMobile) && (
+            <motion.div 
+              key={`form-panel-${activeTab}`}
+              initial={isMobile ? { x: '100%' } : { opacity: 0, x: 20 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={isMobile ? { x: '100%', opacity: 0 } : { opacity: 0, x: -20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 120 }}
+              className="w-full md:w-[55%] p-8 md:p-16 flex flex-col justify-center relative bg-white rounded-b-3xl md:rounded-r-3xl md:rounded-bl-none"
+            >
+              <div className="max-w-sm w-full mx-auto relative z-10">
+                
+                {/* Parent Animation */}
+                {activeTab === 'PARENT' && (
+                  <div className="w-24 h-24 md:w-40 md:h-40 mb-4 md:mb-6 pointer-events-none opacity-90 transition-opacity duration-300">
+                    <img src={parentImages[frame]} alt="Parent Animation" className="w-full h-full object-contain object-left" />
+                  </div>
+                )}
+
+                <div className="mb-8 md:mb-12">
+                  <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3" style={{ fontFamily: '"Google Sans", sans-serif' }}>
+                    {activeTab === 'ADMIN' ? 'Admin Access' : `Welcome, ${activeTab.charAt(0) + activeTab.slice(1).toLowerCase()}`}
+                  </h2>
+                  <p className="text-gray-500 text-sm md:text-base leading-relaxed" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
+                    {activeTab === 'ADMIN' 
+                      ? 'Enter your security PIN to continue.' 
+                      : 'Please identify yourself to proceed.'}
+                  </p>
+                </div>
+
+                {activeTab === 'ADMIN' && (
+                  <form onSubmit={handleAdminLogin} className="space-y-8">
                     <div>
-                      <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-2" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Authorization PIN</label>
+                      <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-3" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Security PIN</label>
                       <input
                         type="password"
                         placeholder="••••"
@@ -313,24 +286,126 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                         onChange={(e) => setPin(e.target.value)}
                         maxLength={4}
                         autoFocus
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-2 focus:ring-coha-500/20 transition-all font-mono text-lg tracking-widest"
+                        disabled={loading}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 transition-all font-mono text-2xl tracking-[0.5em]"
                       />
                     </div>
                     {error && <p className="text-red-500 text-sm font-medium" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{error}</p>}
                     <button 
                       type="submit" 
-                      className="w-full bg-coha-900 text-white hover:bg-coha-800 shadow-lg shadow-coha-900/30 font-bold py-3.5 px-4 rounded-xl transition-all flex justify-center items-center gap-2 hover:-translate-y-0.5"
+                      disabled={loading}
+                      className="w-full bg-coha-900 text-white hover:bg-coha-800 shadow-xl shadow-coha-900/20 font-bold py-4 px-6 rounded-2xl transition-all flex justify-center items-center gap-3 hover:-translate-y-1 active:translate-y-0"
                       style={{ fontFamily: '"Google Sans", sans-serif' }}
                     >
-                      Authenticate
-                      <ArrowLeft size={16} className="rotate-180" />
+                      {loading ? 'Authenticating...' : 'Login'}
+                      {!loading && <ArrowLeft size={18} className="rotate-180" />}
                     </button>
-                  </div>
+                  </form>
                 )}
-              </form>
-            )}
-          </div>
-        </div>
+
+                {(activeTab === 'TEACHER' || activeTab === 'PARENT' || activeTab === 'VTC') && (
+                  <form onSubmit={handleUserLogin} className="space-y-8">
+                    {!selectedUser ? (
+                      <div className="relative">
+                        <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-3" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
+                          {activeTab === 'PARENT' ? 'Student Name' : 'Your Name'}
+                        </label>
+                        <div className="relative">
+                          <SearchIcon size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Start typing..."
+                            value={searchTerm}
+                            onChange={handleSearch}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-2xl pl-12 pr-5 py-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 transition-all"
+                            style={{ fontFamily: '"Libre Franklin", sans-serif' }}
+                          />
+                        </div>
+                        
+                        {/* iOS Dropdown Style Suggestions */}
+                        <AnimatePresence>
+                          {searchResults.length > 0 && (
+                            <motion.div 
+                              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                              transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                              className="absolute top-full left-0 w-full mt-3 ios-dropdown-blur border border-white/40 rounded-3xl z-50 max-h-64 overflow-y-auto shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] custom-scrollbar"
+                            >
+                              {searchResults.map((item) => (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => handleUserSelect(item)}
+                                  className="w-full text-left p-5 hover:bg-black/5 active:bg-black/10 cursor-pointer border-b border-black/5 last:border-0 transition-colors flex items-center justify-between group"
+                                >
+                                  <div>
+                                    <p className="font-bold text-gray-900 text-base md:text-lg" style={{ fontFamily: '"Google Sans", sans-serif' }}>{item.name}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      {activeTab === 'PARENT' && <span className="text-[10px] font-bold text-coha-500 bg-coha-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Grade {item.grade}</span>}
+                                      {activeTab === 'TEACHER' && <span className="text-[10px] font-bold text-coha-500 bg-coha-50 px-2 py-0.5 rounded-full uppercase tracking-wider">{item.subject}</span>}
+                                    </div>
+                                  </div>
+                                  <ChevronRight size={18} className="text-gray-300 group-hover:text-coha-500 transition-all duration-300 group-hover:translate-x-1" />
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ) : (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="space-y-8"
+                      >
+                        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 flex justify-between items-center shadow-sm">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-coha-900/10 rounded-xl flex items-center justify-center text-coha-900 font-bold text-lg">
+                              {selectedUser.name[0]}
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-0.5" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Identified As</p>
+                              <p className="font-bold text-gray-900 text-lg" style={{ fontFamily: '"Google Sans", sans-serif' }}>{selectedUser.name}</p>
+                            </div>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => { setSelectedUser(null); setSearchTerm(''); }} 
+                            className="p-2 text-gray-400 hover:text-coha-500 transition-colors"
+                          >
+                            <ArrowLeft size={20} />
+                          </button>
+                        </div>
+                        <div>
+                          <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-3" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Authorization PIN</label>
+                          <input
+                            type="password"
+                            placeholder="••••"
+                            value={pin}
+                            onChange={(e) => setPin(e.target.value)}
+                            maxLength={4}
+                            autoFocus
+                            className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 transition-all font-mono text-2xl tracking-[0.5em]"
+                          />
+                        </div>
+                        {error && <p className="text-red-500 text-sm font-medium" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{error}</p>}
+                        <button 
+                          type="submit" 
+                          className="w-full bg-coha-900 text-white hover:bg-coha-800 shadow-xl shadow-coha-900/20 font-bold py-4 px-6 rounded-2xl transition-all flex justify-center items-center gap-3 hover:-translate-y-1 active:translate-y-0"
+                          style={{ fontFamily: '"Google Sans", sans-serif' }}
+                        >
+                          Authenticate
+                          <ArrowLeft size={18} className="rotate-180" />
+                        </button>
+                      </motion.div>
+                    )}
+                  </form>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, LayoutGrid, List as ListIcon, Eye, Users } from 'lucide-react';
 import { WeeklyLessonPlan, SystemSettings, Teacher } from '../../types';
 import { getAllLessonPlans, getSystemSettings, getTeachers } from '../../services/dataService';
+import { getPromotionalSubjects, getNonPromotionalSubjects } from '../../utils/subjects';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 const CORE_SUBJECTS = ['REL. ED.', 'MATHEMATICS', 'ENGLISH', 'HANDWRITING'];
 const EXTENDED_SUBJECTS = ['ENV. STUDIES', 'ARTS', 'PHYSICAL EDUCATION'];
-const PROMOTIONAL_SUBJECTS = ['MATHEMATICS', 'ENGLISH', 'HANDWRITING', 'ENV. STUDIES', 'REL. ED.'];
-const NON_PROMOTIONAL_SUBJECTS = ['PHYSICAL EDUCATION', 'ARTS', 'LIFE SKILLS'];
 
 const SUB_HEADINGS: Record<string, Record<string, string>> = {
   'MATHEMATICS': {
@@ -102,8 +101,17 @@ export const ViewLessonPlans: React.FC = () => {
 
   const renderTable = (isCore: boolean, plan: WeeklyLessonPlan) => {
     const isGradeLevel = plan.classLevel?.toLowerCase().includes('grade');
+    
+    const grade = plan.classLevel || '';
+    const promotionalSubjects = getPromotionalSubjects(grade).map(s => {
+      if (s === 'Environmental Studies') return 'ENV. STUDIES';
+      if (s === 'Religious Education') return 'REL. ED.';
+      return s.toUpperCase();
+    });
+    const nonPromotionalSubjects = getNonPromotionalSubjects(grade).map(s => s.toUpperCase());
+
     const subjects = isGradeLevel 
-      ? (isCore ? PROMOTIONAL_SUBJECTS : NON_PROMOTIONAL_SUBJECTS)
+      ? (isCore ? promotionalSubjects : nonPromotionalSubjects)
       : (isCore ? CORE_SUBJECTS : EXTENDED_SUBJECTS);
     const data = isCore ? plan.coreSubjects : plan.extendedSubjects;
 

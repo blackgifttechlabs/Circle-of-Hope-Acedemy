@@ -1,9 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calculator, BookA, Globe, PenTool, Heart, Activity, Palette, Users } from 'lucide-react';
-
-const PROMOTIONAL_SUBJECTS = ['Mathematics', 'English', 'Environmental Studies', 'Handwriting', 'Religious Education'];
-const NON_PROMOTIONAL_SUBJECTS = ['Physical Education', 'Arts', 'Life Skills'];
+import { getPromotionalSubjects, getNonPromotionalSubjects } from '../../../utils/subjects';
 
 const SUBJECT_CONFIG: Record<string, { icon: React.ElementType, color: string, iconColor: string, hoverBg: string }> = {
   'Mathematics': { icon: Calculator, color: 'border-blue-200 hover:border-blue-500', iconColor: 'bg-blue-50 text-blue-600', hoverBg: 'group-hover:bg-blue-500 group-hover:text-white' },
@@ -18,6 +16,9 @@ const SUBJECT_CONFIG: Record<string, { icon: React.ElementType, color: string, i
 
 export default function SubjectSelection({ user }: { user?: any }) {
   const navigate = useNavigate();
+  const grade = user?.assignedClass || '';
+  const promotionalSubjects = getPromotionalSubjects(grade);
+  const nonPromotionalSubjects = getNonPromotionalSubjects(grade);
 
   return (
     <div className="w-full px-5 py-6">
@@ -38,20 +39,35 @@ export default function SubjectSelection({ user }: { user?: any }) {
         <div>
           <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Promotional Subjects</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {PROMOTIONAL_SUBJECTS.map(subject => {
+            {promotionalSubjects.map(subject => {
               const config = SUBJECT_CONFIG[subject];
               const Icon = config.icon;
               return (
-                <button
+                <div
                   key={subject}
-                  onClick={() => navigate(`/teacher/assess/${encodeURIComponent(subject)}`)}
-                  className={`flex items-center gap-4 p-4 bg-white border rounded-xl transition-all text-left group ${config.color}`}
+                  className={`flex flex-col p-4 bg-white border rounded-xl transition-all text-left group ${config.color}`}
                 >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${config.iconColor} ${config.hoverBg}`}>
-                    <Icon size={20} />
+                  <button
+                    onClick={() => navigate(`/teacher/assess/${encodeURIComponent(subject)}`)}
+                    className="flex items-center gap-4 w-full text-left"
+                  >
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${config.iconColor} ${config.hoverBg}`}>
+                      <Icon size={20} />
+                    </div>
+                    <span className="font-bold text-slate-700 group-hover:text-slate-900 flex-1">{subject}</span>
+                  </button>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/teacher/assessment-sheet/${encodeURIComponent(subject)}`);
+                      }}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      View Sheet
+                    </button>
                   </div>
-                  <span className="font-bold text-slate-700 group-hover:text-slate-900">{subject}</span>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -60,20 +76,35 @@ export default function SubjectSelection({ user }: { user?: any }) {
         <div>
           <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Non-Promotional Subjects</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {NON_PROMOTIONAL_SUBJECTS.map(subject => {
+            {nonPromotionalSubjects.map(subject => {
               const config = SUBJECT_CONFIG[subject];
               const Icon = config.icon;
               return (
-                <button
+                <div
                   key={subject}
-                  onClick={() => navigate(`/teacher/assess/${encodeURIComponent(subject)}`)}
-                  className={`flex items-center gap-4 p-4 bg-white border rounded-xl transition-all text-left group ${config.color}`}
+                  className={`flex flex-col p-4 bg-white border rounded-xl transition-all text-left group ${config.color}`}
                 >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${config.iconColor} ${config.hoverBg}`}>
-                    <Icon size={20} />
+                  <button
+                    onClick={() => navigate(`/teacher/assess/${encodeURIComponent(subject)}`)}
+                    className="flex items-center gap-4 w-full text-left"
+                  >
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${config.iconColor} ${config.hoverBg}`}>
+                      <Icon size={20} />
+                    </div>
+                    <span className="font-bold text-slate-700 group-hover:text-slate-900 flex-1">{subject}</span>
+                  </button>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/teacher/assessment-sheet/${encodeURIComponent(subject)}`);
+                      }}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      View Sheet
+                    </button>
                   </div>
-                  <span className="font-bold text-slate-700 group-hover:text-slate-900">{subject}</span>
-                </button>
+                </div>
               );
             })}
           </div>

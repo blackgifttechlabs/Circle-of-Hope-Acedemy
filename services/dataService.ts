@@ -998,6 +998,68 @@ export const markDailyRegister = async (grade: string, studentId: string, studen
   }
 };
 
+
+// Custom Topics Management
+export const addCustomTopic = async (grade: string, termId: string, subject: string, topic: string) => {
+  try {
+    const docId = `${grade.replace(/\s+/g, '')}_${termId}_${subject.replace(/\s+/g, '')}_${topic.replace(/\s+/g, '')}`;
+    await setDoc(doc(db, 'custom_topics', docId), {
+      grade,
+      termId,
+      subject,
+      topic,
+      createdAt: new Date().toISOString()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error adding custom topic:", error);
+    return false;
+  }
+};
+
+export const getCustomTopics = async (grade: string, termId: string, subject: string): Promise<string[]> => {
+  try {
+    const q = query(
+      collection(db, 'custom_topics'),
+      where('grade', '==', grade),
+      where('termId', '==', termId),
+      where('subject', '==', subject)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data().topic as string);
+  } catch (error) {
+    console.error("Error getting custom topics:", error);
+    return [];
+  }
+};
+
+export const deleteTopic = async (grade: string, termId: string, subject: string, topic: string) => {
+  try {
+    // 1. Delete the custom topic record if it exists
+    const customTopicId = `${grade.replace(/\s+/g, '')}_${termId}_${subject.replace(/\s+/g, '')}_${topic.replace(/\s+/g, '')}`;
+    await deleteDoc(doc(db, 'custom_topics', customTopicId));
+
+    // 2. Delete all assessments for this topic
+    const q = query(
+      collection(db, 'topic_assessments'),
+      where('grade', '==', grade),
+      where('termId', '==', termId),
+      where('subject', '==', subject),
+      where('topic', '==', topic)
+    );
+    const snapshot = await getDocs(q);
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error("Error deleting topic:", error);
+    return false;
+  }
+};
+
 export const getStudentDailyRegister = async (grade: string, studentId: string): Promise<StudentDailyRegister | null> => {
   try {
     const docRef = doc(db, 'daily_register', grade, 'students', studentId);
