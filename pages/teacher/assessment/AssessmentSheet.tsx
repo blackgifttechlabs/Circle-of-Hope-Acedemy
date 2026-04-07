@@ -747,34 +747,28 @@ export default function AssessmentSheet({ user }: { user: any }) {
         th.topic-th .th-inner {
           position: absolute;
           inset: 0;
-          display: flex;
-          align-items: flex-end;    /* push text to bottom ← KEY */
-          justify-content: center;
           overflow: hidden;
         }
 
         /* The rotated span — strictly ONE line, no wrap, clipped */
         .rotate-header {
-          display: block;
-          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          position: absolute;
+          left: 0.22rem;
+          bottom: 0.35rem;
           transform: rotate(-90deg);
-          transform-origin: center;
+          transform-origin: left bottom;
           white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
           font-size: 0.6rem;
           line-height: 1;
-          text-align: left;
         }
 
         /* Bold variant for TOTAL / AVERAGE / SYMBOL */
         .rotate-header-bold {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          position: absolute;
+          left: 0.22rem;
+          bottom: 0.35rem;
           transform: rotate(-90deg);
-          transform-origin: center;
+          transform-origin: left bottom;
           white-space: nowrap;
           font-size: 0.6rem;
           font-weight: 700;
