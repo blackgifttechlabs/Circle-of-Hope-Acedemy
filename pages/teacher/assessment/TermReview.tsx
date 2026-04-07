@@ -142,7 +142,7 @@ export default function TermReview({ user }: { user: any }) {
 
     const termCols = topics.length + 3;
     const noW = 7;
-    const markW = Math.max(4.2, (usableW - noW - 35) / termCols);
+    const markW = Math.max(4.9, Math.min(6.2, (usableW - noW - 36) / termCols));
     const summaryW = markW + 1;
     const topicMarkW = markW;
     const headerHeight = getTopicHeaderHeight(topics, true);

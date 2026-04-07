@@ -6,7 +6,13 @@ import { getGradeDisplayValue } from './assessmentWorkflow';
 
 const SCHOOL_LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
 
-const formatSkillParts = (label: string) => {
+type SkillLabelParts = {
+  prefix: string;
+  suffix: string;
+  full: string;
+};
+
+const formatSkillParts = (label: string): SkillLabelParts => {
   const match = label.match(/^([^:]+):\s*(.*)$/);
   if (!match) {
     return { prefix: '', suffix: label.charAt(0).toUpperCase() + label.slice(1), full: label.charAt(0).toUpperCase() + label.slice(1) };
@@ -124,7 +130,7 @@ const appendSummaryTermToDocument = async (
       rowSpan: 2,
       styles: { halign: 'left', valign: 'bottom', cellWidth: 45 },
     }];
-    const head2: any[] = [];
+    const head2: SkillLabelParts[] = [];
 
     const componentsMap = new Map<string, string>();
     themes.forEach((theme) => {
@@ -140,11 +146,11 @@ const appendSummaryTermToDocument = async (
     if (components.length > 0) {
       head1.push({ content: 'TOTAL MARKS', colSpan: components.length, styles: { halign: 'center', fillColor: [220, 220, 220] } });
       components.forEach(([, name]) => {
-        head2.push(`${name} average`);
+        head2.push(formatSkillParts(`${name} average`));
       });
     }
 
-    const longestLabelLength = head2.reduce((max, item) => Math.max(max, item.full.length), 0);
+    const longestLabelLength = head2.reduce((max, item) => Math.max(max, item?.full?.length || 0), 0);
     const headerHeight = Math.max(36, Math.min(70, longestLabelLength * 1.35));
 
     const body: any[] = [];
@@ -197,7 +203,7 @@ const appendSummaryTermToDocument = async (
       didDrawCell: (data) => {
         if (data.section === 'head' && data.row.index === 1 && data.column.index > 0) {
           const label = head2[data.column.index - 1];
-          if (!label) return;
+          if (!label?.full) return;
           doc.saveGraphicsState();
           doc.setFontSize(6);
           doc.setFont('helvetica', 'normal');

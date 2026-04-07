@@ -1068,7 +1068,7 @@ export const saveTopicAssessments = async (
     for (const [studentId, mark] of Object.entries(marks)) {
       const docId = buildTopicDocId(studentId, termId, subject, topic, options?.theme);
       const ref = doc(db, 'topic_assessments', docId);
-      batch.set(ref, {
+      const payload = {
         studentId,
         grade,
         termId,
@@ -1078,7 +1078,12 @@ export const saveTopicAssessments = async (
         theme: options?.theme,
         mark,
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      };
+      batch.set(
+        ref,
+        Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined)),
+        { merge: true }
+      );
     }
     await batch.commit();
 
@@ -1265,14 +1270,19 @@ export const renameTopic = async (
     if (options?.isCustom) {
       const previousCustomRef = doc(db, 'custom_topics', buildCustomTopicDocId(grade, termId, subject, oldTopic, options.theme));
       const nextCustomRef = doc(db, 'custom_topics', buildCustomTopicDocId(grade, termId, subject, trimmedTopic, options.theme));
-      batch.set(nextCustomRef, {
-        grade,
-        termId,
-        subject,
-        topic: trimmedTopic,
-        theme: options.theme,
-        createdAt: new Date().toISOString(),
-      });
+      batch.set(
+        nextCustomRef,
+        Object.fromEntries(
+          Object.entries({
+            grade,
+            termId,
+            subject,
+            topic: trimmedTopic,
+            theme: options.theme,
+            createdAt: new Date().toISOString(),
+          }).filter(([, value]) => value !== undefined)
+        )
+      );
       batch.delete(previousCustomRef);
     } else if (options?.originalTopic) {
       const overrideRef = doc(
@@ -1280,16 +1290,21 @@ export const renameTopic = async (
         'topic_overrides',
         buildTopicOverrideDocId(grade, termId, subject, options.originalTopic, options.theme)
       );
-      batch.set(overrideRef, {
-        grade,
-        termId,
-        subject,
-        originalTopic: options.originalTopic,
-        topic: trimmedTopic,
-        deleted: false,
-        theme: options.theme,
-        updatedAt: new Date().toISOString(),
-      });
+      batch.set(
+        overrideRef,
+        Object.fromEntries(
+          Object.entries({
+            grade,
+            termId,
+            subject,
+            originalTopic: options.originalTopic,
+            topic: trimmedTopic,
+            deleted: false,
+            theme: options.theme,
+            updatedAt: new Date().toISOString(),
+          }).filter(([, value]) => value !== undefined)
+        )
+      );
     }
 
     await batch.commit();
@@ -1315,16 +1330,18 @@ export const deleteTopic = async (
     } else if (options?.originalTopic) {
       batch.set(
         doc(db, 'topic_overrides', buildTopicOverrideDocId(grade, termId, subject, options.originalTopic, options.theme)),
-        {
-          grade,
-          termId,
-          subject,
-          originalTopic: options.originalTopic,
-          topic,
-          deleted: true,
-          theme: options.theme,
-          updatedAt: new Date().toISOString(),
-        }
+        Object.fromEntries(
+          Object.entries({
+            grade,
+            termId,
+            subject,
+            originalTopic: options.originalTopic,
+            topic,
+            deleted: true,
+            theme: options.theme,
+            updatedAt: new Date().toISOString(),
+          }).filter(([, value]) => value !== undefined)
+        )
       );
     }
 

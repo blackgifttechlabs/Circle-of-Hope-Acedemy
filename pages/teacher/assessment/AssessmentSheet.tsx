@@ -248,8 +248,13 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
       // ── Table setup ──────────────────────────────────────────────────────────
       const noW = 8;
-      const summaryW = 12;
-      const topicMarkW = Math.max(5, (usableW - noW - 40 - (summaryW * 3)) / Math.max(termTopics.length, 1));
+      const summaryW = standardWorkflow ? 12 : 13;
+      const reservedNameW = standardWorkflow ? 34 : 38;
+      const computedTopicW = (usableW - noW - reservedNameW - (summaryW * 3)) / Math.max(termTopics.length, 1);
+      const topicMarkW = Math.max(
+        standardWorkflow ? 4.9 : 5.9,
+        Math.min(standardWorkflow ? 6.4 : 7.4, computedTopicW)
+      );
       const nameW = usableW - noW - (termTopics.length * topicMarkW) - (summaryW * 3);
       const colWidths: number[] = [
         noW,
@@ -863,7 +868,10 @@ export default function AssessmentSheet({ user }: { user: any }) {
             <div
               id={termIdx === 0 ? "assessment-sheet" : undefined}
               className="p-6 bg-white print:p-0"
-              style={{ minWidth: '700px', ['--topic-header-height' as any]: `${headerHeight / 16}rem` }}
+              style={{
+                minWidth: standardWorkflow ? '760px' : '980px',
+                ['--topic-header-height' as any]: `${headerHeight / 16}rem`
+              }}
             >
               {/* School header */}
               <div className="flex justify-between items-start mb-4">
@@ -925,11 +933,11 @@ export default function AssessmentSheet({ user }: { user: any }) {
                   <col style={{ width: '1.8rem' }} />
                   <col style={{ width: 'auto' }} />
                   {termTopics.map((_, i) => (
-                    <col key={`tc-${i}`} style={{ width: '1.6rem' }} />
+                    <col key={`tc-${i}`} style={{ width: standardWorkflow ? '1.9rem' : '2.35rem' }} />
                   ))}
-                  <col style={{ width: '2rem' }} />
-                  <col style={{ width: '2rem' }} />
-                  <col style={{ width: '2rem' }} />
+                  <col style={{ width: standardWorkflow ? '2rem' : '2.25rem' }} />
+                  <col style={{ width: standardWorkflow ? '2rem' : '2.25rem' }} />
+                  <col style={{ width: standardWorkflow ? '2rem' : '2.25rem' }} />
                 </colgroup>
 
                 <thead>

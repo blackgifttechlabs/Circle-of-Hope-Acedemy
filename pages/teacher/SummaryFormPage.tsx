@@ -122,15 +122,21 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
         const componentCell = sheet.getCell(7, currentCol + index);
         componentCell.value = component.name;
         componentCell.font = { bold: true, size: 10 };
-        componentCell.alignment = { horizontal: 'center', wrapText: true };
+        componentCell.alignment = {
+          textRotation: 90,
+          vertical: 'middle',
+          horizontal: 'center',
+          wrapText: true,
+        };
       });
       currentCol = endCol + 1;
     });
 
     sheet.getColumn(1).width = 25;
     for (let i = 2; i < currentCol; i++) {
-      sheet.getColumn(i).width = 18;
+      sheet.getColumn(i).width = 6;
     }
+    sheet.getRow(7).height = 110;
 
     students.forEach((student) => {
       const row = sheet.addRow([student.name]);

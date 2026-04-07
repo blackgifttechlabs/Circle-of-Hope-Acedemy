@@ -12,6 +12,14 @@ const truncateLabel = (label: string, maxChars?: number) => {
   return `${cut}-`;
 };
 
+const truncateWithEllipsis = (label: string, maxChars: number) => {
+  if (label.length <= maxChars) return label;
+  const slice = label.substring(0, Math.max(1, maxChars - 1));
+  const lastSpace = slice.lastIndexOf(' ');
+  const cut = lastSpace > maxChars / 2 ? slice.substring(0, lastSpace) : slice;
+  return `${cut}…`;
+};
+
 const capitalizeFirst = (value: string) => {
   if (!value) return value;
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -75,6 +83,6 @@ export const getTopicHeaderLines = (
   if (lines.length <= maxLines) return lines;
 
   const collapsed = [...lines.slice(0, maxLines - 1)];
-  collapsed.push(lines.slice(maxLines - 1).join(' '));
+  collapsed.push(truncateWithEllipsis(lines.slice(maxLines - 1).join(' '), maxCharsPerLine));
   return collapsed;
 };
