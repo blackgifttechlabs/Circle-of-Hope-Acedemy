@@ -837,6 +837,15 @@ export default function AssessmentSheet({ user }: { user: any }) {
           const termId = term.name.toLowerCase().replace(' ', '-');
           const termTopics = getTopicsForTerm(termId, term.assessments);
           const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
+          const previewNoWidthRem = 1.8;
+          const previewNameWidthRem = standardWorkflow ? 14 : 15;
+          const previewTopicWidthRem = standardWorkflow ? 2.75 : 3.2;
+          const previewSummaryWidthRem = standardWorkflow ? 2.4 : 2.7;
+          const previewTableWidthRem =
+            previewNoWidthRem +
+            previewNameWidthRem +
+            (termTopics.length * previewTopicWidthRem) +
+            (previewSummaryWidthRem * 3);
 
           return (
           <div
@@ -847,7 +856,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
               id={termIdx === 0 ? "assessment-sheet" : undefined}
               className="p-6 bg-white print:p-0"
               style={{
-                minWidth: standardWorkflow ? '760px' : '980px',
+                minWidth: `${previewTableWidthRem}rem`,
                 ['--topic-header-height' as any]: `${headerHeight / 16}rem`
               }}
             >
@@ -906,16 +915,19 @@ export default function AssessmentSheet({ user }: { user: any }) {
               </div>
 
               {/* ── Assessment Table ──────────────────────────────────────────── */}
-              <table className="w-full border-2 border-black text-xs table-fixed border-collapse">
+              <table
+                className="border-2 border-black text-xs table-fixed border-collapse"
+                style={{ width: `${previewTableWidthRem}rem`, minWidth: `${previewTableWidthRem}rem` }}
+              >
                 <colgroup>
-                  <col style={{ width: '1.8rem' }} />
-                  <col style={{ width: 'auto' }} />
+                  <col style={{ width: `${previewNoWidthRem}rem` }} />
+                  <col style={{ width: `${previewNameWidthRem}rem` }} />
                   {termTopics.map((_, i) => (
-                    <col key={`tc-${i}`} style={{ width: standardWorkflow ? '1.9rem' : '2.35rem' }} />
+                    <col key={`tc-${i}`} style={{ width: `${previewTopicWidthRem}rem` }} />
                   ))}
-                  <col style={{ width: standardWorkflow ? '2rem' : '2.25rem' }} />
-                  <col style={{ width: standardWorkflow ? '2rem' : '2.25rem' }} />
-                  <col style={{ width: standardWorkflow ? '2rem' : '2.25rem' }} />
+                  <col style={{ width: `${previewSummaryWidthRem}rem` }} />
+                  <col style={{ width: `${previewSummaryWidthRem}rem` }} />
+                  <col style={{ width: `${previewSummaryWidthRem}rem` }} />
                 </colgroup>
 
                 <thead>
