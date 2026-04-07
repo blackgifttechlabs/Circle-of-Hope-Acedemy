@@ -753,26 +753,33 @@ export default function AssessmentSheet({ user }: { user: any }) {
         /* The rotated span — strictly ONE line, no wrap, clipped */
         .rotate-header {
           position: absolute;
-          left: 0.22rem;
+          left: 50%;
           bottom: 0.35rem;
-          transform: rotate(-90deg);
-          transform-origin: left bottom;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: translateX(-50%) rotate(-90deg);
+          transform-origin: center bottom;
           white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
           font-size: 0.6rem;
           line-height: 1;
+          text-align: left;
         }
 
         /* Bold variant for TOTAL / AVERAGE / SYMBOL */
         .rotate-header-bold {
           position: absolute;
-          left: 0.22rem;
+          left: 50%;
           bottom: 0.35rem;
-          transform: rotate(-90deg);
-          transform-origin: left bottom;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: translateX(-50%) rotate(-90deg);
+          transform-origin: center bottom;
           white-space: nowrap;
+          overflow: hidden;
           font-size: 0.6rem;
           font-weight: 700;
           line-height: 1;
+          text-align: center;
         }
 
         /* ── Table fills page width ─────────────────────────── */

@@ -566,25 +566,32 @@ export default function TermReview({ user }: { user: any }) {
 
         .rotate-header {
           position: absolute;
-          left: 0.22rem;
+          left: 50%;
           bottom: 0.35rem;
-          transform: rotate(-90deg);
-          transform-origin: left bottom;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: translateX(-50%) rotate(-90deg);
+          transform-origin: center bottom;
           white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
           font-size: 0.6rem;
           line-height: 1;
+          text-align: left;
         }
 
         .rotate-header-bold {
           position: absolute;
-          left: 0.22rem;
+          left: 50%;
           bottom: 0.35rem;
-          transform: rotate(-90deg);
-          transform-origin: left bottom;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: translateX(-50%) rotate(-90deg);
+          transform-origin: center bottom;
           white-space: nowrap;
+          overflow: hidden;
           font-size: 0.6rem;
           font-weight: 700;
           line-height: 1;
+          text-align: center;
         }
 
         #summary-table {
