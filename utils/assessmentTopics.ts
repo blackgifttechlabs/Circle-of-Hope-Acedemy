@@ -61,6 +61,16 @@ export const getTopicsForSubjectAndGrade = (subject: string, grade: string): str
           'Writing',
           'Phonics'
         ];
+      case 'Physical Education':
+      case 'PE':
+        return [
+          'Physical Fitness',
+          'Motor Skills',
+          'Athletics',
+          'Sport Skills',
+          'Games in Limited Space',
+          'Traditional Games'
+        ];
       case 'Environmental Studies':
         return [
           'The Social Environment',
@@ -83,81 +93,25 @@ export const getTopicsForSubjectAndGrade = (subject: string, grade: string): str
     switch (subject) {
       case 'Physical Education':
       case 'PE':
-        if (gradeNum === 4) {
-          return [
-            'Preparatory activities',
-            'Imitative activities',
-            'Athletics (the start)',
-            'Acrobatics tumbling',
-            'Large group activities',
-            'Games',
-            'Creative dance',
-            'Water activities – entry into water',
-            'Sport skills',
-            'Health and physical well-being'
-          ];
-        } else if (gradeNum === 5) {
-          return [
-            'Endurance activities',
-            'Cardiorespiratory endurance activities',
-            'Sprints',
-            'Middle distance running',
-            'Acrobatics tumbling',
-            'Competition in small group activities',
-            'Games',
-            'Creative dance',
-            'Swimming strokes',
-            'Sport skills',
-            'Health and physical well-being',
-            'Healthy living habits'
-          ];
-        } else if (gradeNum === 6) {
-          return [
-            'Muscular strength and endurance activities',
-            'Flexibility activities',
-            'Relays',
-            'Hurdles',
-            'High jump',
-            'Acrobatics jumping and vaulting',
-            'Acrobatics balancing activities',
-            'Competition in large group activities',
-            'Tag and dodging games',
-            'Social dance',
-            'Water safety and life-saving skills and techniques',
-            'Water activities with apparatus and stunts',
-            'Sport skills',
-            'Healthy living habits',
-            'Posture'
-          ];
-        } else if (gradeNum === 7) {
-          return [
-            'Speed activities',
-            'Fitness evaluation',
-            'Knowledge and value of general fitness',
-            'Long jump',
-            'Shot put',
-            'Turbo javelin throwing',
-            'Sportsmanship',
-            'Fitness',
-            'Challenging activities',
-            'Races and relays',
-            'Participation in games',
-            'Traditional games',
-            'Self-designed games',
-            'Traditional rhythmical movement with hand apparatus',
-            'Water games and competitions / Water games and safety',
-            'Traffic rules and regulations',
-            'Sport skills',
-            'Nutrition',
-            'Harmful substance/habits/practices'
-          ];
-        }
-        break;
+        return [
+          'Physical Fitness',
+          'Applied Movement Skills',
+          'Health Related Aspects'
+        ];
       case 'Life Skills':
         return [
           'Career Guidance',
           'Holistic Wellness',
           'Civic Affairs'
+        ];
+      case 'English':
+        return [
+          'Prepared Speaking',
+          'Unprepared Speaking',
+          'Reading Aloud',
+          'Reading Comprehension',
+          'Reading & Directed Writing Task',
+          'Spelling & Dictation'
         ];
       case 'Mathematics':
         return [
@@ -174,10 +128,11 @@ export const getTopicsForSubjectAndGrade = (subject: string, grade: string): str
           'Data Handling',
           'Patterns, Functions, and Algebra'
         ];
+      case 'Religious Education':
       case 'Religious and Moral Education':
       case 'RME':
         return [
-          'Religion',
+          'Religions',
           'Moral Issues'
         ];
       case 'Arts':

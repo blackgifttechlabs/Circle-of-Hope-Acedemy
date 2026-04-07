@@ -47,12 +47,31 @@ export const generateSummaryReportPDF = async (
   mode: 'download' | 'print' = 'download'
 ) => {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  await appendSummaryTermToDocument(doc, students, records, termId, termName, teacherName, className, schoolName, true);
+  if (mode === 'print') {
+    doc.autoPrint();
+    window.open(doc.output('bloburl'), '_blank');
+  } else {
+    doc.save(`Summary_Report_${termName}.pdf`);
+  }
+};
+
+const appendSummaryTermToDocument = async (
+  doc: jsPDF,
+  students: Student[],
+  records: Record<string, TermAssessmentRecord>,
+  termId: string,
+  termName: string,
+  teacherName: string,
+  className: string,
+  schoolName: string,
+  isFirstPageOverall: boolean
+) => {
   const pageWidth = doc.internal.pageSize.width;
   const validTermId = ['term-1', 'term-2', 'term-3'].includes(termId) ? termId : 'term-1';
   const termSkills = CLASS_LIST_SKILLS[validTermId] || {};
   const schoolLogo = await fetchImage(SCHOOL_LOGO_URL);
-
-  let isFirstPage = true;
+  let isFirstPage = isFirstPageOverall;
 
   PRE_PRIMARY_AREAS.forEach((area) => {
     const themes = termSkills[area.id] || [];
@@ -200,10 +219,38 @@ export const generateSummaryReportPDF = async (
       },
     });
   });
+};
+
+export const generateSummaryReportPDFBundle = async (
+  students: Student[],
+  terms: Array<{ termId: string; termName: string; records: Record<string, TermAssessmentRecord> }>,
+  teacherName: string,
+  className: string = 'Grade 0',
+  schoolName: string = 'Circle of Hope Academy',
+  mode: 'download' | 'print' = 'download'
+) => {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  let firstPage = true;
+
+  for (const term of terms) {
+    await appendSummaryTermToDocument(
+      doc,
+      students,
+      term.records,
+      term.termId,
+      term.termName,
+      teacherName,
+      className,
+      schoolName,
+      firstPage
+    );
+    firstPage = false;
+  }
+
   if (mode === 'print') {
     doc.autoPrint();
     window.open(doc.output('bloburl'), '_blank');
   } else {
-    doc.save(`Summary_Report_${termName}.pdf`);
+    doc.save(terms.length === 1 ? `Summary_Report_${terms[0].termName}.pdf` : 'Summary_Report_All_Terms.pdf');
   }
 };

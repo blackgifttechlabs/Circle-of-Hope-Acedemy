@@ -420,23 +420,33 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                         </div>
                       </td>
                       <td className="rtd" style={{ textAlign:'right' }}>
-                        {g0 && (
-                          <button
-                            onClick={() => navigate(`/teacher/term-assessment/${s.id}`)}
-                            className={isC ? 'bo' : 'bp'}
-                            style={{ background: isC ? 'white' : '#6366f1',
-                              padding:'7px 14px' }}>
-                            {isC ? <><Edit2 size={12}/> Edit</> : <><ArrowRight size={12}/> Add</>}
-                          </button>
-                        )}
-                        {isGrade1To7Teacher && (
-                          <button
-                            onClick={() => navigate(`/teacher/assess/student/${s.id}`)}
-                            className="bp"
-                            style={{ background: '#3b82f6', padding:'7px 14px' }}>
-                            <Edit2 size={12}/> Record
-                          </button>
-                        )}
+                        <div style={{ display:'inline-flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
+                          {g0 && (
+                            <button
+                              onClick={() => navigate(`/teacher/term-assessment/${s.id}`)}
+                              className={isC ? 'bo' : 'bp'}
+                              style={{ background: isC ? 'white' : '#6366f1',
+                                padding:'7px 14px' }}>
+                              {isC ? <><Edit2 size={12}/> Edit</> : <><ArrowRight size={12}/> Add</>}
+                            </button>
+                          )}
+                          {!isGrade1To7Teacher && (
+                            <button
+                              onClick={() => navigate(`/teacher/assess/student/${s.id}`)}
+                              className="bp"
+                              style={{ background: '#3b82f6', padding:'7px 14px' }}>
+                              <Edit2 size={12}/> Record
+                            </button>
+                          )}
+                          {isGrade1To7Teacher && (
+                            <button
+                              onClick={() => navigate(`/teacher/assess/student/${s.id}`)}
+                              className="bp"
+                              style={{ background: '#3b82f6', padding:'7px 14px' }}>
+                              <Edit2 size={12}/> Record
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

@@ -7,6 +7,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { ActionMenu } from '../../../components/ui/ActionMenu';
 import {
   getDefaultThemesForSubject,
   getDefaultTopicsForTheme,
@@ -14,7 +15,8 @@ import {
   getSubjectLabel,
   isGrade1To7Class,
 } from '../../../utils/assessmentWorkflow';
-import { getTopicHeaderHeight, getTopicLabelParts } from '../../../utils/topicLabelFormat';
+import { getTopicHeaderHeight, getTopicHeaderLines, getTopicLabelParts } from '../../../utils/topicLabelFormat';
+import { navigateBackOr } from '../../../utils/navigation';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
@@ -187,34 +189,35 @@ export default function AssessmentSheet({ user }: { user: any }) {
   // ═══════════════════════════════════════════════════════════════════════════
   // PDF GENERATION
   // ═══════════════════════════════════════════════════════════════════════════
-  const generatePDF = async (termData?: { name: string; assessments: TopicAssessmentRecord[] }) => {
+  const generatePDF = async (
+    termData?: { name: string; assessments: TopicAssessmentRecord[] },
+    mode: 'download' | 'print' = 'download'
+  ) => {
     const termsToGen = termData ? [termData] : [
       { name: 'Term 1', assessments: assessmentsT1 },
       { name: 'Term 2', assessments: assessmentsT2 },
       { name: 'Term 3', assessments: assessmentsT3 },
     ];
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = 210;
+    const marginL = 10;
+    const marginR = 10;
+    const usableW = pageW - marginL - marginR;
 
-    for (const term of termsToGen) {
+    const { data, format } = await urlToBase64(LOGO_URL).catch(() => ({ data: '', format: 'PNG' as const }));
+
+    termsToGen.forEach((term, termIndex) => {
+      if (termIndex > 0) doc.addPage();
       const termId = term.name.toLowerCase().replace(' ', '-');
       const termTopics = getTopicsForTerm(termId, term.assessments);
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW = 210;
-      const marginL = 10;
-      const marginR = 10;
-      const usableW = pageW - marginL - marginR;
-
-      // ── Logo ────────────────────────────────────────────────────────────────
-      let logoLoaded = false;
-      try {
-        const { data, format } = await urlToBase64(LOGO_URL);
+      const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
+      const headerHeightMm = Math.max(30, Math.min(60, headerHeight * 0.25));
+      if (data) {
         doc.addImage(data, format as any, marginL, 6, 18, 18);
-        logoLoaded = true;
-      } catch (e) {
-        console.warn('Logo failed to load for PDF:', e);
       }
 
       // ── School header ────────────────────────────────────────────────────────
-      const textStartX = logoLoaded ? marginL + 20 : marginL;
+      const textStartX = data ? marginL + 20 : marginL;
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.text('Registered with Ministry Of Education', textStartX, 10);
@@ -248,9 +251,6 @@ export default function AssessmentSheet({ user }: { user: any }) {
       const summaryW = 12;
       const topicMarkW = Math.max(5, (usableW - noW - 40 - (summaryW * 3)) / Math.max(termTopics.length, 1));
       const nameW = usableW - noW - (termTopics.length * topicMarkW) - (summaryW * 3);
-      const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
-      const headerHeightMm = Math.max(30, Math.min(60, headerHeight * 0.25));
-
       const colWidths: number[] = [
         noW,
         nameW,
@@ -330,6 +330,9 @@ export default function AssessmentSheet({ user }: { user: any }) {
           if (data.row.section === 'head' && data.column.index >= 2) {
             data.cell.text = [];
           }
+          if (data.row.section === 'body' && summaryColIndices.has(data.column.index)) {
+            data.cell.text = [];
+          }
         },
         didDrawCell: (data) => {
           const { x, y, width, height } = data.cell;
@@ -349,9 +352,10 @@ export default function AssessmentSheet({ user }: { user: any }) {
               });
             } else {
               const label = topicLabels[topicIndex];
+              const lines = getTopicHeaderLines(termTopics[topicIndex], standardWorkflow ? 18 : 15);
               doc.setFont('helvetica', 'normal');
               doc.setTextColor(0, 0, 0);
-              doc.text(label.full, x + width / 2 + 1.2, y + height - 1.5, {
+              doc.text(lines, x + width / 2 + 1.2, y + height - 1.5, {
                 angle: 90,
                 align: 'left',
               });
@@ -418,8 +422,17 @@ export default function AssessmentSheet({ user }: { user: any }) {
         },
         margin: { left: marginL, right: marginR },
       });
+    });
 
-      doc.save(`${subjectLabel}_Assessment_Sheet_${term.name.replace(' ', '_')}.pdf`);
+    const outputName = termData
+      ? `${subjectLabel}_Assessment_Sheet_${termData.name.replace(' ', '_')}.pdf`
+      : `${subjectLabel}_Assessment_Sheet_All_Terms.pdf`;
+
+    if (mode === 'print') {
+      doc.autoPrint();
+      window.open(doc.output('bloburl'), '_blank');
+    } else {
+      doc.save(outputName);
     }
   };
 
@@ -432,12 +445,12 @@ export default function AssessmentSheet({ user }: { user: any }) {
       { name: 'Term 2', assessments: assessmentsT2 },
       { name: 'Term 3', assessments: assessmentsT3 },
     ];
+    const workbook = new ExcelJS.Workbook();
 
     for (const term of termsToGen) {
       const termId = term.name.toLowerCase().replace(' ', '-');
       const termTopics = getTopicsForTerm(termId, term.assessments);
       const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
-      const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet(term.name, {
         pageSetup: {
           paperSize: 9,
@@ -544,7 +557,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
       const HDR_ROW = 13;
       sheet.getRow(HDR_ROW).height = headerHeight;
       const hdrBaseStyle: Partial<ExcelJS.Style> = {
-        alignment: { textRotation: 90, vertical: 'bottom', horizontal: 'center', wrapText: false },
+        alignment: { textRotation: 90, vertical: 'middle', horizontal: 'center', wrapText: true },
         border: thinBorder,
       };
 
@@ -558,16 +571,9 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
       let col = 3;
       termTopics.forEach((topic) => {
-        const parts = getTopicLabelParts(topic, standardWorkflow ? MAX_TOPIC_CHARS : undefined);
+        const lines = getTopicHeaderLines(topic, standardWorkflow ? 18 : 15);
         const c = sheet.getCell(HDR_ROW, col++);
-        c.value = parts.prefix
-          ? {
-              richText: [
-                { text: `${parts.prefix}:`, font: { bold: true, size: 8 } },
-                { text: parts.suffix ? ` ${parts.suffix}` : '', font: { size: 8 } },
-              ],
-            }
-          : parts.display;
+        c.value = lines.join('\n');
         c.font = { size: 8 };
         Object.assign(c, { ...hdrBaseStyle });
         c.border = thinBorder;
@@ -652,12 +658,14 @@ export default function AssessmentSheet({ user }: { user: any }) {
         applyFill(symCell);
       });
 
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
-      saveAs(blob, `${subjectLabel}_Assessment_Sheet_${term.name.replace(' ', '_')}.xlsx`);
     }
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    saveAs(blob, termData
+      ? `${subjectLabel}_Assessment_Sheet_${termData.name.replace(' ', '_')}.xlsx`
+      : `${subjectLabel}_Assessment_Sheet_All_Terms.xlsx`);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -668,6 +676,12 @@ export default function AssessmentSheet({ user }: { user: any }) {
       <div className="p-8 text-center text-slate-500 text-sm">Loading sheet data…</div>
     );
   }
+
+  const sheetTerms = [
+    { name: 'Term 1', assessments: assessmentsT1 },
+    { name: 'Term 2', assessments: assessmentsT2 },
+    { name: 'Term 3', assessments: assessmentsT3 },
+  ];
 
   return (
     <div className="w-full px-4 py-6 print:p-0 print:m-0">
@@ -712,31 +726,32 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
         /* The rotated span — strictly ONE line, no wrap, clipped */
         .rotate-header {
-          writing-mode: vertical-rl;
-          transform: rotate(180deg);
-          white-space: nowrap;      /* one line only */
-          overflow: hidden;
-          text-overflow: clip;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: rotate(-90deg);
+          transform-origin: center;
+          white-space: normal;
           font-size: 0.6rem;
-          line-height: 1;
-          max-height: calc(var(--topic-header-height, 7.5rem) - 0.1rem);
-          display: block;
-          padding-bottom: 2px;
+          line-height: 1.05;
+          text-align: center;
+          gap: 0.08rem;
         }
 
         /* Bold variant for TOTAL / AVERAGE / SYMBOL */
         .rotate-header-bold {
-          writing-mode: vertical-rl;
-          transform: rotate(180deg);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: rotate(-90deg);
+          transform-origin: center;
           white-space: nowrap;
-          overflow: hidden;
-          text-overflow: clip;
           font-size: 0.6rem;
           font-weight: 700;
           line-height: 1;
-          max-height: calc(var(--topic-header-height, 7.5rem) - 0.1rem);
-          display: block;
-          padding-bottom: 2px;
         }
 
         .topic-prefix {
@@ -747,6 +762,10 @@ export default function AssessmentSheet({ user }: { user: any }) {
         .topic-suffix {
           color: inherit;
           font-weight: 500;
+        }
+
+        .rotate-header-line {
+          display: block;
         }
 
         /* ── Table fills page width ─────────────────────────── */
@@ -761,7 +780,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
       <div className="mb-6 flex justify-between items-center print:hidden">
         <div>
           <button
-            onClick={() => navigate('/teacher/classes')}
+            onClick={() => navigateBackOr(navigate as any, '/teacher/classes')}
             className="mb-3 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
           >
             <ArrowLeft size={20} className="text-slate-600" />
@@ -769,34 +788,69 @@ export default function AssessmentSheet({ user }: { user: any }) {
           <h1 className="text-2xl font-bold text-slate-900">{subjectLabel} Assessment Sheet</h1>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => generateExcel()}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm"
-          >
-            <FileSpreadsheet size={17} /> Excel
-          </button>
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors font-medium text-sm"
-          >
-            <Printer size={17} /> Print
-          </button>
-          <button
-            onClick={() => generatePDF()}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
-          >
-            <Download size={17} /> PDF
-          </button>
+          <ActionMenu
+            label="Excel"
+            icon={FileSpreadsheet}
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
+            items={[
+              ...sheetTerms.map((term) => ({
+                id: `excel-${term.name}`,
+                label: term.name,
+                icon: FileSpreadsheet,
+                onClick: () => generateExcel(term),
+              })),
+              {
+                id: 'excel-all',
+                label: 'All Terms in One File',
+                icon: FileSpreadsheet,
+                onClick: () => generateExcel(),
+              },
+            ]}
+          />
+          <ActionMenu
+            label="Print"
+            icon={Printer}
+            className="bg-slate-800 text-white hover:bg-slate-900"
+            items={[
+              ...sheetTerms.map((term) => ({
+                id: `print-${term.name}`,
+                label: term.name,
+                icon: Printer,
+                onClick: () => generatePDF(term, 'print'),
+              })),
+              {
+                id: 'print-all',
+                label: 'All Terms in One File',
+                icon: Printer,
+                onClick: () => generatePDF(undefined, 'print'),
+              },
+            ]}
+          />
+          <ActionMenu
+            label="PDF"
+            icon={Download}
+            className="bg-blue-600 text-white hover:bg-blue-700"
+            items={[
+              ...sheetTerms.map((term) => ({
+                id: `pdf-${term.name}`,
+                label: term.name,
+                icon: Download,
+                onClick: () => generatePDF(term),
+              })),
+              {
+                id: 'pdf-all',
+                label: 'All Terms in One File',
+                icon: Download,
+                onClick: () => generatePDF(),
+              },
+            ]}
+          />
         </div>
       </div>
 
       {/* ── Sheet preview ────────────────────────────────────────────────── */}
       <div className="space-y-8 print:space-y-0">
-        {[
-          { name: 'Term 1', assessments: assessmentsT1 },
-          { name: 'Term 2', assessments: assessmentsT2 },
-          { name: 'Term 3', assessments: assessmentsT3 },
-        ].map((term, termIdx) => {
+        {sheetTerms.map((term, termIdx) => {
           const termId = term.name.toLowerCase().replace(' ', '-');
           const termTopics = getTopicsForTerm(termId, term.assessments);
           const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
@@ -893,14 +947,19 @@ export default function AssessmentSheet({ user }: { user: any }) {
                         <div className="th-inner">
                           {(() => {
                             const parts = getTopicLabelParts(t);
+                            const lines = getTopicHeaderLines(t, standardWorkflow ? 18 : 15);
                             return (
                               <span className="rotate-header">
-                                {parts.prefix ? (
-                                  <>
-                                    <span className="topic-prefix">{parts.prefix}:</span>
-                                    <span className="topic-suffix"> {parts.suffix}</span>
-                                  </>
-                                ) : parts.full}
+                                {lines.map((line, lineIndex) => (
+                                  <span key={`${t}-${lineIndex}`} className="rotate-header-line">
+                                    {lineIndex === 0 && parts.prefix && line.startsWith(`${parts.prefix}:`) ? (
+                                      <>
+                                        <span className="topic-prefix">{parts.prefix}:</span>
+                                        <span className="topic-suffix">{line.slice(parts.prefix.length + 1)}</span>
+                                      </>
+                                    ) : line}
+                                  </span>
+                                ))}
                               </span>
                             );
                           })()}

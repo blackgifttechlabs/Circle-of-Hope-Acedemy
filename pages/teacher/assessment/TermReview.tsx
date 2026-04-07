@@ -5,7 +5,8 @@ import { getStudentsByAssignedClass, getTopicAssessments } from '../../../servic
 import { Student, TopicAssessmentRecord } from '../../../types';
 import { getTopicsForSubjectAndGrade } from '../../../utils/assessmentTopics';
 import { getGradeDisplayValue } from '../../../utils/assessmentWorkflow';
-import { getTopicHeaderHeight, getTopicLabelParts } from '../../../utils/topicLabelFormat';
+import { getTopicHeaderHeight, getTopicHeaderLines, getTopicLabelParts } from '../../../utils/topicLabelFormat';
+import { navigateBackOr } from '../../../utils/navigation';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
@@ -227,6 +228,9 @@ export default function TermReview({ user }: { user: any }) {
         if (data.row.section === 'head' && data.column.index >= 2) {
           data.cell.text = [];
         }
+        if (data.row.section === 'body' && summaryColIndices.has(data.column.index)) {
+          data.cell.text = [];
+        }
       },
       didDrawCell: (data) => {
         const { x, y, width, height } = data.cell;
@@ -246,9 +250,10 @@ export default function TermReview({ user }: { user: any }) {
             });
           } else {
             const label = topicLabels[relIdx];
+            const lines = getTopicHeaderLines(topics[relIdx], 18);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(0, 0, 0);
-            doc.text(label.full, x + width / 2 + 1.2, y + height - 1.5, {
+            doc.text(lines, x + width / 2 + 1.2, y + height - 1.5, {
               angle: 90,
               align: 'left',
             });
@@ -430,7 +435,7 @@ export default function TermReview({ user }: { user: any }) {
     sheet.getRow(HDR_ROW).height = getTopicHeaderHeight(topics, true);
 
     const hdrBaseStyle: Partial<ExcelJS.Style> = {
-      alignment: { textRotation: 90, vertical: 'bottom', horizontal: 'center', wrapText: false },
+      alignment: { textRotation: 90, vertical: 'middle', horizontal: 'center', wrapText: true },
       border: thinBorder,
     };
 
@@ -444,16 +449,9 @@ export default function TermReview({ user }: { user: any }) {
 
     let col = 3;
     topics.forEach((topic) => {
-      const parts = getTopicLabelParts(topic, MAX_TOPIC_CHARS);
+      const lines = getTopicHeaderLines(topic, 18);
       const c = sheet.getCell(HDR_ROW, col++);
-      c.value = parts.prefix
-        ? {
-            richText: [
-              { text: `${parts.prefix}:`, font: { bold: true, size: 8 } },
-              { text: parts.suffix ? ` ${parts.suffix}` : '', font: { size: 8 } },
-            ],
-          }
-        : parts.display;
+      c.value = lines.join('\n');
       c.font = { size: 8 };
       Object.assign(c, { ...hdrBaseStyle });
       c.border = thinBorder;
@@ -578,30 +576,35 @@ export default function TermReview({ user }: { user: any }) {
         }
 
         .rotate-header {
-          writing-mode: vertical-rl;
-          transform: rotate(180deg);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: clip;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: rotate(-90deg);
+          transform-origin: center;
+          white-space: normal;
           font-size: 0.6rem;
-          line-height: 1;
-          max-height: calc(var(--topic-header-height, 7.5rem) - 0.1rem);
-          display: block;
-          padding-bottom: 2px;
+          line-height: 1.05;
+          text-align: center;
+          gap: 0.08rem;
         }
 
         .rotate-header-bold {
-          writing-mode: vertical-rl;
-          transform: rotate(180deg);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: rotate(-90deg);
+          transform-origin: center;
           white-space: nowrap;
-          overflow: hidden;
-          text-overflow: clip;
           font-size: 0.6rem;
           font-weight: 700;
           line-height: 1;
-          max-height: calc(var(--topic-header-height, 7.5rem) - 0.1rem);
+        }
+
+        .rotate-header-line {
           display: block;
-          padding-bottom: 2px;
         }
 
         #summary-table {
@@ -614,7 +617,7 @@ export default function TermReview({ user }: { user: any }) {
       <div className="mb-6 flex justify-between items-center print:hidden">
         <div>
           <button 
-            onClick={() => navigate(`/teacher/assess/${encodeURIComponent(subject || '')}`)}
+            onClick={() => navigateBackOr(navigate as any, `/teacher/assess/${encodeURIComponent(subject || '')}`)}
             className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
           >
             <ArrowLeft size={20} className="text-slate-600" />
@@ -692,7 +695,9 @@ export default function TermReview({ user }: { user: any }) {
                   <th key={topic} className="border border-black topic-th w-8">
                     <div className="th-inner">
                       <span className="rotate-header" title={topic}>
-                        {getTopicLabelParts(topic, MAX_TOPIC_CHARS).display}
+                        {getTopicHeaderLines(topic, 18).map((line, index) => (
+                          <span key={`${topic}-${index}`} className="rotate-header-line">{line}</span>
+                        ))}
                       </span>
                     </div>
                   </th>

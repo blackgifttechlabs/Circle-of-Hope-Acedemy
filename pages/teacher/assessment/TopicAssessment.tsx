@@ -18,6 +18,7 @@ import {
   isGrade1To7Class,
 } from '../../../utils/assessmentWorkflow';
 import { getTopicLabelParts } from '../../../utils/topicLabelFormat';
+import { navigateBackOr } from '../../../utils/navigation';
 
 type TopicTab = {
   topic: string;
@@ -272,7 +273,7 @@ export default function TopicAssessment({ user }: { user: any }) {
 
       <div className="mb-6">
         <button
-          onClick={() => navigate(`/teacher/assess/${encodeURIComponent(subject || '')}`)}
+          onClick={() => navigateBackOr(navigate as any, `/teacher/assess/${encodeURIComponent(subject || '')}`)}
           className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
         >
           <ArrowLeft size={20} className="text-slate-600" />

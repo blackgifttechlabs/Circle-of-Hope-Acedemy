@@ -5,7 +5,9 @@ export const getPromotionalSubjects = (grade: string): string[] => {
   let subjects = ['Mathematics', 'English', 'Environmental Studies', 'Handwriting', 'Religious Education'];
   
   if (gradeNum >= 4 && gradeNum <= 7) {
-    subjects = subjects.filter(s => s !== 'Handwriting');
+    subjects = subjects
+      .filter(s => s !== 'Handwriting' && s !== 'Religious Education')
+      .concat('Religious and Moral Education');
   }
   
   return subjects;

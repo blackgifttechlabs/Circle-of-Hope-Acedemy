@@ -11,6 +11,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Loader } from '../../components/ui/Loader';
+import { ActionMenu } from '../../components/ui/ActionMenu';
 
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
 
@@ -97,7 +98,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
     fetchData();
   }, [user]);
 
-  const loadAssessments = async (termId: string, grade: string) => {
+  const fetchAssessmentSnapshot = async (termId: string, grade: string) => {
     const newAssessments: Record<string, TopicAssessmentRecord[]> = {};
     const newTopicCounts: Record<string, number> = {};
     await Promise.all(
@@ -127,6 +128,11 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
         newTopicCounts[subject] = adjustedTopics.length;
       })
     );
+    return { newAssessments, newTopicCounts };
+  };
+
+  const loadAssessments = async (termId: string, grade: string) => {
+    const { newAssessments, newTopicCounts } = await fetchAssessmentSnapshot(termId, grade);
     setAssessments(newAssessments);
     setSubjectTopicCounts(newTopicCounts);
   };
@@ -142,18 +148,35 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   };
 
   const calculateSubjectTotal = (studentId: string, subject: string) => {
-    const records = assessments[subject] || [];
+    return calculateSubjectTotalFrom(studentId, subject, assessments);
+  };
+
+  const calculateSubjectTotalFrom = (
+    studentId: string,
+    subject: string,
+    assessmentMap: Record<string, TopicAssessmentRecord[]>
+  ) => {
+    const records = assessmentMap[subject] || [];
     const studentMarks = records.filter(a => a.studentId === studentId).map(a => a.mark);
     if (studentMarks.length === 0) return null;
     return studentMarks.reduce((a, b) => a + b, 0);
   };
 
   const calculateSubjectAverage = (studentId: string, subject: string) => {
-    const total = calculateSubjectTotal(studentId, subject);
+    return calculateSubjectAverageFrom(studentId, subject, assessments, subjectTopicCounts);
+  };
+
+  const calculateSubjectAverageFrom = (
+    studentId: string,
+    subject: string,
+    assessmentMap: Record<string, TopicAssessmentRecord[]>,
+    topicCounts: Record<string, number>
+  ) => {
+    const total = calculateSubjectTotalFrom(studentId, subject, assessmentMap);
     if (total === null) return null;
-    let topicCount = subjectTopicCounts[subject] || 0;
+    let topicCount = topicCounts[subject] || 0;
     if (topicCount === 0) {
-      const records = assessments[subject] || [];
+      const records = assessmentMap[subject] || [];
       const studentRecords = records.filter(a => a.studentId === studentId);
       const uniqueTopics = new Set(studentRecords.map(a => a.topic));
       topicCount = uniqueTopics.size;
@@ -163,10 +186,17 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   };
 
   const calculateOverallTotal = (studentId: string) => {
+    return calculateOverallTotalFrom(studentId, assessments);
+  };
+
+  const calculateOverallTotalFrom = (
+    studentId: string,
+    assessmentMap: Record<string, TopicAssessmentRecord[]>
+  ) => {
     let overallTotal = 0;
     let count = 0;
     allSubjects.forEach(subject => {
-      const total = calculateSubjectTotal(studentId, subject);
+      const total = calculateSubjectTotalFrom(studentId, subject, assessmentMap);
       if (total !== null) {
         overallTotal += total;
         count++;
@@ -177,10 +207,18 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   };
 
   const calculateOverallAverage = (studentId: string) => {
+    return calculateOverallAverageFrom(studentId, assessments, subjectTopicCounts);
+  };
+
+  const calculateOverallAverageFrom = (
+    studentId: string,
+    assessmentMap: Record<string, TopicAssessmentRecord[]>,
+    topicCounts: Record<string, number>
+  ) => {
     let totalAvg = 0;
     let count = 0;
     allSubjects.forEach(subject => {
-      const avg = calculateSubjectAverage(studentId, subject);
+      const avg = calculateSubjectAverageFrom(studentId, subject, assessmentMap, topicCounts);
       if (avg !== null) {
         totalAvg += avg;
         count++;
@@ -190,7 +228,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
     return Math.round(totalAvg / count);
   };
 
-  const generatePDF = async () => {
+  const generatePDF = async (termIds: string[], mode: 'download' | 'print' = 'download') => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const pageW = 297;
     const marginL = 10;
@@ -219,48 +257,54 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
     doc.text('circleofhopeacademy@yahoo.com', pageW - marginR, 22, { align: 'right' });
     doc.text('www.coha-academy.com', pageW - marginR, 26, { align: 'right' });
 
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.4);
-    doc.line(marginL, 28, pageW - marginR, 28);
+    for (const [termIndex, termId] of termIds.entries()) {
+      if (termIndex > 0) doc.addPage();
+      const termName = settings?.schoolCalendars?.find(t => t.id === termId)?.termName || 'Term 1';
+      const snapshot = termId === selectedTerm
+        ? { newAssessments: assessments, newTopicCounts: subjectTopicCounts }
+        : await fetchAssessmentSnapshot(termId, user.assignedClass);
 
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    const termName = settings?.schoolCalendars?.find(t => t.id === selectedTerm)?.termName || 'Term 1';
-    doc.text(`SUMMARY SHEET - ${termName.toUpperCase()}`, pageW / 2, 34, { align: 'center' });
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.4);
+      doc.line(marginL, 28, pageW - marginR, 28);
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Teacher: ${user?.name || ''}`, marginL, 40);
-    doc.text(`Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`, marginL, 45);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`SUMMARY SHEET - ${termName.toUpperCase()}`, pageW / 2, 34, { align: 'center' });
 
-    const noW = 7;
-    const nameW = 45;
-    const subjectCols = allSubjects.length;
-    const colW = (usableW - noW - nameW) / (subjectCols * 3);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Teacher: ${user?.name || ''}`, marginL, 40);
+      doc.text(`Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`, marginL, 45);
 
-    const colWidths = [noW, nameW];
-    const head1: any[] = [{ content: 'No', rowSpan: 2 }, { content: 'Name', rowSpan: 2 }];
-    const head2: any[] = [];
+      const noW = 7;
+      const nameW = 45;
+      const subjectCols = allSubjects.length;
+      const colW = (usableW - noW - nameW) / (subjectCols * 3);
 
-    allSubjects.forEach(sub => {
-      head1.push({ content: sub, colSpan: 3, styles: { halign: 'center' } });
-      head2.push('TOT', 'AVG', 'SYM');
-      colWidths.push(colW, colW, colW);
-    });
+      const colWidths = [noW, nameW];
+      const head1: any[] = [{ content: 'No', rowSpan: 2 }, { content: 'Name', rowSpan: 2 }];
+      const head2: any[] = [];
 
-    const body = students.map((student, index) => {
-      const row = [String(index + 1), student.name];
       allSubjects.forEach(sub => {
-        const tot = calculateSubjectTotal(student.id, sub);
-        const avg = calculateSubjectAverage(student.id, sub);
-        row.push(tot !== null ? String(tot) : '');
-        row.push(avg !== null ? String(avg) : '');
-        row.push(getSymbol(avg));
+        head1.push({ content: sub, colSpan: 3, styles: { halign: 'center' } });
+        head2.push('TOT', 'AVG', 'SYM');
+        colWidths.push(colW, colW, colW);
       });
-      return row;
-    });
 
-    autoTable(doc, {
+      const body = students.map((student, index) => {
+        const row = [String(index + 1), student.name];
+        allSubjects.forEach(sub => {
+          const tot = calculateSubjectTotalFrom(student.id, sub, snapshot.newAssessments);
+          const avg = calculateSubjectAverageFrom(student.id, sub, snapshot.newAssessments, snapshot.newTopicCounts);
+          row.push(tot !== null ? String(tot) : '');
+          row.push(avg !== null ? String(avg) : '');
+          row.push(getSymbol(avg));
+        });
+        return row;
+      });
+
+      autoTable(doc, {
       startY: 50,
       head: [head1, head2],
       body: body,
@@ -284,6 +328,14 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
         0: { cellWidth: noW, halign: 'center' },
         1: { cellWidth: nameW, halign: 'left', font: 'helvetica' },
       },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index > 1) {
+          const val = String(data.cell.raw || '');
+          if (['A', 'B', 'C', 'D', 'E', 'U'].includes(val)) {
+            data.cell.text = [''];
+          }
+        }
+      },
       didDrawCell: (data) => {
         if (data.row.section === 'body' && data.column.index > 1) {
           const val = data.cell.raw;
@@ -302,22 +354,22 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
         }
       },
       margin: { left: marginL, right: marginR },
-    });
+      });
 
-    const overallHead = [['No', 'Name', 'TOTAL', 'AVERAGE', 'SYMBOL']];
-    const overallBody = students.map((student, index) => {
-      const overallTot = calculateOverallTotal(student.id);
-      const overallAvg = calculateOverallAverage(student.id);
-      return [
-        String(index + 1),
-        student.name,
-        overallTot !== null ? String(overallTot) : '',
-        overallAvg !== null ? String(overallAvg) : '',
-        getSymbol(overallAvg),
-      ];
-    });
+      const overallHead = [['No', 'Name', 'TOTAL', 'AVERAGE', 'SYMBOL']];
+      const overallBody = students.map((student, index) => {
+        const overallTot = calculateOverallTotalFrom(student.id, snapshot.newAssessments);
+        const overallAvg = calculateOverallAverageFrom(student.id, snapshot.newAssessments, snapshot.newTopicCounts);
+        return [
+          String(index + 1),
+          student.name,
+          overallTot !== null ? String(overallTot) : '',
+          overallAvg !== null ? String(overallAvg) : '',
+          getSymbol(overallAvg),
+        ];
+      });
 
-    autoTable(doc, {
+      autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 8,
       head: overallHead,
       body: overallBody,
@@ -344,6 +396,11 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
         3: { cellWidth: 18 },
         4: { cellWidth: 19 },
       },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 4) {
+          data.cell.text = [''];
+        }
+      },
       didDrawCell: (data) => {
         if (data.row.section === 'body' && data.column.index === 4) {
           const val = String(data.cell.raw || '');
@@ -362,88 +419,102 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
         }
       },
       margin: { left: marginL, right: marginR },
-    });
+      });
+    }
 
-    doc.save(`Summary_Sheet_${user?.assignedClass}_${termName}.pdf`);
+    if (mode === 'print') {
+      doc.autoPrint();
+      window.open(doc.output('bloburl'), '_blank');
+    } else {
+      doc.save(termIds.length === 1
+        ? `Summary_Sheet_${user?.assignedClass}_${settings?.schoolCalendars?.find(t => t.id === termIds[0])?.termName || 'Term_1'}.pdf`
+        : `Summary_Sheet_${user?.assignedClass}_All_Terms.pdf`);
+    }
   };
 
-  const generateExcel = async () => {
+  const generateExcel = async (termIds: string[]) => {
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Summary Sheet', {
-      pageSetup: { orientation: 'landscape', fitToPage: true }
-    });
-
-    const termName = settings?.schoolCalendars?.find(t => t.id === selectedTerm)?.termName || 'Term 1';
-
-    sheet.mergeCells('A1:D1');
-    sheet.getCell('A1').value = `SUMMARY SHEET - ${termName.toUpperCase()}`;
-    sheet.getCell('A1').font = { bold: true, size: 14 };
-
-    sheet.mergeCells('A3:C3');
-    sheet.getCell('A3').value = `Teacher: ${user?.name || ''}`;
-    sheet.mergeCells('A4:C4');
-    sheet.getCell('A4').value = `Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`;
-
-    const headerRow1 = sheet.getRow(6);
-    const headerRow2 = sheet.getRow(7);
-
-    headerRow1.getCell(1).value = 'No';
-    headerRow1.getCell(2).value = 'Name';
-    sheet.mergeCells('A6:A7');
-    sheet.mergeCells('B6:B7');
-
-    let colIdx = 3;
-    allSubjects.forEach(sub => {
-      sheet.mergeCells(6, colIdx, 6, colIdx + 2);
-      headerRow1.getCell(colIdx).value = sub;
-      headerRow1.getCell(colIdx).alignment = { horizontal: 'center' };
-      headerRow1.getCell(colIdx).font = { bold: true };
-
-      headerRow2.getCell(colIdx).value = 'TOT';
-      headerRow2.getCell(colIdx + 1).value = 'AVG';
-      headerRow2.getCell(colIdx + 2).value = 'SYM';
-      colIdx += 3;
-    });
-
-    sheet.getColumn(1).width = 5;
-    sheet.getColumn(2).width = 25;
-
-    students.forEach((student, index) => {
-      const row = sheet.addRow([index + 1, student.name]);
-      let rCol = 3;
-      allSubjects.forEach(sub => {
-        const tot = calculateSubjectTotal(student.id, sub);
-        const avg = calculateSubjectAverage(student.id, sub);
-        row.getCell(rCol++).value = tot !== null ? tot : '';
-        row.getCell(rCol++).value = avg !== null ? avg : '';
-        const sym = getSymbol(avg);
-        const symCell = row.getCell(rCol++);
-        symCell.value = sym;
-        const color = sym === 'A' ? 'FF16A34A' : sym === 'B' ? 'FF2563EB' : sym === 'C' ? 'FFD97706' : sym === 'D' ? 'FFEA580C' : sym === 'E' ? 'FF475569' : 'FFCC0000';
-        symCell.font = { color: { argb: color }, bold: true };
+    for (const termId of termIds) {
+      const termName = settings?.schoolCalendars?.find(t => t.id === termId)?.termName || 'Term 1';
+      const snapshot = termId === selectedTerm
+        ? { newAssessments: assessments, newTopicCounts: subjectTopicCounts }
+        : await fetchAssessmentSnapshot(termId, user.assignedClass);
+      const sheet = workbook.addWorksheet(termName, {
+        pageSetup: { orientation: 'landscape', fitToPage: true }
       });
-    });
 
-    const overallStartRow = students.length + 10;
-    sheet.getCell(`A${overallStartRow}`).value = 'OVERALL';
-    sheet.getCell(`A${overallStartRow}`).font = { bold: true, size: 12 };
-    sheet.getRow(overallStartRow + 1).values = ['No', 'Name', 'TOT', 'AVG', 'SYM'];
-    students.forEach((student, index) => {
-      const row = sheet.getRow(overallStartRow + 2 + index);
-      const overallTot = calculateOverallTotal(student.id);
-      const overallAvg = calculateOverallAverage(student.id);
-      const sym = getSymbol(overallAvg);
-      row.values = [index + 1, student.name, overallTot !== null ? overallTot : '', overallAvg !== null ? overallAvg : '', sym];
-      const color = sym === 'A' ? 'FF16A34A' : sym === 'B' ? 'FF2563EB' : sym === 'C' ? 'FFD97706' : sym === 'D' ? 'FFEA580C' : sym === 'E' ? 'FF475569' : 'FFCC0000';
-      row.getCell(5).font = { color: { argb: color }, bold: true };
-    });
+      sheet.mergeCells('A1:D1');
+      sheet.getCell('A1').value = `SUMMARY SHEET - ${termName.toUpperCase()}`;
+      sheet.getCell('A1').font = { bold: true, size: 14 };
+
+      sheet.mergeCells('A3:C3');
+      sheet.getCell('A3').value = `Teacher: ${user?.name || ''}`;
+      sheet.mergeCells('A4:C4');
+      sheet.getCell('A4').value = `Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`;
+
+      const headerRow1 = sheet.getRow(6);
+      const headerRow2 = sheet.getRow(7);
+      headerRow1.getCell(1).value = 'No';
+      headerRow1.getCell(2).value = 'Name';
+      sheet.mergeCells('A6:A7');
+      sheet.mergeCells('B6:B7');
+
+      let colIdx = 3;
+      allSubjects.forEach(sub => {
+        sheet.mergeCells(6, colIdx, 6, colIdx + 2);
+        headerRow1.getCell(colIdx).value = sub;
+        headerRow1.getCell(colIdx).alignment = { horizontal: 'center' };
+        headerRow1.getCell(colIdx).font = { bold: true };
+        headerRow2.getCell(colIdx).value = 'TOT';
+        headerRow2.getCell(colIdx + 1).value = 'AVG';
+        headerRow2.getCell(colIdx + 2).value = 'SYM';
+        colIdx += 3;
+      });
+
+      sheet.getColumn(1).width = 5;
+      sheet.getColumn(2).width = 25;
+
+      students.forEach((student, index) => {
+        const row = sheet.addRow([index + 1, student.name]);
+        let rCol = 3;
+        allSubjects.forEach(sub => {
+          const tot = calculateSubjectTotalFrom(student.id, sub, snapshot.newAssessments);
+          const avg = calculateSubjectAverageFrom(student.id, sub, snapshot.newAssessments, snapshot.newTopicCounts);
+          row.getCell(rCol++).value = tot !== null ? tot : '';
+          row.getCell(rCol++).value = avg !== null ? avg : '';
+          const sym = getSymbol(avg);
+          const symCell = row.getCell(rCol++);
+          symCell.value = sym;
+          const color = sym === 'A' ? 'FF16A34A' : sym === 'B' ? 'FF2563EB' : sym === 'C' ? 'FFD97706' : sym === 'D' ? 'FFEA580C' : sym === 'E' ? 'FF475569' : 'FFCC0000';
+          symCell.font = { color: { argb: color }, bold: true };
+        });
+      });
+
+      const overallStartRow = students.length + 10;
+      sheet.getCell(`A${overallStartRow}`).value = 'OVERALL';
+      sheet.getCell(`A${overallStartRow}`).font = { bold: true, size: 12 };
+      sheet.getRow(overallStartRow + 1).values = ['No', 'Name', 'TOT', 'AVG', 'SYM'];
+      students.forEach((student, index) => {
+        const row = sheet.getRow(overallStartRow + 2 + index);
+        const overallTot = calculateOverallTotalFrom(student.id, snapshot.newAssessments);
+        const overallAvg = calculateOverallAverageFrom(student.id, snapshot.newAssessments, snapshot.newTopicCounts);
+        const sym = getSymbol(overallAvg);
+        row.values = [index + 1, student.name, overallTot !== null ? overallTot : '', overallAvg !== null ? overallAvg : '', sym];
+        const color = sym === 'A' ? 'FF16A34A' : sym === 'B' ? 'FF2563EB' : sym === 'C' ? 'FFD97706' : sym === 'D' ? 'FFEA580C' : sym === 'E' ? 'FF475569' : 'FFCC0000';
+        row.getCell(5).font = { color: { argb: color }, bold: true };
+      });
+    }
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(blob, `Summary_Sheet_${user?.assignedClass}_${termName}.xlsx`);
+    saveAs(blob, termIds.length === 1
+      ? `Summary_Sheet_${user?.assignedClass}_${settings?.schoolCalendars?.find(t => t.id === termIds[0])?.termName || 'Term_1'}.xlsx`
+      : `Summary_Sheet_${user?.assignedClass}_All_Terms.xlsx`);
   };
 
   if (loading) return <Loader />;
+
+  const availableTerms = (settings?.schoolCalendars || []).filter((term) => ['term-1', 'term-2', 'term-3'].includes(term.id));
 
   return (
     <div className="p-4 sm:p-8 max-w-[1600px] mx-auto">
@@ -469,24 +540,63 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
               <option key={term.id} value={term.id}>{term.termName}</option>
             ))}
           </select>
-          <button 
-            onClick={generateExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors"
-          >
-            <FileSpreadsheet size={16} /> Excel
-          </button>
-          <button 
-            onClick={generatePDF}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors"
-          >
-            <Download size={16} /> PDF
-          </button>
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors"
-          >
-            <Printer size={16} /> Print
-          </button>
+          <ActionMenu
+            label="Excel"
+            icon={FileSpreadsheet}
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
+            items={[
+              ...availableTerms.map((term) => ({
+                id: `excel-${term.id}`,
+                label: term.termName,
+                icon: FileSpreadsheet,
+                onClick: () => generateExcel([term.id]),
+              })),
+              {
+                id: 'excel-all',
+                label: 'All Terms in One File',
+                icon: FileSpreadsheet,
+                onClick: () => generateExcel(availableTerms.map((term) => term.id)),
+              },
+            ]}
+          />
+          <ActionMenu
+            label="PDF"
+            icon={Download}
+            className="bg-blue-600 text-white hover:bg-blue-700"
+            items={[
+              ...availableTerms.map((term) => ({
+                id: `pdf-${term.id}`,
+                label: term.termName,
+                icon: Download,
+                onClick: () => generatePDF([term.id]),
+              })),
+              {
+                id: 'pdf-all',
+                label: 'All Terms in One File',
+                icon: Download,
+                onClick: () => generatePDF(availableTerms.map((term) => term.id)),
+              },
+            ]}
+          />
+          <ActionMenu
+            label="Print"
+            icon={Printer}
+            className="bg-slate-800 text-white hover:bg-slate-900"
+            items={[
+              ...availableTerms.map((term) => ({
+                id: `print-${term.id}`,
+                label: term.termName,
+                icon: Printer,
+                onClick: () => generatePDF([term.id], 'print'),
+              })),
+              {
+                id: 'print-all',
+                label: 'All Terms in One File',
+                icon: Printer,
+                onClick: () => generatePDF(availableTerms.map((term) => term.id), 'print'),
+              },
+            ]}
+          />
         </div>
       </div>
 

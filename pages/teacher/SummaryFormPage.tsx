@@ -6,8 +6,9 @@ import { Loader } from '../../components/ui/Loader';
 import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { ActionMenu } from '../../components/ui/ActionMenu';
 
-import { generateSummaryReportPDF } from '../../utils/pdfGenerator';
+import { generateSummaryReportPDF, generateSummaryReportPDFBundle } from '../../utils/pdfGenerator';
 import { getAssessmentRecordKey, getGradeDisplayValue } from '../../utils/assessmentWorkflow';
 
 interface SummaryFormPageProps {
@@ -58,8 +59,8 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
     fetchData();
   }, [user]);
 
-  const loadRecords = async (termId: string, studentsList: Student[]) => {
-    if (studentsList.length === 0) return;
+  const fetchRecordsSnapshot = async (termId: string, studentsList: Student[]) => {
+    if (studentsList.length === 0) return {};
     const grade = getAssessmentRecordKey(studentsList[0]);
     const studentIds = studentsList.map(s => s.id);
     const classRecords = await getAssessmentRecordsForClass(grade, termId, studentIds);
@@ -67,7 +68,13 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
     classRecords.forEach(r => {
       recordsMap[r.studentId] = r;
     });
+    return recordsMap;
+  };
+
+  const loadRecords = async (termId: string, studentsList: Student[]) => {
+    const recordsMap = await fetchRecordsSnapshot(termId, studentsList);
     setRecords(recordsMap);
+    return recordsMap;
   };
 
   const handleTermChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -80,13 +87,17 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
     }
   };
 
-  const generateExcel = async () => {
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Summary Sheet', {
+  const availableTerms = (settings?.schoolCalendars || []).filter((term) => ['term-1', 'term-2', 'term-3'].includes(term.id));
+
+  const buildSheet = (
+    workbook: ExcelJS.Workbook,
+    sheetName: string,
+    termName: string,
+    termRecords: Record<string, TermAssessmentRecord>
+  ) => {
+    const sheet = workbook.addWorksheet(sheetName, {
       pageSetup: { orientation: 'landscape', fitToPage: true }
     });
-
-    const termName = settings?.schoolCalendars?.find(t => t.id === selectedTerm)?.termName || 'Term 1';
 
     sheet.mergeCells('A1:D1');
     sheet.getCell('A1').value = `SUMMARY SHEET - ${termName.toUpperCase()}`;
@@ -126,15 +137,60 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
       let col = 2;
       PRE_PRIMARY_AREAS.forEach((area) => {
         area.components.forEach((component) => {
-          row.getCell(col).value = records[student.id]?.ratings?.[component.id] || '';
+          row.getCell(col).value = termRecords[student.id]?.ratings?.[component.id] || '';
           row.getCell(col).alignment = { horizontal: 'center' };
           col += 1;
         });
       });
     });
+  };
+
+  const generateExcel = async (termIds: string[]) => {
+    const workbook = new ExcelJS.Workbook();
+    for (const termId of termIds) {
+      const termName = settings?.schoolCalendars?.find(t => t.id === termId)?.termName || 'Term 1';
+      const termRecords = termId === selectedTerm ? records : await fetchRecordsSnapshot(termId, students);
+      buildSheet(workbook, termName, termName, termRecords);
+    }
 
     const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Summary_Sheet_${termName}.xlsx`);
+    saveAs(
+      new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      termIds.length === 1
+        ? `Summary_Sheet_${settings?.schoolCalendars?.find(t => t.id === termIds[0])?.termName || 'Term_1'}.xlsx`
+        : 'Summary_Sheet_All_Terms.xlsx'
+    );
+  };
+
+  const generatePdfBundle = async (termIds: string[], mode: 'download' | 'print') => {
+    const bundle = await Promise.all(termIds.map(async (termId) => ({
+      termId,
+      termName: settings?.schoolCalendars?.find(t => t.id === termId)?.termName || 'Term 1',
+      records: termId === selectedTerm ? records : await fetchRecordsSnapshot(termId, students),
+    })));
+
+    if (bundle.length === 1) {
+      await generateSummaryReportPDF(
+        students,
+        bundle[0].records,
+        bundle[0].termId,
+        bundle[0].termName,
+        user.name || 'Teacher',
+        user?.assignedClass || '',
+        'Circle of Hope Academy',
+        mode
+      );
+      return;
+    }
+
+    await generateSummaryReportPDFBundle(
+      students,
+      bundle,
+      user.name || 'Teacher',
+      user?.assignedClass || '',
+      'Circle of Hope Academy',
+      mode
+    );
   };
 
   if (loading) return <Loader />;
@@ -163,48 +219,63 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
               <option key={term.id} value={term.id}>{term.termName}</option>
             ))}
           </select>
-          <button 
-            onClick={() => {
-              const termName = settings?.schoolCalendars?.find(t => t.id === selectedTerm)?.termName || 'Term 1';
-              generateSummaryReportPDF(
-                students,
-                records,
-                selectedTerm,
-                termName,
-                user.name || 'Teacher',
-                user?.assignedClass || '',
-                'Circle of Hope Academy',
-                'download'
-              );
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors"
-          >
-            <Download size={16} /> PDF
-          </button>
-          <button
-            onClick={() => {
-              const termName = settings?.schoolCalendars?.find(t => t.id === selectedTerm)?.termName || 'Term 1';
-              generateSummaryReportPDF(
-                students,
-                records,
-                selectedTerm,
-                termName,
-                user.name || 'Teacher',
-                user?.assignedClass || '',
-                'Circle of Hope Academy',
-                'print'
-              );
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-coha-900 text-white rounded-lg text-sm font-bold hover:bg-coha-800 transition-colors"
-          >
-            <Printer size={16} /> Print
-          </button>
-          <button
-            onClick={generateExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors"
-          >
-            <FileSpreadsheet size={16} /> Excel
-          </button>
+          <ActionMenu
+            label="PDF"
+            icon={Download}
+            className="bg-blue-600 text-white hover:bg-blue-700"
+            items={[
+              ...availableTerms.map((term) => ({
+                id: `pdf-${term.id}`,
+                label: term.termName,
+                icon: Download,
+                onClick: () => generatePdfBundle([term.id], 'download'),
+              })),
+              {
+                id: 'pdf-all',
+                label: 'All Terms in One File',
+                icon: Download,
+                onClick: () => generatePdfBundle(availableTerms.map((term) => term.id), 'download'),
+              },
+            ]}
+          />
+          <ActionMenu
+            label="Print"
+            icon={Printer}
+            className="bg-coha-900 text-white hover:bg-coha-800"
+            items={[
+              ...availableTerms.map((term) => ({
+                id: `print-${term.id}`,
+                label: term.termName,
+                icon: Printer,
+                onClick: () => generatePdfBundle([term.id], 'print'),
+              })),
+              {
+                id: 'print-all',
+                label: 'All Terms in One File',
+                icon: Printer,
+                onClick: () => generatePdfBundle(availableTerms.map((term) => term.id), 'print'),
+              },
+            ]}
+          />
+          <ActionMenu
+            label="Excel"
+            icon={FileSpreadsheet}
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
+            items={[
+              ...availableTerms.map((term) => ({
+                id: `excel-${term.id}`,
+                label: term.termName,
+                icon: FileSpreadsheet,
+                onClick: () => generateExcel([term.id]),
+              })),
+              {
+                id: 'excel-all',
+                label: 'All Terms in One File',
+                icon: FileSpreadsheet,
+                onClick: () => generateExcel(availableTerms.map((term) => term.id)),
+              },
+            ]}
+          />
         </div>
       </div>
 

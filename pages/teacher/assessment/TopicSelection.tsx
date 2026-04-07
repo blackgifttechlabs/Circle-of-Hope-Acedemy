@@ -19,6 +19,7 @@ import {
   isGrade1To7Class,
 } from '../../../utils/assessmentWorkflow';
 import { getTopicLabelParts } from '../../../utils/topicLabelFormat';
+import { navigateBackOr } from '../../../utils/navigation';
 
 const TERMS = ['Term 1', 'Term 2', 'Term 3'];
 
@@ -215,7 +216,7 @@ export default function TopicSelection({ user }: { user: any }) {
     <div className="w-full px-5 py-6">
       <div className="mb-6">
         <button
-          onClick={() => navigate('/teacher/classes')}
+          onClick={() => navigateBackOr(navigate as any, '/teacher/classes')}
           className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
         >
           <ArrowLeft size={20} className="text-slate-600" />

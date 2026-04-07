@@ -44,10 +44,37 @@ export const getTopicLabelParts = (topic: string, maxChars?: number) => {
 };
 
 export const getTopicHeaderHeight = (topics: string[], standardWorkflow: boolean) => {
-  if (standardWorkflow) return 120;
-  const longest = topics.reduce((max, topic) => {
-    const { full } = getTopicLabelParts(topic);
-    return Math.max(max, full.length);
-  }, 0);
-  return Math.max(120, Math.min(240, 92 + longest * 2.6));
+  const wrapWidth = standardWorkflow ? 18 : 15;
+  const needsWrap = topics.some((topic) => getTopicHeaderLines(topic, wrapWidth).length > 1);
+  return standardWorkflow ? (needsWrap ? 156 : 128) : (needsWrap ? 184 : 140);
+};
+
+export const getTopicHeaderLines = (
+  topic: string,
+  maxCharsPerLine = 18,
+  maxLines = 2
+) => {
+  const { full } = getTopicLabelParts(topic);
+  const words = full.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [''];
+
+  const lines: string[] = [];
+  let currentLine = '';
+
+  words.forEach((word) => {
+    const nextLine = currentLine ? `${currentLine} ${word}` : word;
+    if (nextLine.length <= maxCharsPerLine || currentLine === '') {
+      currentLine = nextLine;
+      return;
+    }
+    lines.push(currentLine);
+    currentLine = word;
+  });
+
+  if (currentLine) lines.push(currentLine);
+  if (lines.length <= maxLines) return lines;
+
+  const collapsed = [...lines.slice(0, maxLines - 1)];
+  collapsed.push(lines.slice(maxLines - 1).join(' '));
+  return collapsed;
 };

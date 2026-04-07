@@ -1,13 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Save, User } from 'lucide-react';
-import { getStudentById, saveTopicAssessments, getTopicAssessments } from '../../../services/dataService';
+import {
+  getCustomTopicEntries,
+  getStudentById,
+  getTopicAssessments,
+  getTopicOverrides,
+  saveTopicAssessments,
+} from '../../../services/dataService';
 import { Student } from '../../../types';
 import { Toast } from '../../../components/ui/Toast';
-import { getTopicsForSubjectAndGrade } from '../../../utils/assessmentTopics';
-import { getPromotionalSubjects, getNonPromotionalSubjects } from '../../../utils/subjects';
+import {
+  getAssessmentRecordKey,
+  getAssessmentSubjects,
+  getDefaultThemesForSubject,
+  getDefaultTopicsForTheme,
+  getSubjectLabel,
+  isGrade1To7Class,
+} from '../../../utils/assessmentWorkflow';
+import { getTopicLabelParts } from '../../../utils/topicLabelFormat';
+import { navigateBackOr } from '../../../utils/navigation';
 
 const TERMS = ['Term 1', 'Term 2', 'Term 3'];
+
+type TopicMeta = {
+  topicId?: string;
+  theme?: string;
+  editable?: boolean;
+};
 
 export default function StudentAssessment({ user }: { user?: any }) {
   const { id } = useParams<{ id: string }>();
@@ -18,14 +38,22 @@ export default function StudentAssessment({ user }: { user?: any }) {
   const [term, setTerm] = useState<string>('Term 1');
   const [marks, setMarks] = useState<Record<string, string>>({});
   const [activeTopics, setActiveTopics] = useState<string[]>([]);
+  const [topicMeta, setTopicMeta] = useState<Record<string, TopicMeta>>({});
+  const [activeThemeId, setActiveThemeId] = useState('0');
+  const [themeTabs, setThemeTabs] = useState<string[]>([]);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState({ show: false, msg: '' });
   
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const grade = user?.assignedClass || student?.grade || '';
-  const allSubjects = [...getPromotionalSubjects(grade), ...getNonPromotionalSubjects(grade)];
+  const className = user?.assignedClass || student?.assignedClass || student?.grade || '';
+  const standardWorkflow = isGrade1To7Class(className);
+  const gradeKey = getAssessmentRecordKey(className);
+  const maxMark = standardWorkflow ? 10 : 3;
+  const allSubjects = getAssessmentSubjects(className);
+  const termId = term.toLowerCase().replace(' ', '-');
+  const activeTheme = themeTabs[Number(activeThemeId)];
 
   useEffect(() => {
     if (id) {
@@ -36,48 +64,93 @@ export default function StudentAssessment({ user }: { user?: any }) {
   }, [id]);
 
   useEffect(() => {
-    const defaultTopics = getTopicsForSubjectAndGrade(subject || '', grade);
-    
-    if (user?.assignedClass && student && subject && term) {
-      const termId = term.toLowerCase().replace(' ', '-');
-      getTopicAssessments(user.assignedClass, termId, subject).then(assessments => {
-        const studentAssessments = assessments.filter(a => a.studentId === student.id);
-        
-        let finalTopics = [...defaultTopics];
-        
-        // If defaultTopics is empty, use the topics from assessments
-        if (finalTopics.length === 0) {
-            const uniqueTopics = Array.from(new Set(studentAssessments.map(a => a.topic)));
-            finalTopics = uniqueTopics;
-        }
-        
-        // Handle "Topic of Own Choice" replacement
-        const assessedTopics = studentAssessments.map(a => a.topic);
-        const customAssessedTopic = assessedTopics.find(t => !defaultTopics.includes(t));
-        
-        if (defaultTopics.includes('Topic of Own Choice') && customAssessedTopic) {
-            finalTopics = finalTopics.map(t => t === 'Topic of Own Choice' ? customAssessedTopic : t);
-        }
-        
-        setActiveTopics(finalTopics);
-        
-        const initialMarks: Record<string, string> = {};
-        finalTopics.forEach(t => initialMarks[t] = '');
-        studentAssessments.forEach(a => {
-          initialMarks[a.topic] = a.mark.toString();
-        });
-        setMarks(initialMarks);
-      });
-    } else {
-      setActiveTopics(defaultTopics);
-      const initialMarks: Record<string, string> = {};
-      defaultTopics.forEach(t => initialMarks[t] = '');
-      setMarks(initialMarks);
+    if (!subject) {
+      setThemeTabs([]);
+      setActiveThemeId('0');
+      setActiveTopics([]);
+      setTopicMeta({});
+      setMarks({});
+      return;
     }
-  }, [user, student, subject, term, grade]);
+    const themes = getDefaultThemesForSubject(className, termId, subject).map((item) => item.label);
+    setThemeTabs(themes);
+    if (themes.length > 0 && !themes[Number(activeThemeId)]) {
+      setActiveThemeId('0');
+    }
+  }, [className, subject, termId, activeThemeId]);
+
+  useEffect(() => {
+    if (!student || !subject) return;
+
+    const loadTopics = async () => {
+      const [assessments, customTopics, overrides] = await Promise.all([
+        getTopicAssessments(gradeKey, termId, subject),
+        getCustomTopicEntries(gradeKey, termId, subject),
+        getTopicOverrides(gradeKey, termId, subject),
+      ]);
+
+      const themeLabel = themeTabs[Number(activeThemeId)];
+      const defaultTopics = standardWorkflow
+        ? getDefaultTopicsForTheme(className, termId, subject, 'default')
+        : getDefaultTopicsForTheme(className, termId, subject, activeThemeId);
+      const scopedOverrides = overrides.filter((item) => !themeLabel || item.theme === themeLabel || !item.theme);
+
+      const nextTopics: string[] = [];
+      const nextMeta: Record<string, TopicMeta> = {};
+
+      defaultTopics.forEach((item) => {
+        const override = scopedOverrides.find((entry) => entry.originalTopic === item.label);
+        if (override?.deleted) return;
+        const topicName = override?.topic || item.label;
+        nextTopics.push(topicName);
+        nextMeta[topicName] = {
+          topicId: item.id,
+          theme: item.theme,
+          editable: false,
+        };
+      });
+
+      if (standardWorkflow) {
+        customTopics.forEach((item) => {
+          if (!nextTopics.includes(item.topic)) {
+            nextTopics.push(item.topic);
+            nextMeta[item.topic] = { theme: item.theme, editable: true };
+          }
+        });
+      }
+
+      assessments
+        .filter((item) => !themeLabel || item.theme === themeLabel || !item.theme)
+        .forEach((item) => {
+          if (!nextTopics.includes(item.topic)) {
+            nextTopics.push(item.topic);
+            nextMeta[item.topic] = {
+              topicId: item.topicId,
+              theme: item.theme,
+              editable: standardWorkflow,
+            };
+          }
+        });
+
+      const studentAssessments = assessments.filter((item) => item.studentId === student.id);
+      const nextMarks: Record<string, string> = {};
+      nextTopics.forEach((topicName) => {
+        nextMarks[topicName] = '';
+      });
+      studentAssessments.forEach((item) => {
+        nextMarks[item.topic] = item.mark.toString();
+      });
+
+      setActiveTopics(nextTopics);
+      setTopicMeta(nextMeta);
+      setMarks(nextMarks);
+    };
+
+    loadTopics();
+  }, [student, subject, termId, activeThemeId, className, gradeKey, standardWorkflow, themeTabs]);
 
   const handleMarkChange = (topic: string, value: string) => {
-    if (value === '' || (/^\d+$/.test(value) && parseInt(value) >= 0 && parseInt(value) <= 10)) {
+    if (value === '' || (/^\d+$/.test(value) && parseInt(value) >= 0 && parseInt(value) <= maxMark)) {
       setMarks(prev => ({ ...prev, [topic]: value }));
     }
   };
@@ -86,6 +159,11 @@ export default function StudentAssessment({ user }: { user?: any }) {
     if (oldTopic === newTopic || !newTopic.trim()) return;
     
     setActiveTopics(prev => prev.map(t => t === oldTopic ? newTopic : t));
+    setTopicMeta((prev) => {
+      const next = { ...prev, [newTopic]: prev[oldTopic] || { editable: true } };
+      delete next[oldTopic];
+      return next;
+    });
     
     setMarks(prev => {
       const newMarks = { ...prev };
@@ -96,8 +174,10 @@ export default function StudentAssessment({ user }: { user?: any }) {
   };
 
   const handleAddTopic = () => {
+    if (!standardWorkflow) return;
     const newTopic = `New Topic ${activeTopics.length + 1}`;
     setActiveTopics(prev => [...prev, newTopic]);
+    setTopicMeta((prev) => ({ ...prev, [newTopic]: { editable: true } }));
     setMarks(prev => ({ ...prev, [newTopic]: '' }));
   };
 
@@ -118,7 +198,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
   const calculateStats = () => {
     const values = Object.values(marks).map(v => parseInt(v) || 0);
     const total = values.reduce((sum, val) => sum + val, 0);
-    const maxTotal = activeTopics.length * 10;
+    const maxTotal = activeTopics.length * maxMark;
     const average = activeTopics.length > 0 ? Math.round(total / activeTopics.length) : 0;
     const percentage = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : 0;
     
@@ -133,21 +213,19 @@ export default function StudentAssessment({ user }: { user?: any }) {
   };
 
   const handleSubmit = async () => {
-    if (!user?.assignedClass || !student || !subject || !term) return;
+    if (!student || !subject || !term) return;
     
     setIsSubmitting(true);
     try {
-      const termId = term.toLowerCase().replace(' ', '-');
-      
-      // We need to save each topic for this student
-      // The saveTopicAssessments function expects marks as Record<studentId, mark>
-      // So we need to call it for each topic
       for (const [topic, markStr] of Object.entries(marks)) {
         if (markStr !== '') {
           const numericMarks: Record<string, number> = {
             [student.id]: parseInt(markStr)
           };
-          await saveTopicAssessments(user.assignedClass, termId, subject, topic, numericMarks);
+          await saveTopicAssessments(gradeKey, termId, subject, topic, numericMarks, {
+            theme: topicMeta[topic]?.theme || activeTheme,
+            topicId: topicMeta[topic]?.topicId,
+          });
         }
       }
       
@@ -187,7 +265,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
           <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Subject</p>
-              <p className="font-bold text-slate-800">{subject}</p>
+              <p className="font-bold text-slate-800">{getSubjectLabel(subject, className)}</p>
             </div>
             <div className="text-right">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Term</p>
@@ -198,7 +276,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
             <tbody>
               {activeTopics.map(topic => (
                 <tr key={topic} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                  <td className="p-4 font-bold text-slate-700">{topic}</td>
+                  <td className="p-4 font-bold text-slate-700">{getTopicLabelParts(topic).full}</td>
                   <td className="p-4 text-right">
                     <button 
                       onClick={() => setIsReviewing(false)}
@@ -259,7 +337,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
       
       <div className="mb-6">
         <button 
-          onClick={() => navigate('/teacher/classes')}
+          onClick={() => navigateBackOr(navigate as any, '/teacher/classes')}
           className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
         >
           <ArrowLeft size={20} className="text-slate-600" />
@@ -303,11 +381,11 @@ export default function StudentAssessment({ user }: { user?: any }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {allSubjects.map(s => (
                 <button
-                  key={s}
-                  onClick={() => setSubject(s)}
+                  key={s.id}
+                  onClick={() => setSubject(s.id)}
                   className="p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-500 hover:shadow-sm transition-all text-left font-bold text-slate-700 hover:text-blue-700"
                 >
-                  {s}
+                  {s.label}
                 </button>
               ))}
             </div>
@@ -315,6 +393,27 @@ export default function StudentAssessment({ user }: { user?: any }) {
         </div>
       ) : (
         <div>
+          {!standardWorkflow && themeTabs.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Theme</p>
+              <div className="flex gap-2 p-1 bg-slate-100 rounded-xl overflow-x-auto">
+                {themeTabs.map((theme, index) => (
+                  <button
+                    key={theme}
+                    onClick={() => setActiveThemeId(String(index))}
+                    className={`px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
+                      activeThemeId === String(index)
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {theme}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200">
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Subject</p>
@@ -322,7 +421,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
                 onClick={() => setSubject('')}
                 className="font-bold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
               >
-                {subject}
+                {getSubjectLabel(subject, className)}
               </button>
             </div>
             <div className="text-right">
@@ -334,21 +433,21 @@ export default function StudentAssessment({ user }: { user?: any }) {
           {activeTopics.length === 0 ? (
             <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl">
               <h2 className="text-xl font-bold text-slate-700 mb-2">Topics Coming Soon</h2>
-              <p className="text-slate-500 mb-4">Topics for {subject} in {student.grade} are not yet available. You can add them manually.</p>
-              <button
-                onClick={handleAddTopic}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
-              >
-                Add Topic
-              </button>
+              <p className="text-slate-500 mb-4">Topics for {getSubjectLabel(subject, className)} in {student.grade} are not yet available.</p>
+              {standardWorkflow && (
+                <button
+                  onClick={handleAddTopic}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
+                >
+                  Add Topic
+                </button>
+              )}
             </div>
           ) : (
             <>
               <div className="space-y-3 mb-8">
                 {activeTopics.map((topic, index) => {
-                  const isEditable = getTopicsForSubjectAndGrade(subject || '', grade).length === 0 || 
-                                     getTopicsForSubjectAndGrade(subject || '', grade).includes('Topic of Own Choice') && 
-                                     (topic === 'Topic of Own Choice' || !getTopicsForSubjectAndGrade(subject || '', grade).includes(topic));
+                  const isEditable = Boolean(topicMeta[topic]?.editable);
                   return (
                   <div 
                     key={topic} 
@@ -362,7 +461,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
                         className="font-bold text-slate-700 text-lg bg-transparent border-b border-dashed border-slate-300 focus:border-blue-500 focus:outline-none w-1/2"
                       />
                     ) : (
-                      <span className="font-bold text-slate-700 text-lg">{topic}</span>
+                      <span className="font-bold text-slate-700 text-lg">{getTopicLabelParts(topic).full}</span>
                     )}
                     <div className="flex items-center gap-3">
                       <input
@@ -376,13 +475,13 @@ export default function StudentAssessment({ user }: { user?: any }) {
                         className="w-20 h-12 text-center text-xl font-mono font-bold bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
                         placeholder="-"
                       />
-                      <span className="text-slate-400 font-bold">/ 10</span>
+                      <span className="text-slate-400 font-bold">/ {maxMark}</span>
                     </div>
                   </div>
                 )})}
               </div>
               
-              {getTopicsForSubjectAndGrade(subject || '', grade).length === 0 && (
+              {standardWorkflow && activeTopics.length > 0 && (
                 <div className="mb-8">
                   <button
                     onClick={handleAddTopic}
