@@ -5,6 +5,7 @@ import { getStudentsByAssignedClass, getTopicAssessments } from '../../../servic
 import { Student, TopicAssessmentRecord } from '../../../types';
 import { getTopicsForSubjectAndGrade } from '../../../utils/assessmentTopics';
 import { getGradeDisplayValue } from '../../../utils/assessmentWorkflow';
+import { getTopicHeaderHeight, getTopicLabelParts } from '../../../utils/topicLabelFormat';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
@@ -38,22 +39,7 @@ const getSymbol = (average: number | null): string => {
   return 'U';
 };
 
-const TOPIC_ABBREV: Record<string, string> = {
-  'Listening and Responding': 'Listening & Responding',
-  'Speaking and Communicating': 'Speaking & Communicating',
-  'Reading and Viewing': 'Reading & Viewing',
-};
-
 const MAX_TOPIC_CHARS = 22;
-
-const formatTopicName = (topic: string): string => {
-  const label = TOPIC_ABBREV[topic] ?? topic;
-  if (label.length <= MAX_TOPIC_CHARS) return label;
-  const slice = label.substring(0, MAX_TOPIC_CHARS - 1);
-  const lastSpace = slice.lastIndexOf(' ');
-  const cut = lastSpace > MAX_TOPIC_CHARS / 2 ? slice.substring(0, lastSpace) : slice;
-  return cut + '-';
-};
 
 export default function TermReview({ user }: { user: any }) {
   const { subject, term } = useParams<{ subject: string, term: string }>();
@@ -158,6 +144,8 @@ export default function TermReview({ user }: { user: any }) {
     const markW = Math.max(4.2, (usableW - noW - 35) / termCols);
     const summaryW = markW + 1;
     const topicMarkW = markW;
+    const headerHeight = getTopicHeaderHeight(topics, true);
+    const headerHeightMm = Math.max(28, Math.min(38, headerHeight * 0.23));
 
     const termBlockW = topics.length * topicMarkW + summaryW * 3;
     const nameW = usableW - noW - termBlockW;
@@ -169,9 +157,9 @@ export default function TermReview({ user }: { user: any }) {
       summaryW, summaryW, summaryW,
     ];
 
-    const topicLabels = topics.map(formatTopicName);
+    const topicLabels = topics.map((topic) => getTopicLabelParts(topic, MAX_TOPIC_CHARS));
     const termSuffixes = ['TOTAL', 'AVERAGE', 'SYMBOL'];
-    const allDataLabels = [...topicLabels, ...termSuffixes];
+    const allDataLabels = [...topicLabels.map((item) => item.display), ...termSuffixes];
 
     const head = [['No', 'Name', ...allDataLabels]];
 
@@ -216,7 +204,7 @@ export default function TermReview({ user }: { user: any }) {
         textColor: [0, 0, 0],
         fontStyle: 'normal',
         fontSize: 5,
-        minCellHeight: 28,
+        minCellHeight: headerHeightMm,
         halign: 'center',
         valign: 'bottom',
         overflow: 'hidden',
@@ -245,17 +233,33 @@ export default function TermReview({ user }: { user: any }) {
 
         if (data.row.section === 'head' && data.column.index >= 2) {
           const relIdx = data.column.index - 2;
-          const label = allDataLabels[relIdx];
           const isSummary = relIdx >= topics.length;
 
           doc.saveGraphicsState();
           doc.setFontSize(5);
-          doc.setFont('helvetica', isSummary ? 'bold' : 'normal');
-          doc.setTextColor(0, 0, 0);
-          doc.text(label, x + width / 2 + 1.2, y + height - 1.5, {
-            angle: 90,
-            align: 'left',
-          });
+          if (isSummary) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 0, 0);
+            doc.text(termSuffixes[relIdx - topics.length], x + width / 2 + 1.2, y + height - 1.5, {
+              angle: 90,
+              align: 'left',
+            });
+          } else {
+            const label = topicLabels[relIdx];
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(0, 0, 0);
+            doc.text(label.full, x + width / 2 + 1.2, y + height - 1.5, {
+              angle: 90,
+              align: 'left',
+            });
+            if (label.prefix) {
+              doc.setFont('helvetica', 'bold');
+              doc.text(`${label.prefix}:`, x + width / 2 + 1.2, y + height - 1.5, {
+                angle: 90,
+                align: 'left',
+              });
+            }
+          }
           doc.restoreGraphicsState();
         }
 
@@ -423,7 +427,7 @@ export default function TermReview({ user }: { user: any }) {
     }
 
     const HDR_ROW = 14;
-    sheet.getRow(HDR_ROW).height = 120;
+    sheet.getRow(HDR_ROW).height = getTopicHeaderHeight(topics, true);
 
     const hdrBaseStyle: Partial<ExcelJS.Style> = {
       alignment: { textRotation: 90, vertical: 'bottom', horizontal: 'center', wrapText: false },
@@ -440,8 +444,16 @@ export default function TermReview({ user }: { user: any }) {
 
     let col = 3;
     topics.forEach((topic) => {
+      const parts = getTopicLabelParts(topic, MAX_TOPIC_CHARS);
       const c = sheet.getCell(HDR_ROW, col++);
-      c.value = formatTopicName(topic);
+      c.value = parts.prefix
+        ? {
+            richText: [
+              { text: `${parts.prefix}:`, font: { bold: true, size: 8 } },
+              { text: parts.suffix ? ` ${parts.suffix}` : '', font: { size: 8 } },
+            ],
+          }
+        : parts.display;
       c.font = { size: 8 };
       Object.assign(c, { ...hdrBaseStyle });
       c.border = thinBorder;
@@ -548,7 +560,7 @@ export default function TermReview({ user }: { user: any }) {
         }
 
         th.topic-th {
-          height: 7.5rem;
+          height: var(--topic-header-height, 7.5rem);
           overflow: hidden;
           padding: 0 !important;
           vertical-align: bottom;
@@ -573,7 +585,7 @@ export default function TermReview({ user }: { user: any }) {
           text-overflow: clip;
           font-size: 0.6rem;
           line-height: 1;
-          max-height: 7.4rem;
+          max-height: calc(var(--topic-header-height, 7.5rem) - 0.1rem);
           display: block;
           padding-bottom: 2px;
         }
@@ -587,7 +599,7 @@ export default function TermReview({ user }: { user: any }) {
           font-size: 0.6rem;
           font-weight: 700;
           line-height: 1;
-          max-height: 7.4rem;
+          max-height: calc(var(--topic-header-height, 7.5rem) - 0.1rem);
           display: block;
           padding-bottom: 2px;
         }
@@ -640,9 +652,13 @@ export default function TermReview({ user }: { user: any }) {
           <p className="text-slate-500">Topics for {subject} in {user?.assignedClass} are not yet available. They will be added in the future.</p>
         </div>
       ) : (
+        (() => {
+          const headerHeight = getTopicHeaderHeight(topics, true);
+          return (
         <div 
           id="summary-sheet"
           className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm mb-8 print:border-none print:shadow-none print:rounded-none"
+          style={{ ['--topic-header-height' as any]: `${headerHeight / 16}rem` }}
         >
           <div className="hidden print:block mb-4">
             <div className="flex items-center gap-3 mb-4">
@@ -676,7 +692,7 @@ export default function TermReview({ user }: { user: any }) {
                   <th key={topic} className="border border-black topic-th w-8">
                     <div className="th-inner">
                       <span className="rotate-header" title={topic}>
-                        {formatTopicName(topic)}
+                        {getTopicLabelParts(topic, MAX_TOPIC_CHARS).display}
                       </span>
                     </div>
                   </th>
@@ -752,6 +768,8 @@ export default function TermReview({ user }: { user: any }) {
             </tfoot>
           </table>
         </div>
+          );
+        })()
       )}
     </div>
   );

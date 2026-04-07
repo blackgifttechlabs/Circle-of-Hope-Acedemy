@@ -14,6 +14,7 @@ import {
   getSubjectLabel,
   isGrade1To7Class,
 } from '../../../utils/assessmentWorkflow';
+import { getTopicHeaderHeight, getTopicLabelParts } from '../../../utils/topicLabelFormat';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
@@ -49,30 +50,7 @@ const getSymbol = (average: number | null): string => {
   return 'U';
 };
 
-/** Abbreviation map — preferred short forms before truncation */
-const TOPIC_ABBREV: Record<string, string> = {
-  'Listening and Responding': 'Listening & Responding',
-  'Speaking and Communicating': 'Speaking & Communicating',
-  'Reading and Viewing': 'Reading & Viewing',
-};
-
-/**
- * Return a single-line label for a topic header cell.
- * The rotated column is ~7rem tall (~112px). At 0.6rem font that's ~18 chars
- * before it starts to look cramped. We hard-cap at MAX_CHARS characters;
- * anything longer is sliced and a dash appended so the reader knows it's cut.
- */
 const MAX_TOPIC_CHARS = 22; // characters visible in one rotated line at 0.6rem
-
-const formatTopicName = (topic: string): string => {
-  const label = TOPIC_ABBREV[topic] ?? topic;
-  if (label.length <= MAX_TOPIC_CHARS) return label;
-  // Truncate at last space within MAX_TOPIC_CHARS - 1, then append '-'
-  const slice = label.substring(0, MAX_TOPIC_CHARS - 1);
-  const lastSpace = slice.lastIndexOf(' ');
-  const cut = lastSpace > MAX_TOPIC_CHARS / 2 ? slice.substring(0, lastSpace) : slice;
-  return cut + '-';
-};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function AssessmentSheet({ user }: { user: any }) {
@@ -270,6 +248,8 @@ export default function AssessmentSheet({ user }: { user: any }) {
       const summaryW = 12;
       const topicMarkW = Math.max(5, (usableW - noW - 40 - (summaryW * 3)) / Math.max(termTopics.length, 1));
       const nameW = usableW - noW - (termTopics.length * topicMarkW) - (summaryW * 3);
+      const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
+      const headerHeightMm = Math.max(30, Math.min(60, headerHeight * 0.25));
 
       const colWidths: number[] = [
         noW,
@@ -278,9 +258,9 @@ export default function AssessmentSheet({ user }: { user: any }) {
         summaryW, summaryW, summaryW,
       ];
 
-      const topicLabels = termTopics.map(formatTopicName);
+      const topicLabels = termTopics.map((topic) => getTopicLabelParts(topic, standardWorkflow ? MAX_TOPIC_CHARS : undefined));
       const termSuffixes = ['TOTAL', 'AVERAGE', 'SYMBOL'];
-      const head = [['No', 'Name', ...topicLabels, ...termSuffixes]];
+      const head = [['No', 'Name', ...topicLabels.map((item) => item.display), ...termSuffixes]];
 
       const body = students.map((student, index) => {
         const marks = termTopics.map((topic) => {
@@ -327,7 +307,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
           textColor: [0, 0, 0],
           fontStyle: 'normal',
           fontSize: 6,
-          minCellHeight: 30,
+          minCellHeight: headerHeightMm,
           halign: 'center',
           valign: 'bottom',
           overflow: 'hidden',
@@ -355,17 +335,34 @@ export default function AssessmentSheet({ user }: { user: any }) {
           const { x, y, width, height } = data.cell;
 
           if (data.row.section === 'head' && data.column.index >= 2) {
-            const label = head[0][data.column.index];
-            const isSummary = data.column.index >= termTopics.length + 2;
+            const topicIndex = data.column.index - 2;
+            const isSummary = topicIndex >= termTopics.length;
 
             doc.saveGraphicsState();
             doc.setFontSize(6);
-            doc.setFont('helvetica', isSummary ? 'bold' : 'normal');
-            doc.setTextColor(0, 0, 0);
-            doc.text(label, x + width / 2 + 1.2, y + height - 1.5, {
-              angle: 90,
-              align: 'left',
-            });
+            if (isSummary) {
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(0, 0, 0);
+              doc.text(termSuffixes[topicIndex - termTopics.length], x + width / 2 + 1.2, y + height - 1.5, {
+                angle: 90,
+                align: 'left',
+              });
+            } else {
+              const label = topicLabels[topicIndex];
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(0, 0, 0);
+              doc.text(label.full, x + width / 2 + 1.2, y + height - 1.5, {
+                angle: 90,
+                align: 'left',
+              });
+              if (label.prefix) {
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${label.prefix}:`, x + width / 2 + 1.2, y + height - 1.5, {
+                  angle: 90,
+                  align: 'left',
+                });
+              }
+            }
             doc.restoreGraphicsState();
           }
 
@@ -439,6 +436,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
     for (const term of termsToGen) {
       const termId = term.name.toLowerCase().replace(' ', '-');
       const termTopics = getTopicsForTerm(termId, term.assessments);
+      const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
       const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet(term.name, {
         pageSetup: {
@@ -544,7 +542,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
       }
 
       const HDR_ROW = 13;
-      sheet.getRow(HDR_ROW).height = 120;
+      sheet.getRow(HDR_ROW).height = headerHeight;
       const hdrBaseStyle: Partial<ExcelJS.Style> = {
         alignment: { textRotation: 90, vertical: 'bottom', horizontal: 'center', wrapText: false },
         border: thinBorder,
@@ -560,8 +558,16 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
       let col = 3;
       termTopics.forEach((topic) => {
+        const parts = getTopicLabelParts(topic, standardWorkflow ? MAX_TOPIC_CHARS : undefined);
         const c = sheet.getCell(HDR_ROW, col++);
-        c.value = formatTopicName(topic);
+        c.value = parts.prefix
+          ? {
+              richText: [
+                { text: `${parts.prefix}:`, font: { bold: true, size: 8 } },
+                { text: parts.suffix ? ` ${parts.suffix}` : '', font: { size: 8 } },
+              ],
+            }
+          : parts.display;
         c.font = { size: 8 };
         Object.assign(c, { ...hdrBaseStyle });
         c.border = thinBorder;
@@ -685,7 +691,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
         /* The <th> itself acts as the clipping + alignment box */
         th.topic-th {
-          height: 7.5rem;           /* fixed row height */
+          height: var(--topic-header-height, 7.5rem);
           overflow: hidden;         /* hard clip — nothing escapes */
           padding: 0 !important;
           vertical-align: bottom;
@@ -713,8 +719,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
           text-overflow: clip;
           font-size: 0.6rem;
           line-height: 1;
-          /* cap visible length = cell height */
-          max-height: 7.4rem;
+          max-height: calc(var(--topic-header-height, 7.5rem) - 0.1rem);
           display: block;
           padding-bottom: 2px;
         }
@@ -729,9 +734,19 @@ export default function AssessmentSheet({ user }: { user: any }) {
           font-size: 0.6rem;
           font-weight: 700;
           line-height: 1;
-          max-height: 7.4rem;
+          max-height: calc(var(--topic-header-height, 7.5rem) - 0.1rem);
           display: block;
           padding-bottom: 2px;
+        }
+
+        .topic-prefix {
+          color: #2563eb;
+          font-weight: 700;
+        }
+
+        .topic-suffix {
+          color: inherit;
+          font-weight: 500;
         }
 
         /* ── Table fills page width ─────────────────────────── */
@@ -746,7 +761,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
       <div className="mb-6 flex justify-between items-center print:hidden">
         <div>
           <button
-            onClick={() => navigate('/teacher/assess')}
+            onClick={() => navigate('/teacher/classes')}
             className="mb-3 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
           >
             <ArrowLeft size={20} className="text-slate-600" />
@@ -784,6 +799,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
         ].map((term, termIdx) => {
           const termId = term.name.toLowerCase().replace(' ', '-');
           const termTopics = getTopicsForTerm(termId, term.assessments);
+          const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
 
           return (
           <div
@@ -793,7 +809,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
             <div
               id={termIdx === 0 ? "assessment-sheet" : undefined}
               className="p-6 bg-white print:p-0"
-              style={{ minWidth: '700px' }}
+              style={{ minWidth: '700px', ['--topic-header-height' as any]: `${headerHeight / 16}rem` }}
             >
               {/* School header */}
               <div className="flex justify-between items-start mb-4">
@@ -863,7 +879,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
                 </colgroup>
 
                 <thead>
-                  <tr style={{ height: '7.5rem' }}>
+                  <tr style={{ height: `${headerHeight / 16}rem` }}>
                     <th className="topic-th border border-black">
                       <div className="th-inner">
                         <span className="rotate-header-bold">No</span>
@@ -875,7 +891,19 @@ export default function AssessmentSheet({ user }: { user: any }) {
                     {termTopics.map((t, i) => (
                       <th key={`h-${i}`} className="topic-th border border-black">
                         <div className="th-inner">
-                          <span className="rotate-header">{formatTopicName(t)}</span>
+                          {(() => {
+                            const parts = getTopicLabelParts(t);
+                            return (
+                              <span className="rotate-header">
+                                {parts.prefix ? (
+                                  <>
+                                    <span className="topic-prefix">{parts.prefix}:</span>
+                                    <span className="topic-suffix"> {parts.suffix}</span>
+                                  </>
+                                ) : parts.full}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </th>
                     ))}

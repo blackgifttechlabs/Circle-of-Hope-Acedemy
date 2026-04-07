@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { getStudentsByAssignedClass, getSystemSettings, getAssessmentRecordsForClass, getTeacherById } from '../../services/dataService';
 import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from '../../types';
 import { Loader } from '../../components/ui/Loader';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 import { generateSummaryReportPDF } from '../../utils/pdfGenerator';
 import { getAssessmentRecordKey, getGradeDisplayValue } from '../../utils/assessmentWorkflow';
@@ -78,6 +80,63 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
     }
   };
 
+  const generateExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Summary Sheet', {
+      pageSetup: { orientation: 'landscape', fitToPage: true }
+    });
+
+    const termName = settings?.schoolCalendars?.find(t => t.id === selectedTerm)?.termName || 'Term 1';
+
+    sheet.mergeCells('A1:D1');
+    sheet.getCell('A1').value = `SUMMARY SHEET - ${termName.toUpperCase()}`;
+    sheet.getCell('A1').font = { bold: true, size: 14 };
+
+    sheet.mergeCells('A3:C3');
+    sheet.getCell('A3').value = `Teacher: ${user?.name || ''}`;
+    sheet.mergeCells('A4:C4');
+    sheet.getCell('A4').value = `Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`;
+
+    let currentCol = 2;
+    PRE_PRIMARY_AREAS.forEach((area) => {
+      const startCol = currentCol;
+      const endCol = currentCol + area.components.length - 1;
+      sheet.mergeCells(6, startCol, 6, endCol);
+      const cell = sheet.getCell(6, startCol);
+      cell.value = area.name;
+      cell.font = { bold: true };
+      cell.alignment = { horizontal: 'center' };
+
+      area.components.forEach((component, index) => {
+        const componentCell = sheet.getCell(7, currentCol + index);
+        componentCell.value = component.name;
+        componentCell.font = { bold: true, size: 10 };
+        componentCell.alignment = { horizontal: 'center', wrapText: true };
+      });
+      currentCol = endCol + 1;
+    });
+
+    sheet.getColumn(1).width = 25;
+    for (let i = 2; i < currentCol; i++) {
+      sheet.getColumn(i).width = 18;
+    }
+
+    students.forEach((student) => {
+      const row = sheet.addRow([student.name]);
+      let col = 2;
+      PRE_PRIMARY_AREAS.forEach((area) => {
+        area.components.forEach((component) => {
+          row.getCell(col).value = records[student.id]?.ratings?.[component.id] || '';
+          row.getCell(col).alignment = { horizontal: 'center' };
+          col += 1;
+        });
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Summary_Sheet_${termName}.xlsx`);
+  };
+
   if (loading) return <Loader />;
 
   return (
@@ -85,10 +144,10 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <button 
-            onClick={() => navigate('/teacher/dashboard')}
+            onClick={() => navigate('/teacher/classes')}
             className="flex items-center text-gray-500 hover:text-coha-900 transition-colors mb-2 text-sm font-bold uppercase tracking-widest"
           >
-            <ArrowLeft size={16} className="mr-2" /> Back to Dashboard
+            <ArrowLeft size={16} className="mr-2" /> Back to My Class
           </button>
           <h1 className="text-3xl font-black text-coha-900 tracking-tight">Summary Form</h1>
           <p className="text-gray-500 mt-1">End of term summary for {getGradeDisplayValue(user?.assignedClass || '') || 'all learners'}</p>
@@ -113,12 +172,38 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
                 selectedTerm,
                 termName,
                 user.name || 'Teacher',
-                user?.assignedClass || ''
+                user?.assignedClass || '',
+                'Circle of Hope Academy',
+                'download'
+              );
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors"
+          >
+            <Download size={16} /> PDF
+          </button>
+          <button
+            onClick={() => {
+              const termName = settings?.schoolCalendars?.find(t => t.id === selectedTerm)?.termName || 'Term 1';
+              generateSummaryReportPDF(
+                students,
+                records,
+                selectedTerm,
+                termName,
+                user.name || 'Teacher',
+                user?.assignedClass || '',
+                'Circle of Hope Academy',
+                'print'
               );
             }}
             className="flex items-center gap-2 px-4 py-2 bg-coha-900 text-white rounded-lg text-sm font-bold hover:bg-coha-800 transition-colors"
           >
-            <Printer size={16} /> Print Summary Report
+            <Printer size={16} /> Print
+          </button>
+          <button
+            onClick={generateExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors"
+          >
+            <FileSpreadsheet size={16} /> Excel
           </button>
         </div>
       </div>

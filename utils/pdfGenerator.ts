@@ -4,7 +4,22 @@ import { Student, TermAssessmentRecord, PRE_PRIMARY_AREAS } from '../types';
 import { CLASS_LIST_SKILLS } from './classListSkills';
 import { getGradeDisplayValue } from './assessmentWorkflow';
 
-const SCHOOL_LOGO_URL = 'https://i.ibb.co/rRHGVgVL/images.png';
+const SCHOOL_LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+
+const formatSkillParts = (label: string) => {
+  const match = label.match(/^([^:]+):\s*(.*)$/);
+  if (!match) {
+    return { prefix: '', suffix: label.charAt(0).toUpperCase() + label.slice(1), full: label.charAt(0).toUpperCase() + label.slice(1) };
+  }
+  const prefix = match[1].trim();
+  const rawSuffix = match[2].trim();
+  const suffix = rawSuffix ? rawSuffix.charAt(0).toUpperCase() + rawSuffix.slice(1) : '';
+  return {
+    prefix,
+    suffix,
+    full: `${prefix}: ${suffix}`.trim(),
+  };
+};
 
 const fetchImage = async (url: string): Promise<string> => {
   try {
@@ -28,7 +43,8 @@ export const generateSummaryReportPDF = async (
   termName: string,
   teacherName: string,
   className: string = 'Grade 0',
-  schoolName: string = 'Circle of Hope Academy'
+  schoolName: string = 'Circle of Hope Academy',
+  mode: 'download' | 'print' = 'download'
 ) => {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.width;
@@ -77,19 +93,15 @@ export const generateSummaryReportPDF = async (
     doc.setFontSize(14);
     doc.setFont('helvetica', 'italic');
     doc.text('Class List for Assessment', pageWidth / 2, 52, { align: 'center' });
-
-    doc.rect(14, 55, pageWidth - 28, 8);
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text(
-      `${area.name}    ${termName}    ${getGradeDisplayValue(className)}    Teacher: ${teacherName}`,
-      pageWidth / 2,
-      61,
-      { align: 'center' }
-    );
+    doc.text(`Area: ${area.name}`, 14, 61);
+    doc.text(`Term: ${termName}`, 95, 61);
+    doc.text(`Grade: ${getGradeDisplayValue(className)}`, 145, 61);
+    doc.text(`Teacher: ${teacherName}`, 210, 61);
 
     const head1: any[] = [{
-      content: '3 = Fully Mastered\n2 = Almost Mastered\n1 = Not yet Mastered\n\nNames: ↓',
+      content: '3 = Fully Mastered\n2 = Almost Mastered\n1 = Not yet Mastered\n\nNames:',
       rowSpan: 2,
       styles: { halign: 'left', valign: 'bottom', cellWidth: 45 },
     }];
@@ -99,7 +111,7 @@ export const generateSummaryReportPDF = async (
     themes.forEach((theme) => {
       head1.push({ content: theme.theme, colSpan: theme.skills.length, styles: { halign: 'center', fillColor: [240, 240, 240] } });
       theme.skills.forEach((skill) => {
-        head2.push(skill.name);
+        head2.push(formatSkillParts(skill.name));
         const component = area.components.find((item) => item.id === skill.componentId);
         if (component) componentsMap.set(component.id, component.name);
       });
@@ -112,6 +124,9 @@ export const generateSummaryReportPDF = async (
         head2.push(`${name} average`);
       });
     }
+
+    const longestLabelLength = head2.reduce((max, item) => Math.max(max, item.full.length), 0);
+    const headerHeight = Math.max(36, Math.min(70, longestLabelLength * 1.35));
 
     const body: any[] = [];
     students.forEach((student, index) => {
@@ -135,7 +150,7 @@ export const generateSummaryReportPDF = async (
     });
 
     autoTable(doc, {
-      startY: 63,
+      startY: 66,
       margin: { left: 14, right: 14 },
       head: [head1, head2],
       body,
@@ -157,27 +172,38 @@ export const generateSummaryReportPDF = async (
       didParseCell: (data) => {
         if (data.section === 'head' && data.row.index === 1 && data.column.index > 0) {
           data.cell.text = [''];
-          data.cell.styles.minCellHeight = 28;
+          data.cell.styles.minCellHeight = headerHeight;
         }
       },
       didDrawCell: (data) => {
         if (data.section === 'head' && data.row.index === 1 && data.column.index > 0) {
-          const label = head2[data.column.index - 1] || '';
+          const label = head2[data.column.index - 1];
           if (!label) return;
           doc.saveGraphicsState();
           doc.setFontSize(6);
-          doc.setFont('helvetica', 'bold');
-          doc.text(label, data.cell.x + data.cell.width / 2 + 1.2, data.cell.y + data.cell.height - 1.5, {
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(0, 0, 0);
+          doc.text(label.full, data.cell.x + data.cell.width / 2 + 1.2, data.cell.y + data.cell.height - 1.5, {
             angle: 90,
             align: 'left',
           });
+          if (label.prefix) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 0, 0);
+            doc.text(`${label.prefix}:`, data.cell.x + data.cell.width / 2 + 1.2, data.cell.y + data.cell.height - 1.5, {
+              angle: 90,
+              align: 'left',
+            });
+          }
           doc.restoreGraphicsState();
         }
       },
     });
   });
-
-  doc.save(`Summary_Report_${termName}.pdf`);
-  doc.autoPrint();
-  window.open(doc.output('bloburl'), '_blank');
+  if (mode === 'print') {
+    doc.autoPrint();
+    window.open(doc.output('bloburl'), '_blank');
+  } else {
+    doc.save(`Summary_Report_${termName}.pdf`);
+  }
 };

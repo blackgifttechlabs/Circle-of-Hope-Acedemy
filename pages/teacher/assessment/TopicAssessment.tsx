@@ -17,12 +17,24 @@ import {
   getSubjectLabel,
   isGrade1To7Class,
 } from '../../../utils/assessmentWorkflow';
+import { getTopicLabelParts } from '../../../utils/topicLabelFormat';
 
 type TopicTab = {
   topic: string;
   topicId?: string;
   originalTopic?: string;
   theme?: string;
+};
+
+const TopicLabel = ({ topic }: { topic: string }) => {
+  const parts = getTopicLabelParts(topic);
+  if (!parts.prefix) return <>{parts.full}</>;
+  return (
+    <>
+      <span className="text-blue-600">{parts.prefix}:</span>{' '}
+      <span>{parts.suffix}</span>
+    </>
+  );
 };
 
 export default function TopicAssessment({ user }: { user: any }) {
@@ -208,7 +220,7 @@ export default function TopicAssessment({ user }: { user: any }) {
           </button>
           <h1 className="text-2xl font-bold text-slate-900">Review Marks</h1>
           <p className="text-sm font-medium text-slate-500 mt-1">
-            {getSubjectLabel(subject || '', className)} • {term} {activeTheme ? `• ${activeTheme}` : ''} • {topic}
+            {getSubjectLabel(subject || '', className)} • {term} {activeTheme ? `• ${activeTheme}` : ''} • {getTopicLabelParts(topic || '').full}
           </p>
         </div>
 
@@ -265,7 +277,7 @@ export default function TopicAssessment({ user }: { user: any }) {
         >
           <ArrowLeft size={20} className="text-slate-600" />
         </button>
-        <h1 className="text-2xl font-bold text-slate-900">{topic}</h1>
+        <h1 className="text-2xl font-bold text-slate-900"><TopicLabel topic={topic || ''} /></h1>
         <p className="text-sm font-medium text-slate-500 mt-1">
           {getSubjectLabel(subject || '', className)} • {term} {activeTheme ? `• ${activeTheme}` : ''}
         </p>
@@ -306,7 +318,7 @@ export default function TopicAssessment({ user }: { user: any }) {
                 item.topic === topic ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              {item.topic}
+              <TopicLabel topic={item.topic} />
             </button>
           ))}
         </div>

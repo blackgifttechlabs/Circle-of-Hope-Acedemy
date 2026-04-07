@@ -18,6 +18,7 @@ import {
   getSubjectLabel,
   isGrade1To7Class,
 } from '../../../utils/assessmentWorkflow';
+import { getTopicLabelParts } from '../../../utils/topicLabelFormat';
 
 const TERMS = ['Term 1', 'Term 2', 'Term 3'];
 
@@ -28,6 +29,17 @@ type TopicCard = {
   theme?: string;
   componentId?: string;
   isCustom?: boolean;
+};
+
+const TopicLabel = ({ topic }: { topic: string }) => {
+  const parts = getTopicLabelParts(topic);
+  if (!parts.prefix) return <>{parts.full}</>;
+  return (
+    <>
+      <span className="text-blue-600">{parts.prefix}:</span>{' '}
+      <span>{parts.suffix}</span>
+    </>
+  );
 };
 
 const SkeletonCard = () => (
@@ -203,7 +215,7 @@ export default function TopicSelection({ user }: { user: any }) {
     <div className="w-full px-5 py-6">
       <div className="mb-6">
         <button
-          onClick={() => navigate('/teacher/assess')}
+          onClick={() => navigate('/teacher/classes')}
           className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
         >
           <ArrowLeft size={20} className="text-slate-600" />
@@ -384,7 +396,7 @@ export default function TopicSelection({ user }: { user: any }) {
                     }}
                     className="text-lg font-bold text-slate-800 mb-4 group-hover:text-blue-700 cursor-pointer"
                   >
-                    {topicCard.topic}
+                    <TopicLabel topic={topicCard.topic} />
                   </h3>
                 )}
 
@@ -423,7 +435,7 @@ export default function TopicSelection({ user }: { user: any }) {
           <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
             <h2 className="text-lg font-bold text-slate-900 mb-2">Delete topic</h2>
             <p className="text-sm text-slate-600 leading-relaxed mb-6">
-              Delete <span className="font-bold">{showDeleteConfirm.topic.topic}</span>? Existing marks for this topic will also be removed.
+              Delete <span className="font-bold">{getTopicLabelParts(showDeleteConfirm.topic.topic).full}</span>? Existing marks for this topic will also be removed.
             </p>
             <div className="flex justify-end gap-3">
               <button

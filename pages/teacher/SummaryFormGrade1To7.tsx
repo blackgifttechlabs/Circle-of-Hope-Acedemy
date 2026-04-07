@@ -4,7 +4,7 @@ import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { getCustomTopicEntries, getStudentsByAssignedClass, getTopicAssessments, getSystemSettings, getTeacherById, getTopicOverrides } from '../../services/dataService';
 import { Student, TopicAssessmentRecord, SystemSettings } from '../../types';
 import { getTopicsForSubjectAndGrade } from '../../utils/assessmentTopics';
-import { getPromotionalSubjects } from '../../utils/subjects';
+import { getNonPromotionalSubjects, getPromotionalSubjects } from '../../utils/subjects';
 import { getGradeDisplayValue } from '../../utils/assessmentWorkflow';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -40,6 +40,15 @@ const getSymbol = (average: number | null): string => {
   return 'U';
 };
 
+const getSymbolColorClass = (symbol: string) => {
+  if (symbol === 'A') return 'text-green-600';
+  if (symbol === 'B') return 'text-blue-600';
+  if (symbol === 'C') return 'text-amber-600';
+  if (symbol === 'D') return 'text-orange-600';
+  if (symbol === 'E') return 'text-slate-600';
+  return 'text-red-600';
+};
+
 export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
@@ -52,6 +61,8 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   const [subjectTopicCounts, setSubjectTopicCounts] = useState<Record<string, number>>({});
 
   const promotionalSubjects = getPromotionalSubjects(user?.assignedClass || '');
+  const nonPromotionalSubjects = getNonPromotionalSubjects(user?.assignedClass || '');
+  const allSubjects = [...promotionalSubjects, ...nonPromotionalSubjects];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -90,7 +101,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
     const newAssessments: Record<string, TopicAssessmentRecord[]> = {};
     const newTopicCounts: Record<string, number> = {};
     await Promise.all(
-      promotionalSubjects.map(async (subject) => {
+      allSubjects.map(async (subject) => {
         const [records, customTopics, overrides] = await Promise.all([
           getTopicAssessments(grade, termId, subject),
           getCustomTopicEntries(grade, termId, subject),
@@ -154,7 +165,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   const calculateOverallTotal = (studentId: string) => {
     let overallTotal = 0;
     let count = 0;
-    promotionalSubjects.forEach(subject => {
+    allSubjects.forEach(subject => {
       const total = calculateSubjectTotal(studentId, subject);
       if (total !== null) {
         overallTotal += total;
@@ -168,7 +179,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   const calculateOverallAverage = (studentId: string) => {
     let totalAvg = 0;
     let count = 0;
-    promotionalSubjects.forEach(subject => {
+    allSubjects.forEach(subject => {
       const avg = calculateSubjectAverage(studentId, subject);
       if (avg !== null) {
         totalAvg += avg;
@@ -224,38 +235,28 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
 
     const noW = 7;
     const nameW = 45;
-    const subjectCols = promotionalSubjects.length;
-    // Each subject has TOT, AVG, SYM
-    const colW = (usableW - noW - nameW) / (subjectCols * 3 + 3); 
+    const subjectCols = allSubjects.length;
+    const colW = (usableW - noW - nameW) / (subjectCols * 3);
 
     const colWidths = [noW, nameW];
     const head1: any[] = [{ content: 'No', rowSpan: 2 }, { content: 'Name', rowSpan: 2 }];
     const head2: any[] = [];
 
-    promotionalSubjects.forEach(sub => {
+    allSubjects.forEach(sub => {
       head1.push({ content: sub, colSpan: 3, styles: { halign: 'center' } });
       head2.push('TOT', 'AVG', 'SYM');
       colWidths.push(colW, colW, colW);
     });
 
-    head1.push({ content: 'OVERALL', colSpan: 3, styles: { halign: 'center' } });
-    head2.push('TOT', 'AVG', 'SYM');
-    colWidths.push(colW, colW, colW);
-
     const body = students.map((student, index) => {
       const row = [String(index + 1), student.name];
-      promotionalSubjects.forEach(sub => {
+      allSubjects.forEach(sub => {
         const tot = calculateSubjectTotal(student.id, sub);
         const avg = calculateSubjectAverage(student.id, sub);
         row.push(tot !== null ? String(tot) : '');
         row.push(avg !== null ? String(avg) : '');
         row.push(getSymbol(avg));
       });
-      const overallTot = calculateOverallTotal(student.id);
-      const overallAvg = calculateOverallAverage(student.id);
-      row.push(overallTot !== null ? String(overallTot) : '');
-      row.push(overallAvg !== null ? String(overallAvg) : '');
-      row.push(getSymbol(overallAvg));
       return row;
     });
 
@@ -286,10 +287,77 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
       didDrawCell: (data) => {
         if (data.row.section === 'body' && data.column.index > 1) {
           const val = data.cell.raw;
-          if (val === 'U') {
-            doc.setTextColor(200, 0, 0);
+          if (['A', 'B', 'C', 'D', 'E', 'U'].includes(String(val))) {
+            const color =
+              val === 'A' ? [22, 163, 74] :
+              val === 'B' ? [37, 99, 235] :
+              val === 'C' ? [217, 119, 6] :
+              val === 'D' ? [234, 88, 12] :
+              val === 'E' ? [71, 85, 105] :
+              [200, 0, 0];
+            doc.setTextColor(color[0], color[1], color[2]);
             doc.setFont('helvetica', 'bold');
             doc.text(String(val), data.cell.x + data.cell.width / 2, data.cell.y + data.cell.height / 2 + 1, { align: 'center' });
+          }
+        }
+      },
+      margin: { left: marginL, right: marginR },
+    });
+
+    const overallHead = [['No', 'Name', 'TOTAL', 'AVERAGE', 'SYMBOL']];
+    const overallBody = students.map((student, index) => {
+      const overallTot = calculateOverallTotal(student.id);
+      const overallAvg = calculateOverallAverage(student.id);
+      return [
+        String(index + 1),
+        student.name,
+        overallTot !== null ? String(overallTot) : '',
+        overallAvg !== null ? String(overallAvg) : '',
+        getSymbol(overallAvg),
+      ];
+    });
+
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 8,
+      head: overallHead,
+      body: overallBody,
+      theme: 'grid',
+      tableWidth: 120,
+      styles: {
+        fontSize: 7,
+        cellPadding: 1,
+        halign: 'center',
+        valign: 'middle',
+        lineColor: [0, 0, 0],
+        lineWidth: 0.2,
+        textColor: [0, 0, 0],
+      },
+      headStyles: {
+        fillColor: [230, 230, 230],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold',
+      },
+      columnStyles: {
+        0: { cellWidth: 10 },
+        1: { cellWidth: 55, halign: 'left' },
+        2: { cellWidth: 18 },
+        3: { cellWidth: 18 },
+        4: { cellWidth: 19 },
+      },
+      didDrawCell: (data) => {
+        if (data.row.section === 'body' && data.column.index === 4) {
+          const val = String(data.cell.raw || '');
+          if (val) {
+            const color =
+              val === 'A' ? [22, 163, 74] :
+              val === 'B' ? [37, 99, 235] :
+              val === 'C' ? [217, 119, 6] :
+              val === 'D' ? [234, 88, 12] :
+              val === 'E' ? [71, 85, 105] :
+              [200, 0, 0];
+            doc.setTextColor(color[0], color[1], color[2]);
+            doc.setFont('helvetica', 'bold');
+            doc.text(val, data.cell.x + data.cell.width / 2, data.cell.y + data.cell.height / 2 + 1, { align: 'center' });
           }
         }
       },
@@ -325,7 +393,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
     sheet.mergeCells('B6:B7');
 
     let colIdx = 3;
-    promotionalSubjects.forEach(sub => {
+    allSubjects.forEach(sub => {
       sheet.mergeCells(6, colIdx, 6, colIdx + 2);
       headerRow1.getCell(colIdx).value = sub;
       headerRow1.getCell(colIdx).alignment = { horizontal: 'center' };
@@ -337,21 +405,13 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
       colIdx += 3;
     });
 
-    sheet.mergeCells(6, colIdx, 6, colIdx + 2);
-    headerRow1.getCell(colIdx).value = 'OVERALL';
-    headerRow1.getCell(colIdx).alignment = { horizontal: 'center' };
-    headerRow1.getCell(colIdx).font = { bold: true };
-    headerRow2.getCell(colIdx).value = 'TOT';
-    headerRow2.getCell(colIdx + 1).value = 'AVG';
-    headerRow2.getCell(colIdx + 2).value = 'SYM';
-
     sheet.getColumn(1).width = 5;
     sheet.getColumn(2).width = 25;
 
     students.forEach((student, index) => {
       const row = sheet.addRow([index + 1, student.name]);
       let rCol = 3;
-      promotionalSubjects.forEach(sub => {
+      allSubjects.forEach(sub => {
         const tot = calculateSubjectTotal(student.id, sub);
         const avg = calculateSubjectAverage(student.id, sub);
         row.getCell(rCol++).value = tot !== null ? tot : '';
@@ -359,16 +419,23 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
         const sym = getSymbol(avg);
         const symCell = row.getCell(rCol++);
         symCell.value = sym;
-        if (sym === 'U') symCell.font = { color: { argb: 'FFCC0000' }, bold: true };
+        const color = sym === 'A' ? 'FF16A34A' : sym === 'B' ? 'FF2563EB' : sym === 'C' ? 'FFD97706' : sym === 'D' ? 'FFEA580C' : sym === 'E' ? 'FF475569' : 'FFCC0000';
+        symCell.font = { color: { argb: color }, bold: true };
       });
+    });
+
+    const overallStartRow = students.length + 10;
+    sheet.getCell(`A${overallStartRow}`).value = 'OVERALL';
+    sheet.getCell(`A${overallStartRow}`).font = { bold: true, size: 12 };
+    sheet.getRow(overallStartRow + 1).values = ['No', 'Name', 'TOT', 'AVG', 'SYM'];
+    students.forEach((student, index) => {
+      const row = sheet.getRow(overallStartRow + 2 + index);
       const overallTot = calculateOverallTotal(student.id);
       const overallAvg = calculateOverallAverage(student.id);
-      row.getCell(rCol++).value = overallTot !== null ? overallTot : '';
-      row.getCell(rCol++).value = overallAvg !== null ? overallAvg : '';
       const sym = getSymbol(overallAvg);
-      const symCell = row.getCell(rCol++);
-      symCell.value = sym;
-      if (sym === 'U') symCell.font = { color: { argb: 'FFCC0000' }, bold: true };
+      row.values = [index + 1, student.name, overallTot !== null ? overallTot : '', overallAvg !== null ? overallAvg : '', sym];
+      const color = sym === 'A' ? 'FF16A34A' : sym === 'B' ? 'FF2563EB' : sym === 'C' ? 'FFD97706' : sym === 'D' ? 'FFEA580C' : sym === 'E' ? 'FF475569' : 'FFCC0000';
+      row.getCell(5).font = { color: { argb: color }, bold: true };
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -383,10 +450,10 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <button 
-            onClick={() => navigate('/teacher/dashboard')}
+            onClick={() => navigate('/teacher/classes')}
             className="flex items-center text-gray-500 hover:text-blue-900 transition-colors mb-2 text-sm font-bold uppercase tracking-widest"
           >
-            <ArrowLeft size={16} className="mr-2" /> Back to Dashboard
+            <ArrowLeft size={16} className="mr-2" /> Back to My Class
           </button>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Summary Form</h1>
           <p className="text-gray-500 mt-1">End of term summary for all subjects</p>
@@ -412,46 +479,45 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
             onClick={generatePDF}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors"
           >
-            <Download size={16} /> Print PDF
+            <Download size={16} /> PDF
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors"
+          >
+            <Printer size={16} /> Print
           </button>
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 shadow-sm rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-200 shadow-sm rounded-xl overflow-hidden mb-6">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr>
                 <th rowSpan={2} className="p-3 border-b border-r border-gray-200 bg-gray-50 text-xs font-black text-gray-500 uppercase tracking-widest">No</th>
                 <th rowSpan={2} className="p-3 border-b border-r border-gray-200 bg-gray-50 text-xs font-black text-gray-500 uppercase tracking-widest min-w-[200px]">Learner Name</th>
-                {promotionalSubjects.map(sub => (
+                {allSubjects.map(sub => (
                   <th key={sub} colSpan={3} className="p-3 border-b border-r border-gray-200 bg-gray-50 text-xs font-black text-gray-700 uppercase tracking-widest text-center">{sub}</th>
                 ))}
-                <th colSpan={3} className="p-3 border-b border-gray-200 bg-gray-100 text-xs font-black text-gray-900 uppercase tracking-widest text-center">OVERALL</th>
               </tr>
               <tr>
-                {promotionalSubjects.map(sub => (
+                {allSubjects.map(sub => (
                   <React.Fragment key={sub + '-cols'}>
                     <th className="p-2 border-b border-r border-gray-200 bg-gray-50 text-[10px] font-bold text-gray-500 text-center">TOT</th>
                     <th className="p-2 border-b border-r border-gray-200 bg-gray-50 text-[10px] font-bold text-gray-500 text-center">AVG</th>
                     <th className="p-2 border-b border-r border-gray-200 bg-gray-50 text-[10px] font-bold text-gray-500 text-center">SYM</th>
                   </React.Fragment>
                 ))}
-                <th className="p-2 border-b border-r border-gray-200 bg-gray-100 text-[10px] font-bold text-gray-800 text-center">TOT</th>
-                <th className="p-2 border-b border-r border-gray-200 bg-gray-100 text-[10px] font-bold text-gray-800 text-center">AVG</th>
-                <th className="p-2 border-b border-gray-200 bg-gray-100 text-[10px] font-bold text-gray-800 text-center">SYM</th>
               </tr>
             </thead>
             <tbody>
               {students.map((student, index) => {
-                const overallTot = calculateOverallTotal(student.id);
-                const overallAvg = calculateOverallAverage(student.id);
-                const overallSym = getSymbol(overallAvg);
                 return (
                   <tr key={student.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="p-3 border-b border-r border-gray-200 text-sm text-gray-500 text-center">{index + 1}</td>
                     <td className="p-3 border-b border-r border-gray-200 text-sm font-bold text-gray-900">{student.name}</td>
-                    {promotionalSubjects.map(sub => {
+                    {allSubjects.map(sub => {
                       const tot = calculateSubjectTotal(student.id, sub);
                       const avg = calculateSubjectAverage(student.id, sub);
                       const sym = getSymbol(avg);
@@ -459,13 +525,10 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
                         <React.Fragment key={sub + '-' + student.id}>
                           <td className="p-2 border-b border-r border-gray-200 text-center text-sm font-mono">{tot !== null ? tot : '-'}</td>
                           <td className="p-2 border-b border-r border-gray-200 text-center text-sm font-mono">{avg !== null ? avg : '-'}</td>
-                          <td className={`p-2 border-b border-r border-gray-200 text-center text-sm font-bold ${sym === 'U' ? 'text-red-600' : 'text-gray-700'}`}>{sym}</td>
+                          <td className={`p-2 border-b border-r border-gray-200 text-center text-sm font-bold ${getSymbolColorClass(sym)}`}>{sym}</td>
                         </React.Fragment>
                       );
                     })}
-                    <td className="p-2 border-b border-r border-gray-200 bg-gray-50 text-center text-sm font-bold">{overallTot !== null ? overallTot : '-'}</td>
-                    <td className="p-2 border-b border-r border-gray-200 bg-gray-50 text-center text-sm font-bold">{overallAvg !== null ? overallAvg : '-'}</td>
-                    <td className={`p-2 border-b border-gray-200 bg-gray-50 text-center text-sm font-black ${overallSym === 'U' ? 'text-red-600' : 'text-gray-900'}`}>{overallSym}</td>
                   </tr>
                 );
               })}
@@ -476,6 +539,41 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
                   </td>
                 </tr>
               )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 shadow-sm rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-black text-gray-700 uppercase tracking-widest">
+          Overall
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr>
+                <th className="p-3 border-b border-r border-gray-200 bg-gray-50 text-xs font-black text-gray-500 uppercase tracking-widest">No</th>
+                <th className="p-3 border-b border-r border-gray-200 bg-gray-50 text-xs font-black text-gray-500 uppercase tracking-widest min-w-[200px]">Learner Name</th>
+                <th className="p-3 border-b border-r border-gray-200 bg-gray-50 text-xs font-black text-gray-500 uppercase tracking-widest text-center">TOT</th>
+                <th className="p-3 border-b border-r border-gray-200 bg-gray-50 text-xs font-black text-gray-500 uppercase tracking-widest text-center">AVG</th>
+                <th className="p-3 border-b border-gray-200 bg-gray-50 text-xs font-black text-gray-500 uppercase tracking-widest text-center">SYM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student, index) => {
+                const overallTot = calculateOverallTotal(student.id);
+                const overallAvg = calculateOverallAverage(student.id);
+                const overallSym = getSymbol(overallAvg);
+                return (
+                  <tr key={`overall-${student.id}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <td className="p-3 border-b border-r border-gray-200 text-sm text-gray-500 text-center">{index + 1}</td>
+                    <td className="p-3 border-b border-r border-gray-200 text-sm font-bold text-gray-900">{student.name}</td>
+                    <td className="p-2 border-b border-r border-gray-200 text-center text-sm font-mono">{overallTot !== null ? overallTot : '-'}</td>
+                    <td className="p-2 border-b border-r border-gray-200 text-center text-sm font-mono">{overallAvg !== null ? overallAvg : '-'}</td>
+                    <td className={`p-2 border-b border-gray-200 text-center text-sm font-bold ${getSymbolColorClass(overallSym)}`}>{overallSym}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

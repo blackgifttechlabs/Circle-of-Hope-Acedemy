@@ -26,7 +26,6 @@ import { TeacherDashboard } from './pages/teacher/Dashboard';
 import { AssessmentPage } from './pages/teacher/AssessmentPage';
 import { TermAssessmentPage } from './pages/teacher/TermAssessmentPage';
 import { TermAssessmentComponentPage } from './pages/teacher/TermAssessmentComponentPage';
-import { ClassListFormPage } from './pages/teacher/ClassListFormPage';
 import { SummaryFormPage } from './pages/teacher/SummaryFormPage';
 import { SummaryFormGrade1To7 } from './pages/teacher/SummaryFormGrade1To7';
 import { DailyRegister } from './pages/teacher/DailyRegister';
@@ -200,7 +199,6 @@ const App: React.FC = () => {
                     <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.TEACHER} user={user} />} />
                     <Route path="term-assessment/:id" element={<TermAssessmentPage user={user} />} />
                     <Route path="term-assessment-component" element={<TermAssessmentComponentPage user={user} />} />
-                    <Route path="class-list-form" element={<ClassListFormPage user={user} />} />
                     <Route path="summary-form" element={
                       user?.assignedClass?.match(/Grade [1-7]/i)
                         ? <SummaryFormGrade1To7 user={user} />

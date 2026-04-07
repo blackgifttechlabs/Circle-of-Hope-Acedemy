@@ -207,7 +207,7 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
     if (currentIndex >= 0 && currentIndex < students.length - 1) {
       navigate(`/teacher/term-assessment/${students[currentIndex + 1].id}`);
     } else {
-      navigate('/teacher/dashboard');
+      navigate('/teacher/classes');
     }
   };
 
@@ -232,7 +232,7 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
     <div className="font-sans text-black w-full px-4 sm:px-6 lg:px-8 pb-20">
       <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({show:false, msg:''})} variant="success" />
       
-      <button onClick={() => navigate('/teacher/dashboard')} className="mb-6 p-2 hover:bg-gray-100 transition-all flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest border border-gray-200 w-fit">
+      <button onClick={() => navigate('/teacher/classes')} className="mb-6 p-2 hover:bg-gray-100 transition-all flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest border border-gray-200 w-fit">
           <ArrowLeft size={16} /> Back to Class List
       </button>
 

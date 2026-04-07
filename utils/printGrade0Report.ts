@@ -68,7 +68,7 @@ export const printGrade0Report = async (
 
   // ─── LOAD IMAGES ───────────────────────────────────────────────
   const namibiaLogoUrl = "https://i.ibb.co/LzYXwYfX/logo.png";
-  const schoolLogoUrl  = "https://i.ibb.co/rRHGVgVL/images.png";
+  const schoolLogoUrl  = "https://i.ibb.co/LzYXwYfX/logo.png";
   const principalSigUrl = "https://i.ibb.co/MkKndHWd/eraze-result-medium-1.png";
 
   const [namibiaLogo, schoolLogo, principalSig] = await Promise.all([

@@ -264,7 +264,7 @@ export const AssessmentPage: React.FC<AssessmentPageProps> = ({ userRole, user }
                         <div className="bg-green-50 border-2 border-green-200 text-green-900 font-black text-xl py-3 px-4 rounded-none mb-8">
                             {student.assignedClass}
                         </div>
-                        <Button fullWidth onClick={() => { setFinalSuccessModalOpen(false); navigate('/teacher/dashboard'); }}>
+                        <Button fullWidth onClick={() => { setFinalSuccessModalOpen(false); navigate('/teacher/classes'); }}>
                             Open Class Register
                         </Button>
                     </div>
@@ -288,7 +288,7 @@ export const AssessmentPage: React.FC<AssessmentPageProps> = ({ userRole, user }
                             <p className="text-xs text-gray-700 mb-6 font-bold uppercase tracking-tight">
                                 Student has been moved from your register.
                             </p>
-                            <Button fullWidth onClick={() => { setTransferModalOpen(false); navigate('/teacher/dashboard'); }}>
+                            <Button fullWidth onClick={() => { setTransferModalOpen(false); navigate('/teacher/classes'); }}>
                                 Return to Dashboard
                             </Button>
                         </div>

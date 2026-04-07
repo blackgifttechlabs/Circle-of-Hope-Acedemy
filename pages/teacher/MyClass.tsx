@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   getStudentsByAssignedClass,
   getAssessmentRecordsForClass,
+  getCustomTopicEntries,
   getSystemSettings,
   getTeacherById,
+  getTopicAssessments,
+  getTopicOverrides,
   updateTeacher
 } from '../../services/dataService';
 import { Student, TermAssessmentRecord, TermCalendar } from '../../types';
@@ -13,6 +16,13 @@ import {
   CheckCircle, Clock, Search, Send, ArrowRight, Edit2, ClipboardList, Calendar
 } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
+import {
+  getAssessmentRecordKey,
+  getAssessmentSubjects,
+  getDefaultThemesForSubject,
+  getDefaultTopicsForTheme,
+  isGrade1To7Class,
+} from '../../utils/assessmentWorkflow';
 
 interface MyClassProps { user: any; }
 
@@ -32,13 +42,14 @@ const Av = ({ name, size = 36 }: { name: string; size?: number }) => {
 export const MyClass: React.FC<MyClassProps> = ({ user }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [records, setRecords] = useState<Record<string, TermAssessmentRecord>>({});
+  const [progressMap, setProgressMap] = useState<Record<string, { done: number; total: number; percent: number; label: string }>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [toast, setToast] = useState({ show:false, msg:'' });
   const [terms, setTerms] = useState<TermCalendar[]>([]);
   const [activeTermId, setActiveTermId] = useState<string>('');
   const [isSpecialNeedsTeacher, setIsSpecialNeedsTeacher] = useState(false);
-  const isGrade1To7Teacher = user?.assignedClass?.match(/Grade [1-7]/i);
+  const isGrade1To7Teacher = isGrade1To7Class(user?.assignedClass || '');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -55,6 +66,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
             if (parsed.terms) setTerms(parsed.terms);
             if (parsed.isSpecialNeedsTeacher !== undefined) setIsSpecialNeedsTeacher(parsed.isSpecialNeedsTeacher);
             if (parsed.records) setRecords(parsed.records);
+            if (parsed.progressMap) setProgressMap(parsed.progressMap);
             setLoading(false); // Stop loading early to show UI immediately
           } catch (e) {
             console.error("Cache parse error", e);
@@ -93,20 +105,89 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
             setActiveTermId(termId);
           }
 
-          const g0 = data.filter(s => s.grade === 'Grade 0');
+          const enrolledStudents = data.filter(s => s.studentStatus === 'ENROLLED');
+          const classRecordKey = getAssessmentRecordKey(user.assignedClass);
           const map: Record<string,TermAssessmentRecord> = {};
-          if (g0.length > 0) {
-            const recs = await getAssessmentRecordsForClass('Grade 0', termId, g0.map(s => s.id));
+          if (enrolledStudents.length > 0) {
+            const recs = await getAssessmentRecordsForClass(classRecordKey, termId, enrolledStudents.map(s => s.id));
             recs.forEach(r => { map[r.studentId] = r; });
             setRecords(map);
           }
+
+          const nextProgress: Record<string, { done: number; total: number; percent: number; label: string }> = {};
+          if (isGrade1To7Class(user.assignedClass)) {
+            const subjects = getAssessmentSubjects(user.assignedClass).map(item => item.id);
+            const subjectData = await Promise.all(subjects.map(async (subject) => {
+              const [topicAssessments, customTopics, overrides] = await Promise.all([
+                getTopicAssessments(user.assignedClass, termId, subject),
+                getCustomTopicEntries(user.assignedClass, termId, subject),
+                getTopicOverrides(user.assignedClass, termId, subject),
+              ]);
+
+              const baseTopics = getDefaultTopicsForTheme(user.assignedClass, termId, subject, 'default').map(item => item.label);
+              const adjustedTopics = baseTopics.reduce<string[]>((acc, topic) => {
+                const override = overrides.find(item => item.originalTopic === topic);
+                if (override?.deleted) return acc;
+                acc.push(override?.topic || topic);
+                return acc;
+              }, []);
+
+              customTopics.forEach(item => {
+                if (!adjustedTopics.includes(item.topic)) adjustedTopics.push(item.topic);
+              });
+              topicAssessments.forEach(item => {
+                if (!adjustedTopics.includes(item.topic)) adjustedTopics.push(item.topic);
+              });
+
+              return { topicAssessments, totalTopics: adjustedTopics.length };
+            }));
+
+            enrolledStudents.forEach((student) => {
+              let done = 0;
+              let total = 0;
+              subjectData.forEach(({ topicAssessments, totalTopics }) => {
+                const studentTopics = new Set(topicAssessments.filter(item => item.studentId === student.id).map(item => item.topic));
+                done += studentTopics.size;
+                total += totalTopics;
+              });
+              const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+              nextProgress[student.id] = {
+                done,
+                total,
+                percent,
+                label: percent >= 100 ? 'Complete' : percent > 0 ? 'In Progress' : 'Not Started',
+              };
+            });
+          } else {
+            const subjects = getAssessmentSubjects(user.assignedClass).map(item => item.id);
+            const total = subjects.reduce((sum, subject) => {
+              const themes = getDefaultThemesForSubject(user.assignedClass, termId, subject);
+              return sum + themes.reduce(
+                (inner, _theme, index) => inner + getDefaultTopicsForTheme(user.assignedClass, termId, subject, String(index)).length,
+                0
+              );
+            }, 0);
+
+            enrolledStudents.forEach((student) => {
+              const done = Object.values(map[student.id]?.rawScores || {}).filter(Boolean).length;
+              const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+              nextProgress[student.id] = {
+                done,
+                total,
+                percent,
+                label: map[student.id]?.isComplete ? 'Complete' : percent > 0 ? 'In Progress' : 'Not Started',
+              };
+            });
+          }
+          setProgressMap(nextProgress);
 
           // Save to cache
           sessionStorage.setItem(`myclass_${user.id}_${user.assignedClass}_${termId}`, JSON.stringify({
             students: data,
             terms: termsData,
             isSpecialNeedsTeacher: isSpecial,
-            records: map
+            records: map,
+            progressMap: nextProgress
           }));
 
         } catch (error) {
@@ -245,12 +326,6 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                 onClick={() => setToast({show:true, msg:'Assessments submitted to admin!'})}>
                 <Send size={13}/> Submit
               </button>
-              {!isGrade1To7Teacher && (
-                <button className="bo"
-                  onClick={() => navigate('/teacher/class-list-form')}>
-                  Class List Form
-                </button>
-              )}
               <button className="bo"
                 onClick={() => navigate('/teacher/summary-form')}>
                 Summary Form
@@ -274,7 +349,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                 <tr style={{ background:'#f8fafc' }}>
                   <th className="rth">Student</th>
                   <th className="rth hm">Status</th>
-                  <th className="rth hm">Stage</th>
+                  {!isGrade1To7Teacher && <th className="rth hm">Stage</th>}
                   <th className="rth">Assessment</th>
                   <th className="rth" style={{ textAlign:'right' }}>Action</th>
                 </tr>
@@ -283,6 +358,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                 {filtered.map(s => {
                   const isC = records[s.id]?.isComplete;
                   const g0 = s.grade === 'Grade 0';
+                  const progress = progressMap[s.id] || { done: 0, total: 0, percent: 0, label: 'Not Started' };
                   return (
                     <tr key={s.id} className="hrow" style={{ borderBottom:'1px solid #f8fafc' }}>
                       <td className="rtd">
@@ -307,34 +383,41 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                           Enrolled
                         </span>
                       </td>
-                      <td className="rtd hm">
-                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                          <span style={{ fontSize:12, fontWeight:700, color:'#334155' }}>
-                            {s.assignedClass || s.grade}
-                          </span>
-                          {s.stage && (
-                            <span style={{ background:'#0f172a', color:'white', fontSize:9,
-                              fontWeight:800, padding:'2px 7px', borderRadius:4,
-                              textTransform:'uppercase' }}>S{s.stage}</span>
-                          )}
-                        </div>
-                      </td>
+                      {!isGrade1To7Teacher && (
+                        <td className="rtd hm">
+                          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                            <span style={{ fontSize:12, fontWeight:700, color:'#334155' }}>
+                              {s.assignedClass || s.grade}
+                            </span>
+                            {s.stage && (
+                              <span style={{ background:'#0f172a', color:'white', fontSize:9,
+                                fontWeight:800, padding:'2px 7px', borderRadius:4,
+                                textTransform:'uppercase' }}>S{s.stage}</span>
+                            )}
+                          </div>
+                        </td>
+                      )}
                       <td className="rtd">
-                        {g0 ? (
-                          isC ? (
+                        <div style={{ minWidth:180 }}>
+                          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:6 }}>
                             <span style={{ display:'inline-flex', alignItems:'center', gap:5,
-                              color:'#16a34a', fontWeight:800, fontSize:11,
-                              textTransform:'uppercase', letterSpacing:'.06em' }}>
-                              <CheckCircle size={13}/> Complete
+                              color: progress.percent >= 100 ? '#16a34a' : progress.percent > 0 ? '#2563eb' : '#b45309',
+                              fontWeight:800, fontSize:11, textTransform:'uppercase', letterSpacing:'.06em' }}>
+                              {progress.percent >= 100 ? <CheckCircle size={13}/> : <Clock size={13}/>}
+                              {g0 && isC ? 'Complete' : progress.label}
                             </span>
-                          ) : (
-                            <span style={{ display:'inline-flex', alignItems:'center', gap:5,
-                              color:'#b45309', fontWeight:800, fontSize:11,
-                              textTransform:'uppercase', letterSpacing:'.06em' }}>
-                              <Clock size={13}/> Pending
+                            <span style={{ fontSize:11, fontWeight:800, color:'#475569' }}>
+                              {progress.done}/{progress.total} · {progress.percent}%
                             </span>
-                          )
-                        ) : <span style={{ color:'#cbd5e1', fontWeight:700 }}>—</span>}
+                          </div>
+                          <div style={{ width:'100%', height:8, borderRadius:999, background:'#e2e8f0', overflow:'hidden' }}>
+                            <div style={{
+                              width: `${progress.percent}%`,
+                              height:'100%',
+                              background: progress.percent >= 100 ? '#16a34a' : progress.percent > 0 ? '#3b82f6' : '#f59e0b'
+                            }}/>
+                          </div>
+                        </div>
                       </td>
                       <td className="rtd" style={{ textAlign:'right' }}>
                         {g0 && (
@@ -360,7 +443,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ padding:'40px 16px', textAlign:'center',
+                    <td colSpan={isGrade1To7Teacher ? 4 : 5} style={{ padding:'40px 16px', textAlign:'center',
                       color:'#cbd5e1', fontWeight:800, fontSize:11,
                       textTransform:'uppercase', letterSpacing:'.1em' }}>
                       No learners found
