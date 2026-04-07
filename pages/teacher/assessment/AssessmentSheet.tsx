@@ -1,0 +1,942 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
+import { getCustomTopicEntries, getStudentsByAssignedClass, getTopicAssessments, getTopicOverrides } from '../../../services/dataService';
+import { CustomTopicEntry, Student, TopicAssessmentRecord, TopicOverride } from '../../../types';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import {
+  getDefaultThemesForSubject,
+  getDefaultTopicsForTheme,
+  getGradeDisplayValue,
+  getSubjectLabel,
+  isGrade1To7Class,
+} from '../../../utils/assessmentWorkflow';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Convert an image URL to a base64 data string for embedding in PDF / Excel */
+async function urlToBase64(url: string): Promise<{ data: string; format: string }> {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      const format = blob.type.includes('png') ? 'PNG' : 'JPEG';
+      // Strip the data:image/...;base64, prefix for jsPDF
+      const base64 = result.split(',')[1];
+      resolve({ data: base64, format });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Grade symbol from percentage */
+const getSymbol = (average: number | null): string => {
+  if (average === null) return '';
+  if (average >= 80) return 'A';
+  if (average >= 70) return 'B';
+  if (average >= 60) return 'C';
+  if (average >= 50) return 'D';
+  if (average >= 40) return 'E';
+  return 'U';
+};
+
+/** Abbreviation map — preferred short forms before truncation */
+const TOPIC_ABBREV: Record<string, string> = {
+  'Listening and Responding': 'Listening & Responding',
+  'Speaking and Communicating': 'Speaking & Communicating',
+  'Reading and Viewing': 'Reading & Viewing',
+};
+
+/**
+ * Return a single-line label for a topic header cell.
+ * The rotated column is ~7rem tall (~112px). At 0.6rem font that's ~18 chars
+ * before it starts to look cramped. We hard-cap at MAX_CHARS characters;
+ * anything longer is sliced and a dash appended so the reader knows it's cut.
+ */
+const MAX_TOPIC_CHARS = 22; // characters visible in one rotated line at 0.6rem
+
+const formatTopicName = (topic: string): string => {
+  const label = TOPIC_ABBREV[topic] ?? topic;
+  if (label.length <= MAX_TOPIC_CHARS) return label;
+  // Truncate at last space within MAX_TOPIC_CHARS - 1, then append '-'
+  const slice = label.substring(0, MAX_TOPIC_CHARS - 1);
+  const lastSpace = slice.lastIndexOf(' ');
+  const cut = lastSpace > MAX_TOPIC_CHARS / 2 ? slice.substring(0, lastSpace) : slice;
+  return cut + '-';
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+export default function AssessmentSheet({ user }: { user: any }) {
+  const { subject } = useParams<{ subject: string }>();
+  const navigate = useNavigate();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [assessmentsT1, setAssessmentsT1] = useState<TopicAssessmentRecord[]>([]);
+  const [assessmentsT2, setAssessmentsT2] = useState<TopicAssessmentRecord[]>([]);
+  const [assessmentsT3, setAssessmentsT3] = useState<TopicAssessmentRecord[]>([]);
+  const [customTopicsT1, setCustomTopicsT1] = useState<CustomTopicEntry[]>([]);
+  const [customTopicsT2, setCustomTopicsT2] = useState<CustomTopicEntry[]>([]);
+  const [customTopicsT3, setCustomTopicsT3] = useState<CustomTopicEntry[]>([]);
+  const [overridesT1, setOverridesT1] = useState<TopicOverride[]>([]);
+  const [overridesT2, setOverridesT2] = useState<TopicOverride[]>([]);
+  const [overridesT3, setOverridesT3] = useState<TopicOverride[]>([]);
+  const [loading, setLoading] = useState(true);
+  const className = user?.assignedClass || '';
+  const standardWorkflow = isGrade1To7Class(className);
+  const subjectLabel = getSubjectLabel(subject || '', className);
+
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  const getTopicsForTerm = (termId: string, termAssessments: TopicAssessmentRecord[]) => {
+    const customTopics =
+      termId === 'term-1' ? customTopicsT1 :
+      termId === 'term-2' ? customTopicsT2 :
+      customTopicsT3;
+    const overrides =
+      termId === 'term-1' ? overridesT1 :
+      termId === 'term-2' ? overridesT2 :
+      overridesT3;
+
+    const defaultTopics = standardWorkflow
+      ? getDefaultTopicsForTheme(className, termId, subject || '', 'default').map((item) => item.label)
+      : getDefaultThemesForSubject(className, termId, subject || '')
+          .flatMap((theme, index) =>
+            getDefaultTopicsForTheme(className, termId, subject || '', String(index)).map((item) => item.label)
+          );
+
+    const combinedTopics = defaultTopics.reduce<string[]>((acc, topic) => {
+      const override = overrides.find((item) => item.originalTopic === topic);
+      if (override?.deleted) return acc;
+      acc.push(override?.topic || topic);
+      return acc;
+    }, []);
+
+    customTopics.forEach((item) => {
+      if (!combinedTopics.includes(item.topic)) {
+        combinedTopics.push(item.topic);
+      }
+    });
+
+    termAssessments.forEach((item) => {
+      if (!combinedTopics.includes(item.topic)) {
+        combinedTopics.push(item.topic);
+      }
+    });
+    return combinedTopics;
+  };
+
+  // ── Data fetching ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (user?.assignedClass && subject) {
+      setLoading(true);
+      Promise.all([
+        getStudentsByAssignedClass(user.assignedClass),
+        getTopicAssessments(user.assignedClass, 'term-1', subject),
+        getTopicAssessments(user.assignedClass, 'term-2', subject),
+        getTopicAssessments(user.assignedClass, 'term-3', subject),
+        getCustomTopicEntries(user.assignedClass, 'term-1', subject),
+        getCustomTopicEntries(user.assignedClass, 'term-2', subject),
+        getCustomTopicEntries(user.assignedClass, 'term-3', subject),
+        getTopicOverrides(user.assignedClass, 'term-1', subject),
+        getTopicOverrides(user.assignedClass, 'term-2', subject),
+        getTopicOverrides(user.assignedClass, 'term-3', subject),
+      ])
+        .then(([studentsData, t1, t2, t3, custom1, custom2, custom3, overrides1, overrides2, overrides3]) => {
+          const sorted = [...studentsData].sort((a: Student, b: Student) =>
+            a.name.localeCompare(b.name)
+          );
+          setStudents(sorted);
+          setAssessmentsT1(t1);
+          setAssessmentsT2(t2);
+          setAssessmentsT3(t3);
+          setCustomTopicsT1(custom1);
+          setCustomTopicsT2(custom2);
+          setCustomTopicsT3(custom3);
+          setOverridesT1(overrides1);
+          setOverridesT2(overrides2);
+          setOverridesT3(overrides3);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error('Error fetching sheet data:', err);
+          setLoading(false);
+        });
+    }
+  }, [user, subject]);
+
+  // ── Mark helpers ─────────────────────────────────────────────────────────
+  const getStudentMark = (
+    studentId: string,
+    topic: string,
+    termAssessments: TopicAssessmentRecord[]
+  ) => {
+    const record = termAssessments.find(
+      (a) => a.studentId === studentId && a.topic === topic
+    );
+    return record ? record.mark : null;
+  };
+
+  const calculateStudentTotal = (
+    studentId: string,
+    termAssessments: TopicAssessmentRecord[]
+  ) => {
+    const studentMarks = termAssessments
+      .filter((a) => a.studentId === studentId)
+      .map((a) => a.mark);
+    if (studentMarks.length === 0) return null;
+    return studentMarks.reduce((a, b) => a + b, 0);
+  };
+
+  const calculateStudentAverage = (
+    studentId: string,
+    termAssessments: TopicAssessmentRecord[],
+    termTopics: string[]
+  ) => {
+    const total = calculateStudentTotal(studentId, termAssessments);
+    if (total === null || termTopics.length === 0) return null;
+    const maxMark = standardWorkflow ? 10 : 3;
+    return Math.round((total / (termTopics.length * maxMark)) * 100);
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PDF GENERATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  const generatePDF = async (termData?: { name: string; assessments: TopicAssessmentRecord[] }) => {
+    const termsToGen = termData ? [termData] : [
+      { name: 'Term 1', assessments: assessmentsT1 },
+      { name: 'Term 2', assessments: assessmentsT2 },
+      { name: 'Term 3', assessments: assessmentsT3 },
+    ];
+
+    for (const term of termsToGen) {
+      const termId = term.name.toLowerCase().replace(' ', '-');
+      const termTopics = getTopicsForTerm(termId, term.assessments);
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = 210;
+      const marginL = 10;
+      const marginR = 10;
+      const usableW = pageW - marginL - marginR;
+
+      // ── Logo ────────────────────────────────────────────────────────────────
+      let logoLoaded = false;
+      try {
+        const { data, format } = await urlToBase64(LOGO_URL);
+        doc.addImage(data, format as any, marginL, 6, 18, 18);
+        logoLoaded = true;
+      } catch (e) {
+        console.warn('Logo failed to load for PDF:', e);
+      }
+
+      // ── School header ────────────────────────────────────────────────────────
+      const textStartX = logoLoaded ? marginL + 20 : marginL;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Registered with Ministry Of Education', textStartX, 10);
+      doc.text('Reg. No 7826', textStartX, 15);
+
+      doc.setFontSize(7.5);
+      doc.text('P O Box 3675, Ondangwa', pageW - marginR, 10, { align: 'right' });
+      doc.text('+264 81 666 4074', pageW - marginR, 14, { align: 'right' });
+      doc.text('+264 85 266 4074', pageW - marginR, 18, { align: 'right' });
+      doc.text('circleofhopeacademy@yahoo.com', pageW - marginR, 22, { align: 'right' });
+      doc.text('www.coha-academy.com', pageW - marginR, 26, { align: 'right' });
+
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.4);
+      doc.line(marginL, 28, pageW - marginR, 28);
+
+      // ── Title ────────────────────────────────────────────────────────────────
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`CONTINUOUS ASSESSMENT - ${term.name.toUpperCase()}`, pageW / 2, 34, { align: 'center' });
+
+      // ── Teacher info ─────────────────────────────────────────────────────────
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Teacher: ${user?.name || ''}`, marginL, 40);
+      doc.text(`Grade: ${getGradeDisplayValue(className) || ''}`, marginL, 45);
+      doc.text(`Subject: ${subjectLabel}`, marginL, 50);
+
+      // ── Table setup ──────────────────────────────────────────────────────────
+      const noW = 8;
+      const summaryW = 12;
+      const topicMarkW = Math.max(5, (usableW - noW - 40 - (summaryW * 3)) / Math.max(termTopics.length, 1));
+      const nameW = usableW - noW - (termTopics.length * topicMarkW) - (summaryW * 3);
+
+      const colWidths: number[] = [
+        noW,
+        nameW,
+        ...Array(termTopics.length).fill(topicMarkW),
+        summaryW, summaryW, summaryW,
+      ];
+
+      const topicLabels = termTopics.map(formatTopicName);
+      const termSuffixes = ['TOTAL', 'AVERAGE', 'SYMBOL'];
+      const head = [['No', 'Name', ...topicLabels, ...termSuffixes]];
+
+      const body = students.map((student, index) => {
+        const marks = termTopics.map((topic) => {
+          const m = getStudentMark(student.id, topic, term.assessments);
+          return m !== null ? String(m) : '';
+        });
+        const total = calculateStudentTotal(student.id, term.assessments);
+        const avg = calculateStudentAverage(student.id, term.assessments, termTopics);
+        return [
+          String(index + 1),
+          student.name,
+          ...marks,
+          total !== null ? String(total) : '',
+          avg !== null ? String(avg) : '',
+          getSymbol(avg),
+        ];
+      });
+
+      const symIdx = 2 + termTopics.length + 2;
+      const summaryColIndices = new Set([
+        2 + termTopics.length,
+        2 + termTopics.length + 1,
+        2 + termTopics.length + 2
+      ]);
+
+      autoTable(doc, {
+        startY: 54,
+        head: head,
+        body: body,
+        theme: 'grid',
+        tableWidth: usableW,
+        styles: {
+          fontSize: 7,
+          cellPadding: { top: 1, bottom: 1, left: 0.5, right: 0.5 },
+          halign: 'center',
+          valign: 'middle',
+          lineColor: [0, 0, 0],
+          lineWidth: 0.2,
+          font: 'courier',
+          textColor: [0, 0, 0],
+        },
+        headStyles: {
+          fillColor: [255, 255, 255],
+          textColor: [0, 0, 0],
+          fontStyle: 'normal',
+          fontSize: 6,
+          minCellHeight: 30,
+          halign: 'center',
+          valign: 'bottom',
+          overflow: 'hidden',
+        },
+        columnStyles: (() => {
+          const styles: Record<number, any> = {};
+          colWidths.forEach((w, i) => {
+            styles[i] = { cellWidth: w };
+          });
+          styles[0] = { cellWidth: noW, halign: 'center' };
+          styles[1] = { cellWidth: nameW, halign: 'left', font: 'helvetica', fontSize: 8 };
+          return styles;
+        })(),
+        bodyStyles: {
+          minCellHeight: 6,
+          textColor: [0, 0, 0],
+          fontSize: 7.5,
+        },
+        willDrawCell: (data) => {
+          if (data.row.section === 'head' && data.column.index >= 2) {
+            data.cell.text = [];
+          }
+        },
+        didDrawCell: (data) => {
+          const { x, y, width, height } = data.cell;
+
+          if (data.row.section === 'head' && data.column.index >= 2) {
+            const label = head[0][data.column.index];
+            const isSummary = data.column.index >= termTopics.length + 2;
+
+            doc.saveGraphicsState();
+            doc.setFontSize(6);
+            doc.setFont('helvetica', isSummary ? 'bold' : 'normal');
+            doc.setTextColor(0, 0, 0);
+            doc.text(label, x + width / 2 + 1.2, y + height - 1.5, {
+              angle: 90,
+              align: 'left',
+            });
+            doc.restoreGraphicsState();
+          }
+
+          if (data.column.index === symIdx) {
+            doc.saveGraphicsState();
+            doc.setDrawColor(180, 0, 0);
+            doc.setLineWidth(0.7);
+            doc.line(x + width, y, x + width, y + height);
+            doc.restoreGraphicsState();
+          }
+
+          if (data.row.section === 'body' && summaryColIndices.has(data.column.index)) {
+            const val = (data.row.raw as any[])[data.column.index];
+            if (val !== undefined && val !== '') {
+              doc.saveGraphicsState();
+              doc.setFillColor(255, 255, 255);
+              doc.rect(x + 0.1, y + 0.1, width - 0.2, height - 0.2, 'F');
+              doc.setFontSize(7.5);
+              const isSymbol = data.column.index === symIdx;
+              if (isSymbol && val === 'U') {
+                doc.setTextColor(200, 0, 0);
+              } else {
+                doc.setTextColor(0, 0, 0);
+              }
+              doc.setFont('helvetica', 'bold');
+              doc.text(String(val), x + width / 2, y + height / 2 + 1, { align: 'center' });
+              doc.restoreGraphicsState();
+            }
+          }
+
+          if (
+            data.row.section === 'body' &&
+            data.row.index % 2 === 1 &&
+            !summaryColIndices.has(data.column.index)
+          ) {
+            doc.saveGraphicsState();
+            doc.setFillColor(248, 249, 250);
+            doc.rect(x + 0.1, y + 0.1, width - 0.2, height - 0.2, 'F');
+            const val = (data.row.raw as any[])[data.column.index];
+            if (val !== undefined && val !== '') {
+              doc.setFontSize(7.5);
+              doc.setFont('courier', 'normal');
+              doc.setTextColor(0, 0, 0);
+              doc.text(
+                String(val),
+                data.column.index === 1 ? x + 0.7 : x + width / 2,
+                y + height / 2 + 1,
+                { align: data.column.index === 1 ? 'left' : 'center' }
+              );
+            }
+            doc.restoreGraphicsState();
+          }
+        },
+        margin: { left: marginL, right: marginR },
+      });
+
+      doc.save(`${subjectLabel}_Assessment_Sheet_${term.name.replace(' ', '_')}.pdf`);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXCEL GENERATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  const generateExcel = async (termData?: { name: string; assessments: TopicAssessmentRecord[] }) => {
+    const termsToGen = termData ? [termData] : [
+      { name: 'Term 1', assessments: assessmentsT1 },
+      { name: 'Term 2', assessments: assessmentsT2 },
+      { name: 'Term 3', assessments: assessmentsT3 },
+    ];
+
+    for (const term of termsToGen) {
+      const termId = term.name.toLowerCase().replace(' ', '-');
+      const termTopics = getTopicsForTerm(termId, term.assessments);
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet(term.name, {
+        pageSetup: {
+          paperSize: 9,
+          orientation: 'portrait',
+          fitToPage: true,
+          fitToWidth: 1,
+          fitToHeight: 0,
+          margins: {
+            left: 0.25,
+            right: 0.25,
+            top: 0.25,
+            bottom: 0.25,
+            header: 0,
+            footer: 0,
+          },
+        },
+      });
+
+      const termCols = termTopics.length + 3;
+      const totalCols = 2 + termCols;
+
+      const colLetter = (n: number) => sheet.getColumn(n).letter;
+      const lastLetter = colLetter(totalCols);
+
+      const thinBorder: Partial<ExcelJS.Borders> = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+      const symBorder: Partial<ExcelJS.Borders> = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'medium', color: { argb: 'FFCC0000' } },
+      };
+
+      try {
+        const res = await fetch(LOGO_URL);
+        const buf = await res.arrayBuffer();
+        const imageId = workbook.addImage({
+          buffer: buf as any,
+          extension: 'png',
+        });
+        sheet.addImage(imageId, {
+          tl: { col: 0, row: 0 } as any,
+          br: { col: 1.8, row: 5 } as any,
+          editAs: 'oneCell',
+        });
+      } catch (e) {
+        console.warn('Logo failed for Excel:', e);
+      }
+
+      const hdrRows = [
+        ['Registered with Ministry Of Education', null, 'P O Box 3675, Ondangwa'],
+        ['Reg. No 7826', null, '+264 81 666 4074'],
+        [null, null, '+264 85 266 4074'],
+        [null, null, 'circleofhopeacademy@yahoo.com'],
+        [null, null, 'www.coha-academy.com'],
+      ];
+      hdrRows.forEach(([left, , right], i) => {
+        const rowNum = i + 1;
+        if (left) {
+          sheet.mergeCells(`C${rowNum}:E${rowNum}`);
+          const c = sheet.getCell(`C${rowNum}`);
+          c.value = left;
+          c.font = { bold: true, size: 9 };
+        }
+        if (right) {
+          sheet.mergeCells(`F${rowNum}:${lastLetter}${rowNum}`);
+          const c = sheet.getCell(`F${rowNum}`);
+          c.value = right;
+          c.font = { bold: true, size: 9 };
+          c.alignment = { horizontal: 'right' };
+        }
+      });
+
+      sheet.mergeCells(`A7:${lastLetter}7`);
+      const titleCell = sheet.getCell('A7');
+      titleCell.value = `CONTINUOUS ASSESSMENT - ${term.name.toUpperCase()}`;
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      titleCell.font = { bold: true, size: 14 };
+      sheet.getRow(7).height = 22;
+
+      const infoRows: [string, string][] = [
+        [`A9`, `Teacher: ${user?.name || ''}`],
+        [`A10`, `Grade: ${getGradeDisplayValue(className) || ''}`],
+        [`A11`, `Subject: ${subjectLabel}`],
+      ];
+      infoRows.forEach(([cell, val]) => {
+        const c = sheet.getCell(cell);
+        c.value = val;
+        c.font = { bold: true, size: 10 };
+      });
+
+      sheet.getColumn(1).width = 4.5;
+      sheet.getColumn(2).width = 26;
+      for (let i = 3; i <= totalCols; i++) {
+        const relIdx = (i - 3);
+        const isSummary = relIdx >= termTopics.length;
+        sheet.getColumn(i).width = isSummary ? 10 : 6;
+      }
+
+      const HDR_ROW = 13;
+      sheet.getRow(HDR_ROW).height = 120;
+      const hdrBaseStyle: Partial<ExcelJS.Style> = {
+        alignment: { textRotation: 90, vertical: 'bottom', horizontal: 'center', wrapText: false },
+        border: thinBorder,
+      };
+
+      ['No', 'Name'].forEach((v, i) => {
+        const c = sheet.getCell(HDR_ROW, i + 1);
+        c.value = v;
+        c.font = { bold: true, size: 9 };
+        c.alignment = { horizontal: 'center', vertical: 'bottom', wrapText: true };
+        c.border = thinBorder;
+      });
+
+      let col = 3;
+      termTopics.forEach((topic) => {
+        const c = sheet.getCell(HDR_ROW, col++);
+        c.value = formatTopicName(topic);
+        c.font = { size: 8 };
+        Object.assign(c, { ...hdrBaseStyle });
+        c.border = thinBorder;
+      });
+
+      ['TOTAL', 'AVERAGE', 'SYMBOL'].forEach((label, li) => {
+        const isSymbol = li === 2;
+        const c = sheet.getCell(HDR_ROW, col++);
+        c.value = label;
+        c.font = { bold: true, size: 8 };
+        c.alignment = {
+          textRotation: 90,
+          vertical: 'bottom',
+          horizontal: 'center',
+          wrapText: false,
+        };
+        c.border = isSymbol ? symBorder : thinBorder;
+      });
+
+      const DATA_START = 14;
+      students.forEach((student, index) => {
+        const rowNum = DATA_START + index;
+        const row = sheet.getRow(rowNum);
+        row.height = 16;
+        const fillColor = index % 2 === 1 ? 'FFF8F9FA' : 'FFFFFFFF';
+        const applyFill = (c: ExcelJS.Cell) => {
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
+        };
+
+        const noCell = row.getCell(1);
+        noCell.value = index + 1;
+        noCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        noCell.font = { size: 9 };
+        noCell.border = thinBorder;
+        applyFill(noCell);
+
+        const nameCell = row.getCell(2);
+        nameCell.value = student.name;
+        nameCell.alignment = { horizontal: 'left', vertical: 'middle' };
+        nameCell.font = { size: 9 };
+        nameCell.border = thinBorder;
+        applyFill(nameCell);
+
+        let colIdx = 3;
+        termTopics.forEach((topic) => {
+          const mark = getStudentMark(student.id, topic, term.assessments);
+          const c = row.getCell(colIdx++);
+          c.value = mark !== null ? mark : '';
+          c.alignment = { horizontal: 'center', vertical: 'middle' };
+          c.font = { name: 'Courier New', size: 9 };
+          c.border = thinBorder;
+          applyFill(c);
+        });
+
+        const total = calculateStudentTotal(student.id, term.assessments);
+        const avg = calculateStudentAverage(student.id, term.assessments, termTopics);
+        const sym = getSymbol(avg);
+
+        const totalCell = row.getCell(colIdx++);
+        totalCell.value = total !== null ? total : '';
+        totalCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        totalCell.font = { bold: true, size: 10 };
+        totalCell.border = thinBorder;
+        applyFill(totalCell);
+
+        const avgCell = row.getCell(colIdx++);
+        avgCell.value = avg !== null ? avg : '';
+        avgCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        avgCell.font = { bold: true, size: 10 };
+        avgCell.border = thinBorder;
+        applyFill(avgCell);
+
+        const symCell = row.getCell(colIdx++);
+        symCell.value = sym;
+        symCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        symCell.font = {
+          bold: true,
+          size: 11,
+          color: { argb: sym === 'U' ? 'FFCC0000' : 'FF000000' },
+        };
+        symCell.border = symBorder;
+        applyFill(symCell);
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      saveAs(blob, `${subjectLabel}_Assessment_Sheet_${term.name.replace(' ', '_')}.xlsx`);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (loading) {
+    return (
+      <div className="p-8 text-center text-slate-500 text-sm">Loading sheet data…</div>
+    );
+  }
+
+  return (
+    <div className="w-full px-4 py-6 print:p-0 print:m-0">
+      <style>{`
+        /* ── Print ──────────────────────────────────────────── */
+        @media print {
+          body * { visibility: hidden; }
+          #assessment-sheet, #assessment-sheet * { visibility: visible; }
+          #assessment-sheet {
+            position: absolute; left: 0; top: 0; width: 100%;
+          }
+          @page { size: portrait; margin: 10mm; }
+        }
+
+        /* ══════════════════════════════════════════════════════
+           TOPIC HEADER CELLS
+           Each <th> is a fixed-height flex container that anchors
+           its child span to the BOTTOM so every label starts at
+           the same baseline regardless of text length.
+           ══════════════════════════════════════════════════════ */
+
+        /* The <th> itself acts as the clipping + alignment box */
+        th.topic-th {
+          height: 7.5rem;           /* fixed row height */
+          overflow: hidden;         /* hard clip — nothing escapes */
+          padding: 0 !important;
+          vertical-align: bottom;
+          /* flex column so child spans stack to the bottom */
+          display: table-cell;      /* keep table-cell for colgroup */
+          position: relative;
+        }
+
+        /* Inner wrapper — absolutely fills the <th> and aligns child to bottom */
+        th.topic-th .th-inner {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: flex-end;    /* push text to bottom ← KEY */
+          justify-content: center;
+          overflow: hidden;
+        }
+
+        /* The rotated span — strictly ONE line, no wrap, clipped */
+        .rotate-header {
+          writing-mode: vertical-rl;
+          transform: rotate(180deg);
+          white-space: nowrap;      /* one line only */
+          overflow: hidden;
+          text-overflow: clip;
+          font-size: 0.6rem;
+          line-height: 1;
+          /* cap visible length = cell height */
+          max-height: 7.4rem;
+          display: block;
+          padding-bottom: 2px;
+        }
+
+        /* Bold variant for TOTAL / AVERAGE / SYMBOL */
+        .rotate-header-bold {
+          writing-mode: vertical-rl;
+          transform: rotate(180deg);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: clip;
+          font-size: 0.6rem;
+          font-weight: 700;
+          line-height: 1;
+          max-height: 7.4rem;
+          display: block;
+          padding-bottom: 2px;
+        }
+
+        /* ── Table fills page width ─────────────────────────── */
+        #assessment-table {
+          width: 100%;
+          table-layout: fixed;
+          border-collapse: collapse;
+        }
+      `}</style>
+
+      {/* ── Toolbar ──────────────────────────────────────────────────────── */}
+      <div className="mb-6 flex justify-between items-center print:hidden">
+        <div>
+          <button
+            onClick={() => navigate('/teacher/assess')}
+            className="mb-3 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
+          >
+            <ArrowLeft size={20} className="text-slate-600" />
+          </button>
+          <h1 className="text-2xl font-bold text-slate-900">{subjectLabel} Assessment Sheet</h1>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => generateExcel()}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm"
+          >
+            <FileSpreadsheet size={17} /> Excel
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors font-medium text-sm"
+          >
+            <Printer size={17} /> Print
+          </button>
+          <button
+            onClick={() => generatePDF()}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+          >
+            <Download size={17} /> PDF
+          </button>
+        </div>
+      </div>
+
+      {/* ── Sheet preview ────────────────────────────────────────────────── */}
+      <div className="space-y-8 print:space-y-0">
+        {[
+          { name: 'Term 1', assessments: assessmentsT1 },
+          { name: 'Term 2', assessments: assessmentsT2 },
+          { name: 'Term 3', assessments: assessmentsT3 },
+        ].map((term, termIdx) => {
+          const termId = term.name.toLowerCase().replace(' ', '-');
+          const termTopics = getTopicsForTerm(termId, term.assessments);
+
+          return (
+          <div
+            key={term.name}
+            className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto print:border-none print:shadow-none print:break-after-page"
+          >
+            <div
+              id={termIdx === 0 ? "assessment-sheet" : undefined}
+              className="p-6 bg-white print:p-0"
+              style={{ minWidth: '700px' }}
+            >
+              {/* School header */}
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 flex-shrink-0 overflow-hidden">
+                    <img
+                      src={LOGO_URL}
+                      alt="School Logo"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="text-xs font-bold leading-5">
+                    <p>Registered with Ministry Of Education</p>
+                    <p>Reg. No 7826</p>
+                  </div>
+                </div>
+                <div className="text-xs font-bold text-right leading-5">
+                  <p>P O Box 3675, Ondangwa</p>
+                  <p>+264 81 666 4074</p>
+                  <p>+264 85 266 4074</p>
+                  <p>circleofhopeacademy@yahoo.com</p>
+                  <p>www.coha-academy.com</p>
+                </div>
+              </div>
+
+              <hr className="border-black mb-3" />
+
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="font-bold text-base uppercase tracking-widest">
+                  Continuous Assessment - {term.name}
+                </h2>
+                <div className="flex gap-2 print:hidden">
+                  <button
+                    onClick={() => generateExcel(term)}
+                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                    title="Download Term Excel"
+                  >
+                    <FileSpreadsheet size={16} />
+                  </button>
+                  <button
+                    onClick={() => generatePDF(term)}
+                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                    title="Download Term PDF"
+                  >
+                    <Download size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-xs font-semibold space-y-0.5 mb-3">
+                <p>Teacher: <span className="font-normal underline underline-offset-4 px-2">{user?.name}</span></p>
+                <p>Grade: <span className="font-normal underline underline-offset-4 px-2">{getGradeDisplayValue(className) || ''}</span></p>
+                <p>Subject: <span className="font-normal underline underline-offset-4 px-2">{subjectLabel}</span></p>
+              </div>
+
+              {/* ── Assessment Table ──────────────────────────────────────────── */}
+              <table className="w-full border-2 border-black text-xs table-fixed border-collapse">
+                <colgroup>
+                  <col style={{ width: '1.8rem' }} />
+                  <col style={{ width: 'auto' }} />
+                  {termTopics.map((_, i) => (
+                    <col key={`tc-${i}`} style={{ width: '1.6rem' }} />
+                  ))}
+                  <col style={{ width: '2rem' }} />
+                  <col style={{ width: '2rem' }} />
+                  <col style={{ width: '2rem' }} />
+                </colgroup>
+
+                <thead>
+                  <tr style={{ height: '7.5rem' }}>
+                    <th className="topic-th border border-black">
+                      <div className="th-inner">
+                        <span className="rotate-header-bold">No</span>
+                      </div>
+                    </th>
+                    <th className="border border-black p-1 align-bottom text-left font-bold text-xs">
+                      Student Name
+                    </th>
+                    {termTopics.map((t, i) => (
+                      <th key={`h-${i}`} className="topic-th border border-black">
+                        <div className="th-inner">
+                          <span className="rotate-header">{formatTopicName(t)}</span>
+                        </div>
+                      </th>
+                    ))}
+                    <th className="topic-th border border-black">
+                      <div className="th-inner">
+                        <span className="rotate-header-bold">TOTAL</span>
+                      </div>
+                    </th>
+                    <th className="topic-th border border-black">
+                      <div className="th-inner">
+                        <span className="rotate-header-bold">AVERAGE</span>
+                      </div>
+                    </th>
+                    <th className="topic-th border border-black" style={{ borderRight: '2.5px solid #cc0000' }}>
+                      <div className="th-inner">
+                        <span className="rotate-header-bold">SYMBOL</span>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {students.map((student, index) => {
+                    const total = calculateStudentTotal(student.id, term.assessments);
+                    const avg = calculateStudentAverage(student.id, term.assessments, termTopics);
+                    const rowBg = index % 2 === 1 ? 'bg-slate-50' : 'bg-white';
+
+                    return (
+                      <tr key={student.id} className={rowBg}>
+                        <td className="border border-black p-0.5 text-center font-mono">
+                          {index + 1}
+                        </td>
+                        <td className="border border-black p-0.5 px-1 whitespace-nowrap font-sans">
+                          {student.name}
+                        </td>
+                        {termTopics.map((topic, i) => (
+                          <td key={`m-${i}`} className="border border-black p-0.5 text-center font-mono">
+                            {getStudentMark(student.id, topic, term.assessments) ?? ''}
+                          </td>
+                        ))}
+                        <td className="border border-black p-0.5 text-center font-mono font-bold">
+                          {total ?? ''}
+                        </td>
+                        <td className="border border-black p-0.5 text-center font-mono font-bold">
+                          {avg ?? ''}
+                        </td>
+                        <td className="border border-black p-0.5 text-center font-mono font-bold" style={{ borderRight: '2.5px solid #cc0000' }}>
+                          <span className={getSymbol(avg) === 'U' ? 'text-red-700' : ''}>
+                            {getSymbol(avg)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
