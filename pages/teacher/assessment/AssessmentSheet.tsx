@@ -20,6 +20,8 @@ import { navigateBackOr } from '../../../utils/navigation';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const PDF_FONT_FAMILY = 'helvetica';
+const EXCEL_FONT_FAMILY = 'Arial';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +41,22 @@ async function urlToBase64(url: string): Promise<{ data: string; format: string 
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+function drawPdfLabelValue(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  label: string,
+  value: string,
+  fontSize = 8
+) {
+  doc.setFontSize(fontSize);
+  doc.setFont(PDF_FONT_FAMILY, 'bold');
+  doc.text(label, x, y);
+  const labelWidth = doc.getTextWidth(label);
+  doc.setFont(PDF_FONT_FAMILY, 'normal');
+  doc.text(value, x + labelWidth + 1, y);
 }
 
 /** Grade symbol from percentage */
@@ -219,7 +237,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
       // ── School header ────────────────────────────────────────────────────────
       const textStartX = data ? marginL + 20 : marginL;
       doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
+      doc.setFont(PDF_FONT_FAMILY, 'bold');
       doc.text('Registered with Ministry Of Education', textStartX, 10);
       doc.text('Reg. No 7826', textStartX, 15);
 
@@ -236,15 +254,13 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
       // ── Title ────────────────────────────────────────────────────────────────
       doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
+      doc.setFont(PDF_FONT_FAMILY, 'bold');
       doc.text(`CONTINUOUS ASSESSMENT - ${term.name.toUpperCase()}`, pageW / 2, 34, { align: 'center' });
 
       // ── Teacher info ─────────────────────────────────────────────────────────
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Teacher: ${user?.name || ''}`, marginL, 40);
-      doc.text(`Grade: ${getGradeDisplayValue(className) || ''}`, marginL, 45);
-      doc.text(`Subject: ${subjectLabel}`, marginL, 50);
+      drawPdfLabelValue(doc, marginL, 40, 'Teacher:', user?.name || '');
+      drawPdfLabelValue(doc, marginL, 45, 'Class:', getGradeDisplayValue(className) || '');
+      drawPdfLabelValue(doc, marginL, 50, 'Subject:', subjectLabel);
 
       // ── Table setup ──────────────────────────────────────────────────────────
       const noW = 8;
@@ -265,7 +281,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
       const topicLabels = termTopics.map((topic) => getTopicLabelParts(topic, standardWorkflow ? MAX_TOPIC_CHARS : undefined));
       const termSuffixes = ['TOTAL', 'AVERAGE', 'SYMBOL'];
-      const head = [['No', 'Name', ...topicLabels.map((item) => item.display), ...termSuffixes]];
+      const head = [['No', 'Student Name', ...topicLabels.map((item) => item.display), ...termSuffixes]];
 
       const body = students.map((student, index) => {
         const marks = termTopics.map((topic) => {
@@ -304,7 +320,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
           valign: 'middle',
           lineColor: [0, 0, 0],
           lineWidth: 0.2,
-          font: 'courier',
+          font: PDF_FONT_FAMILY,
           textColor: [0, 0, 0],
         },
         headStyles: {
@@ -323,7 +339,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
             styles[i] = { cellWidth: w };
           });
           styles[0] = { cellWidth: noW, halign: 'center' };
-          styles[1] = { cellWidth: nameW, halign: 'left', font: 'helvetica', fontSize: 8 };
+          styles[1] = { cellWidth: nameW, halign: 'left', font: PDF_FONT_FAMILY, fontSize: 8 };
           return styles;
         })(),
         bodyStyles: {
@@ -339,6 +355,13 @@ export default function AssessmentSheet({ user }: { user: any }) {
             data.cell.text = [];
           }
         },
+        didParseCell: (data) => {
+          if (data.row.section === 'head' && data.column.index === 1) {
+            data.cell.styles.halign = 'left';
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.font = PDF_FONT_FAMILY;
+          }
+        },
         didDrawCell: (data) => {
           const { x, y, width, height } = data.cell;
 
@@ -349,7 +372,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
             doc.saveGraphicsState();
             doc.setFontSize(6);
             if (isSummary) {
-              doc.setFont('helvetica', 'bold');
+              doc.setFont(PDF_FONT_FAMILY, 'bold');
               doc.setTextColor(0, 0, 0);
               doc.text(termSuffixes[topicIndex - termTopics.length], x + width / 2 + 1.2, y + height - 1.5, {
                 angle: 90,
@@ -357,7 +380,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
               });
             } else {
               const lines = getTopicHeaderLines(termTopics[topicIndex], standardWorkflow ? 22 : 24);
-              doc.setFont('helvetica', 'normal');
+              doc.setFont(PDF_FONT_FAMILY, 'normal');
               doc.setTextColor(0, 0, 0);
               doc.text(lines, x + width / 2 + 1.2, y + height - 1.5, {
                 angle: 90,
@@ -388,7 +411,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
               } else {
                 doc.setTextColor(0, 0, 0);
               }
-              doc.setFont('helvetica', 'bold');
+              doc.setFont(PDF_FONT_FAMILY, 'bold');
               doc.text(String(val), x + width / 2, y + height / 2 + 1, { align: 'center' });
               doc.restoreGraphicsState();
             }
@@ -405,7 +428,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
             const val = (data.row.raw as any[])[data.column.index];
             if (val !== undefined && val !== '') {
               doc.setFontSize(7.5);
-              doc.setFont('courier', 'normal');
+              doc.setFont(PDF_FONT_FAMILY, 'normal');
               doc.setTextColor(0, 0, 0);
               doc.text(
                 String(val),
@@ -514,13 +537,13 @@ export default function AssessmentSheet({ user }: { user: any }) {
           sheet.mergeCells(`C${rowNum}:E${rowNum}`);
           const c = sheet.getCell(`C${rowNum}`);
           c.value = left;
-          c.font = { bold: true, size: 9 };
+          c.font = { name: EXCEL_FONT_FAMILY, bold: true, size: 9 };
         }
         if (right) {
           sheet.mergeCells(`F${rowNum}:${lastLetter}${rowNum}`);
           const c = sheet.getCell(`F${rowNum}`);
           c.value = right;
-          c.font = { bold: true, size: 9 };
+          c.font = { name: EXCEL_FONT_FAMILY, bold: true, size: 9 };
           c.alignment = { horizontal: 'right' };
         }
       });
@@ -529,18 +552,22 @@ export default function AssessmentSheet({ user }: { user: any }) {
       const titleCell = sheet.getCell('A7');
       titleCell.value = `CONTINUOUS ASSESSMENT - ${term.name.toUpperCase()}`;
       titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      titleCell.font = { bold: true, size: 14 };
+      titleCell.font = { name: EXCEL_FONT_FAMILY, bold: true, size: 14 };
       sheet.getRow(7).height = 22;
 
-      const infoRows: [string, string][] = [
-        [`A9`, `Teacher: ${user?.name || ''}`],
-        [`A10`, `Grade: ${getGradeDisplayValue(className) || ''}`],
-        [`A11`, `Subject: ${subjectLabel}`],
+      const infoRows: [string, string, string][] = [
+        ['A9', 'Teacher:', user?.name || ''],
+        ['A10', 'Class:', getGradeDisplayValue(className) || ''],
+        ['A11', 'Subject:', subjectLabel],
       ];
-      infoRows.forEach(([cell, val]) => {
+      infoRows.forEach(([cell, label, value]) => {
         const c = sheet.getCell(cell);
-        c.value = val;
-        c.font = { bold: true, size: 10 };
+        c.value = {
+          richText: [
+            { font: { name: EXCEL_FONT_FAMILY, bold: true, size: 10 }, text: `${label} ` },
+            { font: { name: EXCEL_FONT_FAMILY, size: 10 }, text: value },
+          ],
+        };
       });
 
       sheet.getColumn(1).width = 4.5;
@@ -554,15 +581,19 @@ export default function AssessmentSheet({ user }: { user: any }) {
       const HDR_ROW = 13;
       sheet.getRow(HDR_ROW).height = headerHeight;
       const hdrBaseStyle: Partial<ExcelJS.Style> = {
-        alignment: { textRotation: 90, vertical: 'middle', horizontal: 'center', wrapText: true },
+        alignment: { textRotation: 90, vertical: 'bottom', horizontal: 'center', wrapText: false },
         border: thinBorder,
       };
 
-      ['No', 'Name'].forEach((v, i) => {
+      ['No', 'Student Name'].forEach((v, i) => {
         const c = sheet.getCell(HDR_ROW, i + 1);
         c.value = v;
-        c.font = { bold: true, size: 9 };
-        c.alignment = { horizontal: 'center', vertical: 'bottom', wrapText: true };
+        c.font = { name: EXCEL_FONT_FAMILY, bold: true, size: 9 };
+        c.alignment = {
+          horizontal: i === 1 ? 'left' : 'center',
+          vertical: 'bottom',
+          wrapText: true,
+        };
         c.border = thinBorder;
       });
 
@@ -571,7 +602,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
         const lines = getTopicHeaderLines(topic, standardWorkflow ? 22 : 24);
         const c = sheet.getCell(HDR_ROW, col++);
         c.value = lines[0];
-        c.font = { size: 8 };
+        c.font = { name: EXCEL_FONT_FAMILY, size: 8 };
         Object.assign(c, { ...hdrBaseStyle });
         c.border = thinBorder;
       });
@@ -580,7 +611,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
         const isSymbol = li === 2;
         const c = sheet.getCell(HDR_ROW, col++);
         c.value = label;
-        c.font = { bold: true, size: 8 };
+        c.font = { name: EXCEL_FONT_FAMILY, bold: true, size: 8 };
         c.alignment = {
           textRotation: 90,
           vertical: 'bottom',
@@ -603,14 +634,14 @@ export default function AssessmentSheet({ user }: { user: any }) {
         const noCell = row.getCell(1);
         noCell.value = index + 1;
         noCell.alignment = { horizontal: 'center', vertical: 'middle' };
-        noCell.font = { size: 9 };
+        noCell.font = { name: EXCEL_FONT_FAMILY, size: 9 };
         noCell.border = thinBorder;
         applyFill(noCell);
 
         const nameCell = row.getCell(2);
         nameCell.value = student.name;
         nameCell.alignment = { horizontal: 'left', vertical: 'middle' };
-        nameCell.font = { size: 9 };
+        nameCell.font = { name: EXCEL_FONT_FAMILY, size: 9 };
         nameCell.border = thinBorder;
         applyFill(nameCell);
 
@@ -620,7 +651,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
           const c = row.getCell(colIdx++);
           c.value = mark !== null ? mark : '';
           c.alignment = { horizontal: 'center', vertical: 'middle' };
-          c.font = { name: 'Courier New', size: 9 };
+          c.font = { name: EXCEL_FONT_FAMILY, size: 9 };
           c.border = thinBorder;
           applyFill(c);
         });
@@ -632,14 +663,14 @@ export default function AssessmentSheet({ user }: { user: any }) {
         const totalCell = row.getCell(colIdx++);
         totalCell.value = total !== null ? total : '';
         totalCell.alignment = { horizontal: 'center', vertical: 'middle' };
-        totalCell.font = { bold: true, size: 10 };
+        totalCell.font = { name: EXCEL_FONT_FAMILY, bold: true, size: 10 };
         totalCell.border = thinBorder;
         applyFill(totalCell);
 
         const avgCell = row.getCell(colIdx++);
         avgCell.value = avg !== null ? avg : '';
         avgCell.alignment = { horizontal: 'center', vertical: 'middle' };
-        avgCell.font = { bold: true, size: 10 };
+        avgCell.font = { name: EXCEL_FONT_FAMILY, bold: true, size: 10 };
         avgCell.border = thinBorder;
         applyFill(avgCell);
 
@@ -647,6 +678,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
         symCell.value = sym;
         symCell.alignment = { horizontal: 'center', vertical: 'middle' };
         symCell.font = {
+          name: EXCEL_FONT_FAMILY,
           bold: true,
           size: 11,
           color: { argb: sym === 'U' ? 'FFCC0000' : 'FF000000' },
@@ -724,17 +756,16 @@ export default function AssessmentSheet({ user }: { user: any }) {
         /* The rotated span — strictly ONE line, no wrap, clipped */
         .rotate-header {
           display: inline-flex;
-          flex-direction: column;
           align-items: center;
           justify-content: center;
           width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
           transform: rotate(-90deg);
           transform-origin: center;
-          white-space: normal;
+          white-space: nowrap;
+          overflow: hidden;
           font-size: 0.6rem;
-          line-height: 1.05;
+          line-height: 1;
           text-align: center;
-          gap: 0.08rem;
         }
 
         /* Bold variant for TOTAL / AVERAGE / SYMBOL */
@@ -837,15 +868,6 @@ export default function AssessmentSheet({ user }: { user: any }) {
           const termId = term.name.toLowerCase().replace(' ', '-');
           const termTopics = getTopicsForTerm(termId, term.assessments);
           const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
-          const previewNoWidthRem = 1.8;
-          const previewNameWidthRem = standardWorkflow ? 14 : 15;
-          const previewTopicWidthRem = standardWorkflow ? 2.75 : 3.2;
-          const previewSummaryWidthRem = standardWorkflow ? 2.4 : 2.7;
-          const previewTableWidthRem =
-            previewNoWidthRem +
-            previewNameWidthRem +
-            (termTopics.length * previewTopicWidthRem) +
-            (previewSummaryWidthRem * 3);
 
           return (
           <div
@@ -856,7 +878,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
               id={termIdx === 0 ? "assessment-sheet" : undefined}
               className="p-6 bg-white print:p-0"
               style={{
-                minWidth: `${previewTableWidthRem}rem`,
+                minWidth: standardWorkflow ? '760px' : '980px',
                 ['--topic-header-height' as any]: `${headerHeight / 16}rem`
               }}
             >
@@ -915,19 +937,16 @@ export default function AssessmentSheet({ user }: { user: any }) {
               </div>
 
               {/* ── Assessment Table ──────────────────────────────────────────── */}
-              <table
-                className="border-2 border-black text-xs table-fixed border-collapse"
-                style={{ width: `${previewTableWidthRem}rem`, minWidth: `${previewTableWidthRem}rem` }}
-              >
+              <table className="w-full border-2 border-black text-xs table-fixed border-collapse">
                 <colgroup>
-                  <col style={{ width: `${previewNoWidthRem}rem` }} />
-                  <col style={{ width: `${previewNameWidthRem}rem` }} />
+                  <col style={{ width: '1.8rem' }} />
+                  <col style={{ width: 'auto' }} />
                   {termTopics.map((_, i) => (
-                    <col key={`tc-${i}`} style={{ width: `${previewTopicWidthRem}rem` }} />
+                    <col key={`tc-${i}`} style={{ width: standardWorkflow ? '1.9rem' : '2.35rem' }} />
                   ))}
-                  <col style={{ width: `${previewSummaryWidthRem}rem` }} />
-                  <col style={{ width: `${previewSummaryWidthRem}rem` }} />
-                  <col style={{ width: `${previewSummaryWidthRem}rem` }} />
+                  <col style={{ width: standardWorkflow ? '2rem' : '2.25rem' }} />
+                  <col style={{ width: standardWorkflow ? '2rem' : '2.25rem' }} />
+                  <col style={{ width: standardWorkflow ? '2rem' : '2.25rem' }} />
                 </colgroup>
 
                 <thead>
