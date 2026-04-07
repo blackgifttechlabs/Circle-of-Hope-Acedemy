@@ -2,21 +2,39 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Student, TermAssessmentRecord, PRE_PRIMARY_AREAS } from '../types';
 import { CLASS_LIST_SKILLS } from './classListSkills';
+import { getGradeDisplayValue } from './assessmentWorkflow';
 
-export const generateSummaryReportPDF = (
+const SCHOOL_LOGO_URL = 'https://i.ibb.co/rRHGVgVL/images.png';
+
+const fetchImage = async (url: string): Promise<string> => {
+  try {
+    const response = await fetch(url, { mode: 'cors' });
+    const blob = await response.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn('Failed to load image for PDF', error);
+    return '';
+  }
+};
+
+export const generateSummaryReportPDF = async (
   students: Student[],
   records: Record<string, TermAssessmentRecord>,
   termId: string,
   termName: string,
   teacherName: string,
+  className: string = 'Grade 0',
   schoolName: string = 'Circle of Hope Academy'
 ) => {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.width;
-  const pageHeight = doc.internal.pageSize.height;
-
   const validTermId = ['term-1', 'term-2', 'term-3'].includes(termId) ? termId : 'term-1';
   const termSkills = CLASS_LIST_SKILLS[validTermId] || {};
+  const schoolLogo = await fetchImage(SCHOOL_LOGO_URL);
 
   let isFirstPage = true;
 
@@ -29,19 +47,14 @@ export const generateSummaryReportPDF = (
     }
     isFirstPage = false;
 
-    // --- Header ---
-    // Logo placeholder
-    doc.setDrawColor(0);
-    doc.setLineWidth(0.5);
-    doc.circle(40, 20, 10);
+    if (schoolLogo) {
+      doc.addImage(schoolLogo, 'PNG', 14, 10, 24, 24);
+    }
+
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('COHA', 40, 21, { align: 'center' });
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Registered with Ministry Of Education', 40, 35, { align: 'center' });
-    doc.text('Reg. No 7826', 40, 39, { align: 'center' });
+    doc.text('Registered with Ministry Of Education', 42, 18);
+    doc.text('Reg. No 7826', 42, 23);
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
@@ -51,16 +64,13 @@ export const generateSummaryReportPDF = (
     doc.text('circleofhopeacademy@yahoo.com', pageWidth - 80, 30);
     doc.text('www.coha-academy.com', pageWidth - 80, 35);
 
-    doc.setFontSize(22);
+    doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
-    doc.text('CIRCLE OF HOPE', pageWidth / 2, 22, { align: 'center' });
-    doc.text('ACADEMY', pageWidth / 2, 32, { align: 'center' });
+    doc.text(schoolName.toUpperCase(), pageWidth / 2, 22, { align: 'center' });
 
-    // Separator line
     doc.setLineWidth(1);
     doc.line(14, 42, pageWidth - 14, 42);
-    
-    // --- Title ---
+
     doc.setDrawColor(0);
     doc.setLineWidth(0.2);
     doc.rect(14, 45, pageWidth - 28, 10);
@@ -71,56 +81,54 @@ export const generateSummaryReportPDF = (
     doc.rect(14, 55, pageWidth - 28, 8);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text(`${area.name}    ${termName}    Pre-Primary    Teacher: ${teacherName}`, pageWidth / 2, 61, { align: 'center' });
+    doc.text(
+      `${area.name}    ${termName}    ${getGradeDisplayValue(className)}    Teacher: ${teacherName}`,
+      pageWidth / 2,
+      61,
+      { align: 'center' }
+    );
 
-    // --- Table Data ---
-    const head1: any[] = [{ content: '3 = Fully Mastered\n2 = Almost Mastered\n1 = Not yet Mastered\n\nNames: ↓', rowSpan: 2, styles: { halign: 'left', valign: 'bottom', cellWidth: 45 } }];
+    const head1: any[] = [{
+      content: '3 = Fully Mastered\n2 = Almost Mastered\n1 = Not yet Mastered\n\nNames: ↓',
+      rowSpan: 2,
+      styles: { halign: 'left', valign: 'bottom', cellWidth: 45 },
+    }];
     const head2: any[] = [];
-    
-    const componentsMap = new Map<string, string>(); // componentId -> componentName
 
-    themes.forEach(theme => {
+    const componentsMap = new Map<string, string>();
+    themes.forEach((theme) => {
       head1.push({ content: theme.theme, colSpan: theme.skills.length, styles: { halign: 'center', fillColor: [240, 240, 240] } });
-      theme.skills.forEach(skill => {
-        head2.push({ content: skill.name, styles: { halign: 'center', valign: 'bottom' } });
-        
-        // Find component name from PRE_PRIMARY_AREAS
-        const comp = area.components.find(c => c.id === skill.componentId);
-        if (comp) componentsMap.set(comp.id, comp.name);
+      theme.skills.forEach((skill) => {
+        head2.push(skill.name);
+        const component = area.components.find((item) => item.id === skill.componentId);
+        if (component) componentsMap.set(component.id, component.name);
       });
     });
 
-    // Total Marks section
     const components = Array.from(componentsMap.entries());
     if (components.length > 0) {
       head1.push({ content: 'TOTAL MARKS', colSpan: components.length, styles: { halign: 'center', fillColor: [220, 220, 220] } });
-      components.forEach(([id, name]) => {
-        head2.push({ content: `${name} average`, styles: { halign: 'center', valign: 'bottom' } });
+      components.forEach(([, name]) => {
+        head2.push(`${name} average`);
       });
     }
 
     const body: any[] = [];
-    
-    // Grading key in the first column for the first few rows?
-    // Autotable doesn't easily support a complex left column spanning multiple rows while having data rows.
-    // We'll just put the student names and numbers.
-    
     students.forEach((student, index) => {
       const row: any[] = [`${index + 1}. ${student.name}`];
       const record = records[student.id];
       const rawScores = record?.rawScores || {};
       const ratings = record?.ratings || {};
-      
-      themes.forEach(theme => {
-        theme.skills.forEach(skill => {
+
+      themes.forEach((theme) => {
+        theme.skills.forEach((skill) => {
           const score = rawScores[skill.id];
-          row.push({ content: score ? score.toString() : '', styles: { halign: 'center' } });
+          row.push(score ? score.toString() : '');
         });
       });
 
-      components.forEach(([id, name]) => {
-        const rating = ratings[id];
-        row.push({ content: rating || '', styles: { halign: 'center', fontStyle: 'bold' } });
+      components.forEach(([id]) => {
+        row.push(ratings[id] || '');
       });
 
       body.push(row);
@@ -130,20 +138,45 @@ export const generateSummaryReportPDF = (
       startY: 63,
       margin: { left: 14, right: 14 },
       head: [head1, head2],
-      body: body,
+      body,
       theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 1, lineColor: [0, 0, 0], lineWidth: 0.2 },
-      headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold' },
-      columnStyles: { 0: { cellWidth: 40 } },
-      didDrawCell: function(data) {
-        // We can rotate text here if needed, but for now we rely on autoTable's text wrapping
-        // To make it look like the image, we can draw vertical text manually, but it's complex.
-        // Let's stick to wrapped text for now, it's readable.
-      }
+      styles: {
+        fontSize: 7,
+        cellPadding: 1,
+        lineColor: [0, 0, 0],
+        lineWidth: 0.2,
+        halign: 'center',
+        valign: 'middle',
+      },
+      headStyles: {
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold',
+      },
+      columnStyles: { 0: { cellWidth: 40, halign: 'left' } },
+      didParseCell: (data) => {
+        if (data.section === 'head' && data.row.index === 1 && data.column.index > 0) {
+          data.cell.text = [''];
+          data.cell.styles.minCellHeight = 28;
+        }
+      },
+      didDrawCell: (data) => {
+        if (data.section === 'head' && data.row.index === 1 && data.column.index > 0) {
+          const label = head2[data.column.index - 1] || '';
+          if (!label) return;
+          doc.saveGraphicsState();
+          doc.setFontSize(6);
+          doc.setFont('helvetica', 'bold');
+          doc.text(label, data.cell.x + data.cell.width / 2 + 1.2, data.cell.y + data.cell.height - 1.5, {
+            angle: 90,
+            align: 'left',
+          });
+          doc.restoreGraphicsState();
+        }
+      },
     });
   });
 
-  // Download and print
   doc.save(`Summary_Report_${termName}.pdf`);
   doc.autoPrint();
   window.open(doc.output('bloburl'), '_blank');

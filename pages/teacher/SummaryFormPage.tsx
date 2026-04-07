@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { getStudentsByAssignedClass, getSystemSettings, getAssessmentRecordsForClass, getTeacherById } from '../../services/dataService';
 import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from '../../types';
 import { Loader } from '../../components/ui/Loader';
-import { ArrowLeft, Download, Printer } from 'lucide-react';
+import { ArrowLeft, Printer } from 'lucide-react';
 
 import { generateSummaryReportPDF } from '../../utils/pdfGenerator';
+import { getAssessmentRecordKey, getGradeDisplayValue } from '../../utils/assessmentWorkflow';
 
 interface SummaryFormPageProps {
   user: any;
@@ -26,10 +27,9 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
           getStudentsByAssignedClass(user.assignedClass),
           getSystemSettings()
         ]);
-        
-        // Filter for Grade 0 students
-        const grade0Students = studentsData.filter(s => s.grade === 'Grade 0');
-        setStudents(grade0Students);
+
+        const enrolledStudents = studentsData.filter(s => s.studentStatus === 'ENROLLED');
+        setStudents(enrolledStudents);
         setSettings(settingsData);
 
         if (settingsData) {
@@ -48,7 +48,7 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
           }
           
           setSelectedTerm(termId);
-          await loadRecords(termId, grade0Students);
+          await loadRecords(termId, enrolledStudents);
         }
       }
       setLoading(false);
@@ -58,7 +58,7 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
 
   const loadRecords = async (termId: string, studentsList: Student[]) => {
     if (studentsList.length === 0) return;
-    const grade = studentsList[0].grade || 'Grade 0';
+    const grade = getAssessmentRecordKey(studentsList[0]);
     const studentIds = studentsList.map(s => s.id);
     const classRecords = await getAssessmentRecordsForClass(grade, termId, studentIds);
     const recordsMap: Record<string, TermAssessmentRecord> = {};
@@ -91,7 +91,7 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
             <ArrowLeft size={16} className="mr-2" /> Back to Dashboard
           </button>
           <h1 className="text-3xl font-black text-coha-900 tracking-tight">Summary Form</h1>
-          <p className="text-gray-500 mt-1">End of term summary for all learners</p>
+          <p className="text-gray-500 mt-1">End of term summary for {getGradeDisplayValue(user?.assignedClass || '') || 'all learners'}</p>
         </div>
         
         <div className="flex items-center gap-4">
@@ -107,7 +107,14 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
           <button 
             onClick={() => {
               const termName = settings?.schoolCalendars?.find(t => t.id === selectedTerm)?.termName || 'Term 1';
-              generateSummaryReportPDF(students, records, selectedTerm, termName, user.name || 'Teacher');
+              generateSummaryReportPDF(
+                students,
+                records,
+                selectedTerm,
+                termName,
+                user.name || 'Teacher',
+                user?.assignedClass || ''
+              );
             }}
             className="flex items-center gap-2 px-4 py-2 bg-coha-900 text-white rounded-lg text-sm font-bold hover:bg-coha-800 transition-colors"
           >
@@ -175,7 +182,7 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
               {students.length === 0 && (
                 <tr>
                   <td colSpan={100} className="p-8 text-center text-gray-500 italic">
-                    No Mainstream/Grade 0 students found in this class.
+                    No enrolled learners found in this class.
                   </td>
                 </tr>
               )}

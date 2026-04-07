@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle, Save, ChevronRight, Download } from 'lucide-rea
 import { Toast } from '../../components/ui/Toast';
 import { printGrade0Report } from '../../utils/printGrade0Report';
 import { CLASS_LIST_SKILLS } from '../../utils/classListSkills';
+import { getAssessmentRecordKey } from '../../utils/assessmentWorkflow';
 
 const TAB_COLORS = [
   { active: 'border-blue-600 text-blue-800 bg-white', inactive: 'text-gray-500 hover:text-blue-600 hover:bg-blue-50', headerBg: 'bg-blue-50', headerText: 'text-blue-900', border: 'border-blue-200' },
@@ -33,14 +34,15 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
   const [selectedTerm, setSelectedTerm] = useState<string>('');
 
   const loadRecord = async (termId: string, s: Student) => {
-    const existingRecord = await getAssessmentRecord(s.grade, s.id, termId);
+    const recordKey = getAssessmentRecordKey(s);
+    const existingRecord = await getAssessmentRecord(recordKey, s.id, termId);
     if (existingRecord) {
       setRecord(existingRecord);
     } else {
       setRecord({
         studentId: s.id,
         termId: termId,
-        grade: s.grade,
+        grade: recordKey,
         ratings: {},
         isComplete: false,
         updatedAt: new Date().toISOString()

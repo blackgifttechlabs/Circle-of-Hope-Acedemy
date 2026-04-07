@@ -1,13 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
-import { getStudentsByAssignedClass, getTopicAssessments } from '../../../services/dataService';
-import { Student, TopicAssessmentRecord } from '../../../types';
-import { getTopicsForSubjectAndGrade } from '../../../utils/assessmentTopics';
+import { getCustomTopicEntries, getStudentsByAssignedClass, getTopicAssessments, getTopicOverrides } from '../../../services/dataService';
+import { CustomTopicEntry, Student, TopicAssessmentRecord, TopicOverride } from '../../../types';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+  getDefaultThemesForSubject,
+  getDefaultTopicsForTheme,
+  getGradeDisplayValue,
+  getSubjectLabel,
+  isGrade1To7Class,
+} from '../../../utils/assessmentWorkflow';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
@@ -76,16 +82,56 @@ export default function AssessmentSheet({ user }: { user: any }) {
   const [assessmentsT1, setAssessmentsT1] = useState<TopicAssessmentRecord[]>([]);
   const [assessmentsT2, setAssessmentsT2] = useState<TopicAssessmentRecord[]>([]);
   const [assessmentsT3, setAssessmentsT3] = useState<TopicAssessmentRecord[]>([]);
+  const [customTopicsT1, setCustomTopicsT1] = useState<CustomTopicEntry[]>([]);
+  const [customTopicsT2, setCustomTopicsT2] = useState<CustomTopicEntry[]>([]);
+  const [customTopicsT3, setCustomTopicsT3] = useState<CustomTopicEntry[]>([]);
+  const [overridesT1, setOverridesT1] = useState<TopicOverride[]>([]);
+  const [overridesT2, setOverridesT2] = useState<TopicOverride[]>([]);
+  const [overridesT3, setOverridesT3] = useState<TopicOverride[]>([]);
   const [loading, setLoading] = useState(true);
+  const className = user?.assignedClass || '';
+  const standardWorkflow = isGrade1To7Class(className);
+  const subjectLabel = getSubjectLabel(subject || '', className);
 
   const sheetRef = useRef<HTMLDivElement>(null);
 
-  let topics = getTopicsForSubjectAndGrade(subject || '', user?.assignedClass || '');
-  if (topics.length === 0) {
-    const allAssessments = [...assessmentsT1, ...assessmentsT2, ...assessmentsT3];
-    const uniqueTopics = new Set(allAssessments.map(a => a.topic));
-    topics = Array.from(uniqueTopics);
-  }
+  const getTopicsForTerm = (termId: string, termAssessments: TopicAssessmentRecord[]) => {
+    const customTopics =
+      termId === 'term-1' ? customTopicsT1 :
+      termId === 'term-2' ? customTopicsT2 :
+      customTopicsT3;
+    const overrides =
+      termId === 'term-1' ? overridesT1 :
+      termId === 'term-2' ? overridesT2 :
+      overridesT3;
+
+    const defaultTopics = standardWorkflow
+      ? getDefaultTopicsForTheme(className, termId, subject || '', 'default').map((item) => item.label)
+      : getDefaultThemesForSubject(className, termId, subject || '')
+          .flatMap((theme, index) =>
+            getDefaultTopicsForTheme(className, termId, subject || '', String(index)).map((item) => item.label)
+          );
+
+    const combinedTopics = defaultTopics.reduce<string[]>((acc, topic) => {
+      const override = overrides.find((item) => item.originalTopic === topic);
+      if (override?.deleted) return acc;
+      acc.push(override?.topic || topic);
+      return acc;
+    }, []);
+
+    customTopics.forEach((item) => {
+      if (!combinedTopics.includes(item.topic)) {
+        combinedTopics.push(item.topic);
+      }
+    });
+
+    termAssessments.forEach((item) => {
+      if (!combinedTopics.includes(item.topic)) {
+        combinedTopics.push(item.topic);
+      }
+    });
+    return combinedTopics;
+  };
 
   // ── Data fetching ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -96,8 +142,14 @@ export default function AssessmentSheet({ user }: { user: any }) {
         getTopicAssessments(user.assignedClass, 'term-1', subject),
         getTopicAssessments(user.assignedClass, 'term-2', subject),
         getTopicAssessments(user.assignedClass, 'term-3', subject),
+        getCustomTopicEntries(user.assignedClass, 'term-1', subject),
+        getCustomTopicEntries(user.assignedClass, 'term-2', subject),
+        getCustomTopicEntries(user.assignedClass, 'term-3', subject),
+        getTopicOverrides(user.assignedClass, 'term-1', subject),
+        getTopicOverrides(user.assignedClass, 'term-2', subject),
+        getTopicOverrides(user.assignedClass, 'term-3', subject),
       ])
-        .then(([studentsData, t1, t2, t3]) => {
+        .then(([studentsData, t1, t2, t3, custom1, custom2, custom3, overrides1, overrides2, overrides3]) => {
           const sorted = [...studentsData].sort((a: Student, b: Student) =>
             a.name.localeCompare(b.name)
           );
@@ -105,6 +157,12 @@ export default function AssessmentSheet({ user }: { user: any }) {
           setAssessmentsT1(t1);
           setAssessmentsT2(t2);
           setAssessmentsT3(t3);
+          setCustomTopicsT1(custom1);
+          setCustomTopicsT2(custom2);
+          setCustomTopicsT3(custom3);
+          setOverridesT1(overrides1);
+          setOverridesT2(overrides2);
+          setOverridesT3(overrides3);
           setLoading(false);
         })
         .catch((err) => {
@@ -139,11 +197,13 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
   const calculateStudentAverage = (
     studentId: string,
-    termAssessments: TopicAssessmentRecord[]
+    termAssessments: TopicAssessmentRecord[],
+    termTopics: string[]
   ) => {
     const total = calculateStudentTotal(studentId, termAssessments);
-    if (total === null || topics.length === 0) return null;
-    return Math.round((total / (topics.length * 10)) * 100);
+    if (total === null || termTopics.length === 0) return null;
+    const maxMark = standardWorkflow ? 10 : 3;
+    return Math.round((total / (termTopics.length * maxMark)) * 100);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -157,6 +217,8 @@ export default function AssessmentSheet({ user }: { user: any }) {
     ];
 
     for (const term of termsToGen) {
+      const termId = term.name.toLowerCase().replace(' ', '-');
+      const termTopics = getTopicsForTerm(termId, term.assessments);
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageW = 210;
       const marginL = 10;
@@ -200,33 +262,33 @@ export default function AssessmentSheet({ user }: { user: any }) {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.text(`Teacher: ${user?.name || ''}`, marginL, 40);
-      doc.text(`Level: ${user?.assignedClass?.replace('Grade ', '') || ''}`, marginL, 45);
-      doc.text(`Subject: ${subject}`, marginL, 50);
+      doc.text(`Grade: ${getGradeDisplayValue(className) || ''}`, marginL, 45);
+      doc.text(`Subject: ${subjectLabel}`, marginL, 50);
 
       // ── Table setup ──────────────────────────────────────────────────────────
       const noW = 8;
       const summaryW = 12;
-      const topicMarkW = Math.max(5, (usableW - noW - 40 - (summaryW * 3)) / topics.length);
-      const nameW = usableW - noW - (topics.length * topicMarkW) - (summaryW * 3);
+      const topicMarkW = Math.max(5, (usableW - noW - 40 - (summaryW * 3)) / Math.max(termTopics.length, 1));
+      const nameW = usableW - noW - (termTopics.length * topicMarkW) - (summaryW * 3);
 
       const colWidths: number[] = [
         noW,
         nameW,
-        ...Array(topics.length).fill(topicMarkW),
+        ...Array(termTopics.length).fill(topicMarkW),
         summaryW, summaryW, summaryW,
       ];
 
-      const topicLabels = topics.map(formatTopicName);
+      const topicLabels = termTopics.map(formatTopicName);
       const termSuffixes = ['TOTAL', 'AVERAGE', 'SYMBOL'];
       const head = [['No', 'Name', ...topicLabels, ...termSuffixes]];
 
       const body = students.map((student, index) => {
-        const marks = topics.map((topic) => {
+        const marks = termTopics.map((topic) => {
           const m = getStudentMark(student.id, topic, term.assessments);
           return m !== null ? String(m) : '';
         });
         const total = calculateStudentTotal(student.id, term.assessments);
-        const avg = calculateStudentAverage(student.id, term.assessments);
+        const avg = calculateStudentAverage(student.id, term.assessments, termTopics);
         return [
           String(index + 1),
           student.name,
@@ -237,11 +299,11 @@ export default function AssessmentSheet({ user }: { user: any }) {
         ];
       });
 
-      const symIdx = 2 + topics.length + 2;
+      const symIdx = 2 + termTopics.length + 2;
       const summaryColIndices = new Set([
-        2 + topics.length,
-        2 + topics.length + 1,
-        2 + topics.length + 2
+        2 + termTopics.length,
+        2 + termTopics.length + 1,
+        2 + termTopics.length + 2
       ]);
 
       autoTable(doc, {
@@ -294,7 +356,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
           if (data.row.section === 'head' && data.column.index >= 2) {
             const label = head[0][data.column.index];
-            const isSummary = data.column.index >= topics.length + 2;
+            const isSummary = data.column.index >= termTopics.length + 2;
 
             doc.saveGraphicsState();
             doc.setFontSize(6);
@@ -360,7 +422,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
         margin: { left: marginL, right: marginR },
       });
 
-      doc.save(`${subject}_Assessment_Sheet_${term.name.replace(' ', '_')}.pdf`);
+      doc.save(`${subjectLabel}_Assessment_Sheet_${term.name.replace(' ', '_')}.pdf`);
     }
   };
 
@@ -375,6 +437,8 @@ export default function AssessmentSheet({ user }: { user: any }) {
     ];
 
     for (const term of termsToGen) {
+      const termId = term.name.toLowerCase().replace(' ', '-');
+      const termTopics = getTopicsForTerm(termId, term.assessments);
       const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet(term.name, {
         pageSetup: {
@@ -394,7 +458,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
         },
       });
 
-      const termCols = topics.length + 3;
+      const termCols = termTopics.length + 3;
       const totalCols = 2 + termCols;
 
       const colLetter = (n: number) => sheet.getColumn(n).letter;
@@ -462,8 +526,8 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
       const infoRows: [string, string][] = [
         [`A9`, `Teacher: ${user?.name || ''}`],
-        [`A10`, `Level: ${user?.assignedClass?.replace('Grade ', '') || ''}`],
-        [`A11`, `Subject: ${subject}`],
+        [`A10`, `Grade: ${getGradeDisplayValue(className) || ''}`],
+        [`A11`, `Subject: ${subjectLabel}`],
       ];
       infoRows.forEach(([cell, val]) => {
         const c = sheet.getCell(cell);
@@ -475,7 +539,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
       sheet.getColumn(2).width = 26;
       for (let i = 3; i <= totalCols; i++) {
         const relIdx = (i - 3);
-        const isSummary = relIdx >= topics.length;
+        const isSummary = relIdx >= termTopics.length;
         sheet.getColumn(i).width = isSummary ? 10 : 6;
       }
 
@@ -495,7 +559,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
       });
 
       let col = 3;
-      topics.forEach((topic) => {
+      termTopics.forEach((topic) => {
         const c = sheet.getCell(HDR_ROW, col++);
         c.value = formatTopicName(topic);
         c.font = { size: 8 };
@@ -542,7 +606,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
         applyFill(nameCell);
 
         let colIdx = 3;
-        topics.forEach((topic) => {
+        termTopics.forEach((topic) => {
           const mark = getStudentMark(student.id, topic, term.assessments);
           const c = row.getCell(colIdx++);
           c.value = mark !== null ? mark : '';
@@ -553,7 +617,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
         });
 
         const total = calculateStudentTotal(student.id, term.assessments);
-        const avg = calculateStudentAverage(student.id, term.assessments);
+        const avg = calculateStudentAverage(student.id, term.assessments, termTopics);
         const sym = getSymbol(avg);
 
         const totalCell = row.getCell(colIdx++);
@@ -586,7 +650,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
-      saveAs(blob, `${subject}_Assessment_Sheet_${term.name.replace(' ', '_')}.xlsx`);
+      saveAs(blob, `${subjectLabel}_Assessment_Sheet_${term.name.replace(' ', '_')}.xlsx`);
     }
   };
 
@@ -687,7 +751,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
           >
             <ArrowLeft size={20} className="text-slate-600" />
           </button>
-          <h1 className="text-2xl font-bold text-slate-900">{subject} Assessment Sheet</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{subjectLabel} Assessment Sheet</h1>
         </div>
         <div className="flex gap-3">
           <button
@@ -717,7 +781,11 @@ export default function AssessmentSheet({ user }: { user: any }) {
           { name: 'Term 1', assessments: assessmentsT1 },
           { name: 'Term 2', assessments: assessmentsT2 },
           { name: 'Term 3', assessments: assessmentsT3 },
-        ].map((term, termIdx) => (
+        ].map((term, termIdx) => {
+          const termId = term.name.toLowerCase().replace(' ', '-');
+          const termTopics = getTopicsForTerm(termId, term.assessments);
+
+          return (
           <div
             key={term.name}
             className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto print:border-none print:shadow-none print:break-after-page"
@@ -777,8 +845,8 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
               <div className="text-xs font-semibold space-y-0.5 mb-3">
                 <p>Teacher: <span className="font-normal underline underline-offset-4 px-2">{user?.name}</span></p>
-                <p>Level: <span className="font-normal underline underline-offset-4 px-2">{user?.assignedClass?.replace('Grade ', '') || ''}</span></p>
-                <p>Subject: <span className="font-normal underline underline-offset-4 px-2">{subject}</span></p>
+                <p>Grade: <span className="font-normal underline underline-offset-4 px-2">{getGradeDisplayValue(className) || ''}</span></p>
+                <p>Subject: <span className="font-normal underline underline-offset-4 px-2">{subjectLabel}</span></p>
               </div>
 
               {/* ── Assessment Table ──────────────────────────────────────────── */}
@@ -786,7 +854,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
                 <colgroup>
                   <col style={{ width: '1.8rem' }} />
                   <col style={{ width: 'auto' }} />
-                  {topics.map((_, i) => (
+                  {termTopics.map((_, i) => (
                     <col key={`tc-${i}`} style={{ width: '1.6rem' }} />
                   ))}
                   <col style={{ width: '2rem' }} />
@@ -804,7 +872,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
                     <th className="border border-black p-1 align-bottom text-left font-bold text-xs">
                       Student Name
                     </th>
-                    {topics.map((t, i) => (
+                    {termTopics.map((t, i) => (
                       <th key={`h-${i}`} className="topic-th border border-black">
                         <div className="th-inner">
                           <span className="rotate-header">{formatTopicName(t)}</span>
@@ -832,7 +900,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
                 <tbody>
                   {students.map((student, index) => {
                     const total = calculateStudentTotal(student.id, term.assessments);
-                    const avg = calculateStudentAverage(student.id, term.assessments);
+                    const avg = calculateStudentAverage(student.id, term.assessments, termTopics);
                     const rowBg = index % 2 === 1 ? 'bg-slate-50' : 'bg-white';
 
                     return (
@@ -843,7 +911,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
                         <td className="border border-black p-0.5 px-1 whitespace-nowrap font-sans">
                           {student.name}
                         </td>
-                        {topics.map((topic, i) => (
+                        {termTopics.map((topic, i) => (
                           <td key={`m-${i}`} className="border border-black p-0.5 text-center font-mono">
                             {getStudentMark(student.id, topic, term.assessments) ?? ''}
                           </td>
@@ -866,7 +934,8 @@ export default function AssessmentSheet({ user }: { user: any }) {
               </table>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

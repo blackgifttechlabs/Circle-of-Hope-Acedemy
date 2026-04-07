@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
-import { getStudentsByAssignedClass, getTopicAssessments, getSystemSettings, getTeacherById } from '../../services/dataService';
+import { getCustomTopicEntries, getStudentsByAssignedClass, getTopicAssessments, getSystemSettings, getTeacherById, getTopicOverrides } from '../../services/dataService';
 import { Student, TopicAssessmentRecord, SystemSettings } from '../../types';
 import { getTopicsForSubjectAndGrade } from '../../utils/assessmentTopics';
 import { getPromotionalSubjects } from '../../utils/subjects';
+import { getGradeDisplayValue } from '../../utils/assessmentWorkflow';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
@@ -48,6 +49,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   
   // subject -> TopicAssessmentRecord[]
   const [assessments, setAssessments] = useState<Record<string, TopicAssessmentRecord[]>>({});
+  const [subjectTopicCounts, setSubjectTopicCounts] = useState<Record<string, number>>({});
 
   const promotionalSubjects = getPromotionalSubjects(user?.assignedClass || '');
 
@@ -86,13 +88,36 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
 
   const loadAssessments = async (termId: string, grade: string) => {
     const newAssessments: Record<string, TopicAssessmentRecord[]> = {};
+    const newTopicCounts: Record<string, number> = {};
     await Promise.all(
       promotionalSubjects.map(async (subject) => {
-        const records = await getTopicAssessments(grade, termId, subject);
+        const [records, customTopics, overrides] = await Promise.all([
+          getTopicAssessments(grade, termId, subject),
+          getCustomTopicEntries(grade, termId, subject),
+          getTopicOverrides(grade, termId, subject),
+        ]);
         newAssessments[subject] = records;
+
+        const baseTopics = getTopicsForSubjectAndGrade(subject, user?.assignedClass || '');
+        const adjustedTopics = baseTopics.reduce<string[]>((acc, topic) => {
+          const override = overrides.find((item) => item.originalTopic === topic);
+          if (override?.deleted) return acc;
+          acc.push(override?.topic || topic);
+          return acc;
+        }, []);
+
+        customTopics.forEach((item) => {
+          if (!adjustedTopics.includes(item.topic)) adjustedTopics.push(item.topic);
+        });
+        records.forEach((item) => {
+          if (!adjustedTopics.includes(item.topic)) adjustedTopics.push(item.topic);
+        });
+
+        newTopicCounts[subject] = adjustedTopics.length;
       })
     );
     setAssessments(newAssessments);
+    setSubjectTopicCounts(newTopicCounts);
   };
 
   const handleTermChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -115,8 +140,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   const calculateSubjectAverage = (studentId: string, subject: string) => {
     const total = calculateSubjectTotal(studentId, subject);
     if (total === null) return null;
-    const topics = getTopicsForSubjectAndGrade(subject, user?.assignedClass || '');
-    let topicCount = topics.length;
+    let topicCount = subjectTopicCounts[subject] || 0;
     if (topicCount === 0) {
       const records = assessments[subject] || [];
       const studentRecords = records.filter(a => a.studentId === studentId);
@@ -196,7 +220,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.text(`Teacher: ${user?.name || ''}`, marginL, 40);
-    doc.text(`Level: ${user?.assignedClass?.replace('Grade ', '') || ''}`, marginL, 45);
+    doc.text(`Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`, marginL, 45);
 
     const noW = 7;
     const nameW = 45;
@@ -290,7 +314,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
     sheet.mergeCells('A3:C3');
     sheet.getCell('A3').value = `Teacher: ${user?.name || ''}`;
     sheet.mergeCells('A4:C4');
-    sheet.getCell('A4').value = `Level: ${user?.assignedClass?.replace('Grade ', '') || ''}`;
+    sheet.getCell('A4').value = `Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`;
 
     const headerRow1 = sheet.getRow(6);
     const headerRow2 = sheet.getRow(7);

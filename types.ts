@@ -214,8 +214,32 @@ export interface TopicAssessmentRecord {
   termId: string;
   subject: string;
   topic: string;
+  topicId?: string;
+  theme?: string;
   mark: number;
   updatedAt: string;
+}
+
+export interface TopicOverride {
+  id?: string;
+  grade: string;
+  termId: string;
+  subject: string;
+  originalTopic: string;
+  topic: string;
+  deleted?: boolean;
+  theme?: string;
+  updatedAt: string;
+}
+
+export interface CustomTopicEntry {
+  id?: string;
+  grade: string;
+  termId: string;
+  subject: string;
+  topic: string;
+  theme?: string;
+  createdAt: string;
 }
 
 export interface DailyRegisterRecord {

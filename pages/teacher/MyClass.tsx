@@ -255,12 +255,10 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                 onClick={() => navigate('/teacher/summary-form')}>
                 Summary Form
               </button>
-              {isGrade1To7Teacher && (
-                <button className="bp" style={{ background:'#f59e0b' }}
-                  onClick={() => navigate('/teacher/assess')}>
-                  <ClipboardList size={13}/> Assess Students
-                </button>
-              )}
+              <button className="bp" style={{ background:'#f59e0b' }}
+                onClick={() => navigate('/teacher/assess')}>
+                <ClipboardList size={13}/> Assess Students
+              </button>
               <div style={{ position:'relative', minWidth:160 }}>
                 <Search size={14} style={{ position:'absolute', left:10, top:'50%',
                   transform:'translateY(-50%)', color:'#94a3b8', pointerEvents:'none' }}/>

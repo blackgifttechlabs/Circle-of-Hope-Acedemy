@@ -6,6 +6,7 @@ import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
 import { ArrowLeft, CheckCircle, ChevronRight } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
+import { getAssessmentRecordKey } from '../../utils/assessmentWorkflow';
 
 const TAB_COLORS = [
   { active: 'border-blue-600 text-blue-800 bg-white', inactive: 'text-gray-500 hover:text-blue-600 hover:bg-blue-50', headerBg: 'bg-blue-50', headerText: 'text-blue-900', border: 'border-blue-200' },
@@ -34,14 +35,15 @@ export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) =
   const loadRecords = async (termId: string, enrolledStudents: Student[]) => {
     const newRecords: Record<string, TermAssessmentRecord> = {};
     for (const s of enrolledStudents) {
-      const existingRecord = await getAssessmentRecord(s.grade || 'Grade 0', s.id, termId);
+      const recordKey = getAssessmentRecordKey(s);
+      const existingRecord = await getAssessmentRecord(recordKey, s.id, termId);
       if (existingRecord) {
         newRecords[s.id] = existingRecord;
       } else {
         newRecords[s.id] = {
           studentId: s.id,
           termId: termId,
-          grade: s.grade || 'Grade 0',
+          grade: recordKey,
           ratings: {},
           isComplete: false,
           updatedAt: new Date().toISOString()

@@ -1,7 +1,9 @@
 import { db, auth } from '../firebase';
 import { collection, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry } from '../types';
+import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
+import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 
 // Collections
 const TEACHERS_COLLECTION = 'teachers';
@@ -911,17 +913,160 @@ export const getAssessmentRecordsForClass = async (grade: string, termId: string
   }
 };
 
+const buildTopicDocId = (
+  studentId: string,
+  termId: string,
+  subject: string,
+  topic: string,
+  theme?: string
+) => {
+  const themePart = theme ? `_${theme.replace(/\s+/g, '')}` : '';
+  return `${studentId}_${termId}_${subject.replace(/\s+/g, '')}${themePart}_${topic.replace(/\s+/g, '')}`;
+};
+
+const buildCustomTopicDocId = (
+  grade: string,
+  termId: string,
+  subject: string,
+  topic: string,
+  theme?: string
+) => {
+  const themePart = theme ? `_${theme.replace(/\s+/g, '')}` : '';
+  return `${grade.replace(/\s+/g, '')}_${termId}_${subject.replace(/\s+/g, '')}${themePart}_${topic.replace(/\s+/g, '')}`;
+};
+
+const buildTopicOverrideDocId = (
+  grade: string,
+  termId: string,
+  subject: string,
+  originalTopic: string,
+  theme?: string
+) => {
+  const themePart = theme ? `_${theme.replace(/\s+/g, '')}` : '';
+  return `${grade.replace(/\s+/g, '')}_${termId}_${subject.replace(/\s+/g, '')}${themePart}_${originalTopic.replace(/\s+/g, '')}`;
+};
+
+const getRatingFromAverage = (average: number): AssessmentRating => {
+  if (average >= 2.5) return 'FM';
+  if (average >= 1.5) return 'AM';
+  return 'NM';
+};
+
+const syncPrePrimaryAssessmentRecord = async (
+  studentId: string,
+  grade: string,
+  termId: string,
+  subject: string,
+  topic: string,
+  mark: number,
+  topicId?: string
+) => {
+  const skill = findPrePrimarySkill(termId, subject, topic, topicId);
+  if (!skill) return;
+
+  const existingRecord = await getAssessmentRecord(grade, studentId, termId);
+  const record = existingRecord || {
+    studentId,
+    termId,
+    grade,
+    ratings: {},
+    rawScores: {},
+    isComplete: false,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const rawScores = {
+    ...(record.rawScores || {}),
+    [skill.id]: mark as 1 | 2 | 3,
+  };
+
+  const subjectThemes = CLASS_LIST_SKILLS[termId]?.[subject] || [];
+  let totalScore = 0;
+  let count = 0;
+  subjectThemes.forEach((theme) => {
+    theme.skills.forEach((themeSkill) => {
+      if (themeSkill.componentId === skill.componentId) {
+        const score = rawScores[themeSkill.id];
+        if (score) {
+          totalScore += score;
+          count += 1;
+        }
+      }
+    });
+  });
+
+  const ratings = { ...(record.ratings || {}) };
+  if (count > 0) {
+    ratings[skill.componentId] = getRatingFromAverage(totalScore / count);
+  }
+
+  await saveAssessmentRecord({
+    ...record,
+    rawScores,
+    ratings,
+    updatedAt: new Date().toISOString(),
+  });
+};
+
+const removePrePrimaryAssessmentRecordScore = async (
+  studentId: string,
+  grade: string,
+  termId: string,
+  subject: string,
+  topic: string,
+  topicId?: string
+) => {
+  const skill = findPrePrimarySkill(termId, subject, topic, topicId);
+  if (!skill) return;
+
+  const existingRecord = await getAssessmentRecord(grade, studentId, termId);
+  if (!existingRecord?.rawScores) return;
+
+  const rawScores = { ...existingRecord.rawScores };
+  delete rawScores[skill.id];
+
+  const subjectThemes = CLASS_LIST_SKILLS[termId]?.[subject] || [];
+  let totalScore = 0;
+  let count = 0;
+  subjectThemes.forEach((theme) => {
+    theme.skills.forEach((themeSkill) => {
+      if (themeSkill.componentId === skill.componentId) {
+        const score = rawScores[themeSkill.id];
+        if (score) {
+          totalScore += score;
+          count += 1;
+        }
+      }
+    });
+  });
+
+  const ratings = { ...(existingRecord.ratings || {}) };
+  if (count > 0) {
+    ratings[skill.componentId] = getRatingFromAverage(totalScore / count);
+  } else {
+    delete ratings[skill.componentId];
+  }
+
+  await saveAssessmentRecord({
+    ...existingRecord,
+    rawScores,
+    ratings,
+    updatedAt: new Date().toISOString(),
+  });
+};
+
 export const saveTopicAssessments = async (
   grade: string,
   termId: string,
   subject: string,
   topic: string,
-  marks: Record<string, number>
+  marks: Record<string, number>,
+  options?: { theme?: string; topicId?: string }
 ) => {
   try {
     const batch = writeBatch(db);
     for (const [studentId, mark] of Object.entries(marks)) {
-      const docId = `${studentId}_${termId}_${subject.replace(/\s+/g, '')}_${topic.replace(/\s+/g, '')}`;
+      const docId = buildTopicDocId(studentId, termId, subject, topic, options?.theme);
       const ref = doc(db, 'topic_assessments', docId);
       batch.set(ref, {
         studentId,
@@ -929,11 +1074,21 @@ export const saveTopicAssessments = async (
         termId,
         subject,
         topic,
+        topicId: options?.topicId,
+        theme: options?.theme,
         mark,
         updatedAt: new Date().toISOString()
       }, { merge: true });
     }
     await batch.commit();
+
+    if (CLASS_LIST_SKILLS[termId]?.[subject] && options?.topicId) {
+      await Promise.all(
+        Object.entries(marks).map(([studentId, mark]) =>
+          syncPrePrimaryAssessmentRecord(studentId, grade, termId, subject, topic, mark, options.topicId)
+        )
+      );
+    }
   } catch (error) {
     console.error("Error saving topic assessments:", error);
     throw error;
@@ -1002,7 +1157,7 @@ export const markDailyRegister = async (grade: string, studentId: string, studen
 // Custom Topics Management
 export const addCustomTopic = async (grade: string, termId: string, subject: string, topic: string) => {
   try {
-    const docId = `${grade.replace(/\s+/g, '')}_${termId}_${subject.replace(/\s+/g, '')}_${topic.replace(/\s+/g, '')}`;
+    const docId = buildCustomTopicDocId(grade, termId, subject, topic);
     await setDoc(doc(db, 'custom_topics', docId), {
       grade,
       termId,
@@ -1033,26 +1188,182 @@ export const getCustomTopics = async (grade: string, termId: string, subject: st
   }
 };
 
-export const deleteTopic = async (grade: string, termId: string, subject: string, topic: string) => {
+export const getCustomTopicEntries = async (
+  grade: string,
+  termId: string,
+  subject: string
+): Promise<CustomTopicEntry[]> => {
   try {
-    // 1. Delete the custom topic record if it exists
-    const customTopicId = `${grade.replace(/\s+/g, '')}_${termId}_${subject.replace(/\s+/g, '')}_${topic.replace(/\s+/g, '')}`;
-    await deleteDoc(doc(db, 'custom_topics', customTopicId));
-
-    // 2. Delete all assessments for this topic
     const q = query(
-      collection(db, 'topic_assessments'),
+      collection(db, 'custom_topics'),
       where('grade', '==', grade),
       where('termId', '==', termId),
-      where('subject', '==', subject),
-      where('topic', '==', topic)
+      where('subject', '==', subject)
     );
     const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CustomTopicEntry));
+  } catch (error) {
+    console.error("Error getting custom topic entries:", error);
+    return [];
+  }
+};
+
+export const getTopicOverrides = async (
+  grade: string,
+  termId: string,
+  subject: string
+): Promise<TopicOverride[]> => {
+  try {
+    const q = query(
+      collection(db, 'topic_overrides'),
+      where('grade', '==', grade),
+      where('termId', '==', termId),
+      where('subject', '==', subject)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TopicOverride));
+  } catch (error) {
+    console.error("Error getting topic overrides:", error);
+    return [];
+  }
+};
+
+export const renameTopic = async (
+  grade: string,
+  termId: string,
+  subject: string,
+  oldTopic: string,
+  newTopic: string,
+  options?: { theme?: string; originalTopic?: string; topicId?: string; isCustom?: boolean }
+) => {
+  try {
+    const trimmedTopic = newTopic.trim();
+    if (!trimmedTopic) return false;
+
+    const assessments = await getTopicAssessments(grade, termId, subject);
+    const matchingAssessments = assessments.filter((item) => (
+      item.topic === oldTopic && (!options?.theme || item.theme === options.theme)
+    ));
+
     const batch = writeBatch(db);
-    snapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
+    matchingAssessments.forEach((item) => {
+      const nextRef = doc(
+        db,
+        'topic_assessments',
+        buildTopicDocId(item.studentId, termId, subject, trimmedTopic, item.theme || options?.theme)
+      );
+      batch.set(nextRef, {
+        ...item,
+        topic: trimmedTopic,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+      if (item.id) {
+        batch.delete(doc(db, 'topic_assessments', item.id));
+      }
     });
+
+    if (options?.isCustom) {
+      const previousCustomRef = doc(db, 'custom_topics', buildCustomTopicDocId(grade, termId, subject, oldTopic, options.theme));
+      const nextCustomRef = doc(db, 'custom_topics', buildCustomTopicDocId(grade, termId, subject, trimmedTopic, options.theme));
+      batch.set(nextCustomRef, {
+        grade,
+        termId,
+        subject,
+        topic: trimmedTopic,
+        theme: options.theme,
+        createdAt: new Date().toISOString(),
+      });
+      batch.delete(previousCustomRef);
+    } else if (options?.originalTopic) {
+      const overrideRef = doc(
+        db,
+        'topic_overrides',
+        buildTopicOverrideDocId(grade, termId, subject, options.originalTopic, options.theme)
+      );
+      batch.set(overrideRef, {
+        grade,
+        termId,
+        subject,
+        originalTopic: options.originalTopic,
+        topic: trimmedTopic,
+        deleted: false,
+        theme: options.theme,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
     await batch.commit();
+    return true;
+  } catch (error) {
+    console.error("Error renaming topic:", error);
+    return false;
+  }
+};
+
+export const deleteTopic = async (
+  grade: string,
+  termId: string,
+  subject: string,
+  topic: string,
+  options?: { theme?: string; originalTopic?: string; isCustom?: boolean }
+) => {
+  try {
+    const batch = writeBatch(db);
+
+    if (options?.isCustom) {
+      batch.delete(doc(db, 'custom_topics', buildCustomTopicDocId(grade, termId, subject, topic, options.theme)));
+    } else if (options?.originalTopic) {
+      batch.set(
+        doc(db, 'topic_overrides', buildTopicOverrideDocId(grade, termId, subject, options.originalTopic, options.theme)),
+        {
+          grade,
+          termId,
+          subject,
+          originalTopic: options.originalTopic,
+          topic,
+          deleted: true,
+          theme: options.theme,
+          updatedAt: new Date().toISOString(),
+        }
+      );
+    }
+
+    const assessments = await getTopicAssessments(grade, termId, subject);
+    const matchingAssessments = assessments.filter((item) => (
+      item.topic === topic && (!options?.theme || item.theme === options.theme)
+    ));
+    matchingAssessments.forEach((item) => {
+      if (item.id) {
+        batch.delete(doc(db, 'topic_assessments', item.id));
+      }
+    });
+
+    const customTopics = await getCustomTopicEntries(grade, termId, subject);
+    customTopics
+      .filter((item) => item.topic === topic && (!options?.theme || item.theme === options.theme))
+      .forEach((item) => {
+        if (item.id) {
+          batch.delete(doc(db, 'custom_topics', item.id));
+        }
+      });
+
+    await batch.commit();
+
+    if (CLASS_LIST_SKILLS[termId]?.[subject]) {
+      await Promise.all(
+        matchingAssessments.map((item) =>
+          removePrePrimaryAssessmentRecordScore(
+            item.studentId,
+            grade,
+            termId,
+            subject,
+            options?.originalTopic || item.topic,
+            item.topicId
+          )
+        )
+      );
+    }
+
     return true;
   } catch (error) {
     console.error("Error deleting topic:", error);

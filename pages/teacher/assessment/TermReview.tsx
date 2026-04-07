@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, Download, FileSpreadsheet, Printer } from 'luc
 import { getStudentsByAssignedClass, getTopicAssessments } from '../../../services/dataService';
 import { Student, TopicAssessmentRecord } from '../../../types';
 import { getTopicsForSubjectAndGrade } from '../../../utils/assessmentTopics';
+import { getGradeDisplayValue } from '../../../utils/assessmentWorkflow';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
@@ -148,7 +149,7 @@ export default function TermReview({ user }: { user: any }) {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.text(`Teacher: ${user?.name || ''}`, marginL, 40);
-    doc.text(`Level: ${user?.assignedClass?.replace('Grade ', '') || ''}`, marginL, 45);
+    doc.text(`Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`, marginL, 45);
     doc.text(`Subject: ${subject}`, marginL, 50);
     doc.text(`Term: ${term}`, marginL, 55);
 
@@ -402,7 +403,7 @@ export default function TermReview({ user }: { user: any }) {
 
     const infoRows: [string, string][] = [
       ['A9:D9', `Teacher: ${user?.name || ''}`],
-      ['A10:D10', `Level: ${user?.assignedClass?.replace('Grade ', '') || ''}`],
+      ['A10:D10', `Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`],
       ['A11:D11', `Subject: ${subject}`],
       ['A12:D12', `Term: ${term}`],
     ];
@@ -656,7 +657,7 @@ export default function TermReview({ user }: { user: any }) {
             <h2 className="text-lg font-bold text-center mb-2">END OF TERM SUMMARY</h2>
             <div className="text-sm">
               <p><strong>Teacher:</strong> {user?.name || ''}</p>
-              <p><strong>Level:</strong> {user?.assignedClass?.replace('Grade ', '') || ''}</p>
+              <p><strong>Grade:</strong> {getGradeDisplayValue(user?.assignedClass || '') || ''}</p>
               <p><strong>Subject:</strong> {subject}</p>
               <p><strong>Term:</strong> {term}</p>
             </div>
