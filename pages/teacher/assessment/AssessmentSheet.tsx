@@ -734,7 +734,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
         /* The <th> itself acts as the clipping + alignment box */
         th.topic-th {
-          height: var(--topic-header-height, 7.5rem);
+          height: calc(var(--topic-header-height, 7.5rem) + 0.5rem);
           overflow: hidden;         /* hard clip — nothing escapes */
           padding: 0 !important;
           vertical-align: bottom;
@@ -753,11 +753,11 @@ export default function AssessmentSheet({ user }: { user: any }) {
         /* The rotated span — strictly ONE line, no wrap, clipped */
         .rotate-header {
           position: absolute;
-          left: 50%;
+          left: 0.4rem;
           bottom: 0.35rem;
-          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
-          transform: translateX(-50%) rotate(-90deg);
-          transform-origin: center bottom;
+          width: calc(var(--topic-header-height, 7.5rem) - 1rem);
+          transform: rotate(-90deg);
+          transform-origin: left bottom;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -769,11 +769,11 @@ export default function AssessmentSheet({ user }: { user: any }) {
         /* Bold variant for TOTAL / AVERAGE / SYMBOL */
         .rotate-header-bold {
           position: absolute;
-          left: 50%;
+          left: 0.4rem;
           bottom: 0.35rem;
-          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
-          transform: translateX(-50%) rotate(-90deg);
-          transform-origin: center bottom;
+          width: calc(var(--topic-header-height, 7.5rem) - 1rem);
+          transform: rotate(-90deg);
+          transform-origin: left bottom;
           white-space: nowrap;
           overflow: hidden;
           font-size: 0.6rem;
