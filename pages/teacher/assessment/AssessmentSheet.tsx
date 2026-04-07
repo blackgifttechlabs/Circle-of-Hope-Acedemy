@@ -755,17 +755,16 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
         /* The rotated span — strictly ONE line, no wrap, clipped */
         .rotate-header {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
+          display: block;
           width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
           transform: rotate(-90deg);
           transform-origin: center;
           white-space: nowrap;
           overflow: hidden;
+          text-overflow: ellipsis;
           font-size: 0.6rem;
           line-height: 1;
-          text-align: center;
+          text-align: left;
         }
 
         /* Bold variant for TOTAL / AVERAGE / SYMBOL */

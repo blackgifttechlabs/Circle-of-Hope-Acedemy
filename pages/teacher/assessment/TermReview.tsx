@@ -568,18 +568,16 @@ export default function TermReview({ user }: { user: any }) {
         }
 
         .rotate-header {
-          display: inline-flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
+          display: block;
           width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
           transform: rotate(-90deg);
           transform-origin: center;
-          white-space: normal;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
           font-size: 0.6rem;
-          line-height: 1.05;
-          text-align: center;
-          gap: 0.08rem;
+          line-height: 1;
+          text-align: left;
         }
 
         .rotate-header-bold {
