@@ -249,21 +249,13 @@ export default function TermReview({ user }: { user: any }) {
               align: 'left',
             });
           } else {
-            const label = topicLabels[relIdx];
-            const lines = getTopicHeaderLines(topics[relIdx], 18);
+            const lines = getTopicHeaderLines(topics[relIdx], 22);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(0, 0, 0);
             doc.text(lines, x + width / 2 + 1.2, y + height - 1.5, {
               angle: 90,
               align: 'left',
             });
-            if (label.prefix) {
-              doc.setFont('helvetica', 'bold');
-              doc.text(`${label.prefix}:`, x + width / 2 + 1.2, y + height - 1.5, {
-                angle: 90,
-                align: 'left',
-              });
-            }
           }
           doc.restoreGraphicsState();
         }
@@ -449,9 +441,9 @@ export default function TermReview({ user }: { user: any }) {
 
     let col = 3;
     topics.forEach((topic) => {
-      const lines = getTopicHeaderLines(topic, 18);
+      const lines = getTopicHeaderLines(topic, 22);
       const c = sheet.getCell(HDR_ROW, col++);
-      c.value = lines.join('\n');
+      c.value = lines[0];
       c.font = { size: 8 };
       Object.assign(c, { ...hdrBaseStyle });
       c.border = thinBorder;
@@ -603,10 +595,6 @@ export default function TermReview({ user }: { user: any }) {
           line-height: 1;
         }
 
-        .rotate-header-line {
-          display: block;
-        }
-
         #summary-table {
           width: 100%;
           table-layout: fixed;
@@ -695,9 +683,7 @@ export default function TermReview({ user }: { user: any }) {
                   <th key={topic} className="border border-black topic-th w-8">
                     <div className="th-inner">
                       <span className="rotate-header" title={topic}>
-                        {getTopicHeaderLines(topic, 18).map((line, index) => (
-                          <span key={`${topic}-${index}`} className="rotate-header-line">{line}</span>
-                        ))}
+                        {getTopicHeaderLines(topic, 22)[0]}
                       </span>
                     </div>
                   </th>

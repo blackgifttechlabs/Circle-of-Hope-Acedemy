@@ -212,14 +212,6 @@ const appendSummaryTermToDocument = async (
             angle: 90,
             align: 'left',
           });
-          if (label.prefix) {
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(0, 0, 0);
-            doc.text(`${label.prefix}:`, data.cell.x + data.cell.width / 2 + 1.2, data.cell.y + data.cell.height - 1.5, {
-              angle: 90,
-              align: 'left',
-            });
-          }
           doc.restoreGraphicsState();
         }
       },

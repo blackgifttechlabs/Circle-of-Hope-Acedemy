@@ -356,21 +356,13 @@ export default function AssessmentSheet({ user }: { user: any }) {
                 align: 'left',
               });
             } else {
-              const label = topicLabels[topicIndex];
-              const lines = getTopicHeaderLines(termTopics[topicIndex], standardWorkflow ? 18 : 15);
+              const lines = getTopicHeaderLines(termTopics[topicIndex], standardWorkflow ? 22 : 24);
               doc.setFont('helvetica', 'normal');
               doc.setTextColor(0, 0, 0);
               doc.text(lines, x + width / 2 + 1.2, y + height - 1.5, {
                 angle: 90,
                 align: 'left',
               });
-              if (label.prefix) {
-                doc.setFont('helvetica', 'bold');
-                doc.text(`${label.prefix}:`, x + width / 2 + 1.2, y + height - 1.5, {
-                  angle: 90,
-                  align: 'left',
-                });
-              }
             }
             doc.restoreGraphicsState();
           }
@@ -576,9 +568,9 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
       let col = 3;
       termTopics.forEach((topic) => {
-        const lines = getTopicHeaderLines(topic, standardWorkflow ? 18 : 15);
+        const lines = getTopicHeaderLines(topic, standardWorkflow ? 22 : 24);
         const c = sheet.getCell(HDR_ROW, col++);
-        c.value = lines.join('\n');
+        c.value = lines[0];
         c.font = { size: 8 };
         Object.assign(c, { ...hdrBaseStyle });
         c.border = thinBorder;
@@ -757,20 +749,6 @@ export default function AssessmentSheet({ user }: { user: any }) {
           font-size: 0.6rem;
           font-weight: 700;
           line-height: 1;
-        }
-
-        .topic-prefix {
-          color: #2563eb;
-          font-weight: 700;
-        }
-
-        .topic-suffix {
-          color: inherit;
-          font-weight: 500;
-        }
-
-        .rotate-header-line {
-          display: block;
         }
 
         /* ── Table fills page width ─────────────────────────── */
@@ -954,21 +932,9 @@ export default function AssessmentSheet({ user }: { user: any }) {
                       <th key={`h-${i}`} className="topic-th border border-black">
                         <div className="th-inner">
                           {(() => {
-                            const parts = getTopicLabelParts(t);
-                            const lines = getTopicHeaderLines(t, standardWorkflow ? 18 : 15);
+                            const lines = getTopicHeaderLines(t, standardWorkflow ? 22 : 24);
                             return (
-                              <span className="rotate-header">
-                                {lines.map((line, lineIndex) => (
-                                  <span key={`${t}-${lineIndex}`} className="rotate-header-line">
-                                    {lineIndex === 0 && parts.prefix && line.startsWith(`${parts.prefix}:`) ? (
-                                      <>
-                                        <span className="topic-prefix">{parts.prefix}:</span>
-                                        <span className="topic-suffix">{line.slice(parts.prefix.length + 1)}</span>
-                                      </>
-                                    ) : line}
-                                  </span>
-                                ))}
-                              </span>
+                              <span className="rotate-header">{lines[0]}</span>
                             );
                           })()}
                         </div>

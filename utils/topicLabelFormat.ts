@@ -20,6 +20,12 @@ const truncateWithEllipsis = (label: string, maxChars: number) => {
   return `${cut}…`;
 };
 
+const truncateWords = (label: string, maxWords = 4) => {
+  const words = label.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return label;
+  return `${words.slice(0, maxWords).join(' ')}…`;
+};
+
 const capitalizeFirst = (value: string) => {
   if (!value) return value;
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -52,37 +58,14 @@ export const getTopicLabelParts = (topic: string, maxChars?: number) => {
 };
 
 export const getTopicHeaderHeight = (topics: string[], standardWorkflow: boolean) => {
-  const wrapWidth = standardWorkflow ? 18 : 15;
-  const needsWrap = topics.some((topic) => getTopicHeaderLines(topic, wrapWidth).length > 1);
-  return standardWorkflow ? (needsWrap ? 156 : 128) : (needsWrap ? 184 : 140);
+  return standardWorkflow ? 128 : 148;
 };
 
 export const getTopicHeaderLines = (
   topic: string,
-  maxCharsPerLine = 18,
-  maxLines = 2
+  maxCharsPerLine = 22,
+  _maxLines = 1
 ) => {
   const { full } = getTopicLabelParts(topic);
-  const words = full.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [''];
-
-  const lines: string[] = [];
-  let currentLine = '';
-
-  words.forEach((word) => {
-    const nextLine = currentLine ? `${currentLine} ${word}` : word;
-    if (nextLine.length <= maxCharsPerLine || currentLine === '') {
-      currentLine = nextLine;
-      return;
-    }
-    lines.push(currentLine);
-    currentLine = word;
-  });
-
-  if (currentLine) lines.push(currentLine);
-  if (lines.length <= maxLines) return lines;
-
-  const collapsed = [...lines.slice(0, maxLines - 1)];
-  collapsed.push(truncateWithEllipsis(lines.slice(maxLines - 1).join(' '), maxCharsPerLine));
-  return collapsed;
+  return [truncateWithEllipsis(truncateWords(full, 4), maxCharsPerLine)];
 };

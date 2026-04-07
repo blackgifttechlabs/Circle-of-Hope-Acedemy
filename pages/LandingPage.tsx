@@ -139,7 +139,7 @@ export const LandingPage: React.FC = () => {
                 <div className="w-full lg:w-1/2 relative">
                     <div className="absolute inset-0 bg-coha-900 transform translate-x-4 translate-y-4 hidden lg:block"></div>
                     <img 
-                      src="https://i.ibb.co/My2rxxYJ/founder.png" 
+                      src="https://i.ibb.co/p6RQ3D17/Whats-App-Image-2026-04-07-at-12-45-09.jpg" 
                       alt="Victoria Joel - Founder" 
                       className="relative z-10 w-full h-auto object-cover shadow-xl border-4 border-white"
                     />
