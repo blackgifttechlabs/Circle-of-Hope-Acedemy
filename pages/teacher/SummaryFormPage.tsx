@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudentsByAssignedClass, getSystemSettings, getAssessmentRecordsForClass, getTeacherById } from '../../services/dataService';
+import { getStudentsByAssignedClass, getSystemSettings, getAssessmentRecord, getTeacherById } from '../../services/dataService';
 import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
@@ -61,13 +61,25 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
 
   const fetchRecordsSnapshot = async (termId: string, studentsList: Student[]) => {
     if (studentsList.length === 0) return {};
-    const grade = getAssessmentRecordKey(studentsList[0]);
-    const studentIds = studentsList.map(s => s.id);
-    const classRecords = await getAssessmentRecordsForClass(grade, termId, studentIds);
     const recordsMap: Record<string, TermAssessmentRecord> = {};
-    classRecords.forEach(r => {
-      recordsMap[r.studentId] = r;
+
+    const studentRecords = await Promise.all(
+      studentsList.map(async (student) => {
+        const record = await getAssessmentRecord(
+          getAssessmentRecordKey(student),
+          student.id,
+          termId
+        );
+        return record;
+      })
+    );
+
+    studentRecords.forEach((record) => {
+      if (record) {
+        recordsMap[record.studentId] = record;
+      }
     });
+
     return recordsMap;
   };
 

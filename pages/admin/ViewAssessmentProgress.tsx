@@ -149,7 +149,7 @@ export const ViewAssessmentProgress: React.FC = () => {
                 label="Download Summary Sheet"
                 icon={Download}
                 className="bg-blue-600 text-white hover:bg-blue-700"
-                menuPosition="top"
+                menuPosition="bottom"
                 items={[
                   ...REPORT_TERMS.map((term) => ({
                     id: `summary-${term.id}`,
