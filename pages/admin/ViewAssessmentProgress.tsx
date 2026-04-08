@@ -149,6 +149,7 @@ export const ViewAssessmentProgress: React.FC = () => {
                 label="Download Summary Sheet"
                 icon={Download}
                 className="bg-blue-600 text-white hover:bg-blue-700"
+                menuPosition="top"
                 items={[
                   ...REPORT_TERMS.map((term) => ({
                     id: `summary-${term.id}`,
@@ -171,7 +172,7 @@ export const ViewAssessmentProgress: React.FC = () => {
           </div>
 
           {REPORT_TERMS.map((term) => (
-            <section key={term.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+            <section key={term.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-visible">
               <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/70 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                   <div className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-1">Assessment Term</div>
@@ -204,6 +205,7 @@ export const ViewAssessmentProgress: React.FC = () => {
                         label="Download"
                         icon={Download}
                         className="bg-slate-900 text-white hover:bg-slate-800"
+                        menuPosition="top"
                         items={buildDownloadItems(subject.id, term.id)}
                       />
                     </div>

@@ -13,9 +13,16 @@ interface ActionMenuProps {
   icon: LucideIcon;
   items: ActionItem[];
   className?: string;
+  menuPosition?: 'top' | 'bottom';
 }
 
-export const ActionMenu: React.FC<ActionMenuProps> = ({ label, icon: Icon, items, className = '' }) => {
+export const ActionMenu: React.FC<ActionMenuProps> = ({
+  label,
+  icon: Icon,
+  items,
+  className = '',
+  menuPosition = 'bottom',
+}) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -42,7 +49,13 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ label, icon: Icon, items
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+0.65rem)] z-40 min-w-[220px] overflow-hidden rounded-3xl border border-slate-200 bg-white/95 p-2 shadow-[0_18px_45px_rgba(15,23,42,0.18)] backdrop-blur">
+        <div
+          className={`absolute right-0 z-40 min-w-[220px] overflow-hidden rounded-3xl border border-slate-200 bg-white/95 p-2 shadow-[0_18px_45px_rgba(15,23,42,0.18)] backdrop-blur ${
+            menuPosition === 'top'
+              ? 'bottom-[calc(100%+0.65rem)]'
+              : 'top-[calc(100%+0.65rem)]'
+          }`}
+        >
           {items.map((item) => {
             const ItemIcon = item.icon;
             return (
