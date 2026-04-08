@@ -565,12 +565,13 @@ export default function TermReview({ user }: { user: any }) {
         }
 
         .rotate-header {
+          display: block;
           position: absolute;
-          left: 0.4rem;
+          left: 50%;
           bottom: 0.35rem;
-          width: calc(var(--topic-header-height, 7.5rem) - 1rem);
-          transform: rotate(-90deg);
-          transform-origin: left bottom;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: translateX(-50%) rotate(-90deg);
+          transform-origin: center bottom;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -580,12 +581,13 @@ export default function TermReview({ user }: { user: any }) {
         }
 
         .rotate-header-bold {
+          display: block;
           position: absolute;
-          left: 0.4rem;
+          left: 50%;
           bottom: 0.35rem;
-          width: calc(var(--topic-header-height, 7.5rem) - 1rem);
-          transform: rotate(-90deg);
-          transform-origin: left bottom;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: translateX(-50%) rotate(-90deg);
+          transform-origin: center bottom;
           white-space: nowrap;
           overflow: hidden;
           font-size: 0.6rem;

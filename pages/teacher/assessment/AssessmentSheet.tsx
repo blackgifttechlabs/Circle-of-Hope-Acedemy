@@ -752,12 +752,13 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
         /* The rotated span — strictly ONE line, no wrap, clipped */
         .rotate-header {
+          display: block;
           position: absolute;
-          left: 0.4rem;
+          left: 50%;
           bottom: 0.35rem;
-          width: calc(var(--topic-header-height, 7.5rem) - 1rem);
-          transform: rotate(-90deg);
-          transform-origin: left bottom;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: translateX(-50%) rotate(-90deg);
+          transform-origin: center bottom;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -768,12 +769,13 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
         /* Bold variant for TOTAL / AVERAGE / SYMBOL */
         .rotate-header-bold {
+          display: block;
           position: absolute;
-          left: 0.4rem;
+          left: 50%;
           bottom: 0.35rem;
-          width: calc(var(--topic-header-height, 7.5rem) - 1rem);
-          transform: rotate(-90deg);
-          transform-origin: left bottom;
+          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+          transform: translateX(-50%) rotate(-90deg);
+          transform-origin: center bottom;
           white-space: nowrap;
           overflow: hidden;
           font-size: 0.6rem;
@@ -950,7 +952,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
                 </colgroup>
 
                 <thead>
-                  <tr style={{ height: `${headerHeight / 16}rem` }}>
+                  <tr style={{ height: `calc(${headerHeight / 16}rem + 0.5rem)` }}>
                     <th className="topic-th border border-black">
                       <div className="th-inner">
                         <span className="rotate-header-bold">No</span>
