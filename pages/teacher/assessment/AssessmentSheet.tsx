@@ -745,44 +745,40 @@ export default function AssessmentSheet({ user }: { user: any }) {
 
         /* Inner wrapper — absolutely fills the <th> and aligns child to bottom */
         th.topic-th .th-inner {
-          position: absolute;
-          inset: 0;
-          overflow: hidden;
-        }
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.35rem;
+}
 
-        /* The rotated span — strictly ONE line, no wrap, clipped */
-        .rotate-header {
-          display: block;
-          position: absolute;
-          left: 50%;
-          bottom: 0.35rem;
-          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
-          transform: translateX(-50%) rotate(-90deg);
-          transform-origin: center bottom;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          font-size: 0.6rem;
-          line-height: 1;
-          text-align: left;
-        }
+.rotate-header {
+  display: block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.6rem;
+  line-height: 1;
+  text-align: left;
+  max-height: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+}
 
-        /* Bold variant for TOTAL / AVERAGE / SYMBOL */
-        .rotate-header-bold {
-          display: block;
-          position: absolute;
-          left: 50%;
-          bottom: 0.35rem;
-          width: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
-          transform: translateX(-50%) rotate(-90deg);
-          transform-origin: center bottom;
-          white-space: nowrap;
-          overflow: hidden;
-          font-size: 0.6rem;
-          font-weight: 700;
-          line-height: 1;
-          text-align: center;
-        }
+.rotate-header-bold {
+  display: block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  max-height: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
+}
 
         /* ── Table fills page width ─────────────────────────── */
         #assessment-table {
