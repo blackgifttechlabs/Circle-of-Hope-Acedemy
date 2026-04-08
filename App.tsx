@@ -18,6 +18,8 @@ import { VtcApplicationsPage } from './pages/admin/VtcApplications';
 import { VtcApplicationDetails } from './pages/admin/VtcApplicationDetails';
 import { SettingsPage } from './pages/admin/Settings';
 import { ViewLessonPlans } from './pages/admin/ViewLessonPlans';
+import { ViewAssessmentProgress } from './pages/admin/ViewAssessmentProgress';
+import { AdminAssessmentSheetViewer } from './pages/admin/AdminAssessmentSheetViewer';
 import { ParentDashboard } from './pages/parent/Dashboard';
 import { ParentAssessmentForm } from './pages/parent/AssessmentForm';
 import { ParentAssessmentProgress } from './pages/parent/AssessmentProgress';
@@ -176,6 +178,8 @@ const App: React.FC = () => {
                       <Route path="teachers" element={<TeachersPage />} />
                       <Route path="teachers/:id/progress" element={<TeacherProgressPage />} />
                       <Route path="lesson-plans" element={<ViewLessonPlans />} />
+                      <Route path="assessment-progress" element={<ViewAssessmentProgress />} />
+                      <Route path="assessment-progress/view/:className/:subject" element={<AdminAssessmentSheetViewer />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
                       <Route path="students/:id" element={<StudentDetailsPage />} />
                       <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.ADMIN} user={user} />} />

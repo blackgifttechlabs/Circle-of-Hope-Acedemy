@@ -187,12 +187,20 @@ export const TeachersPage: React.FC = () => {
             />
           </div>
           <div className="w-full sm:w-auto sm:ml-auto">
-            <Button 
-              onClick={() => navigate('/admin/lesson-plans')} 
-              className="w-full sm:w-auto !bg-green-600 hover:!bg-green-700 !border-0 text-white flex items-center justify-center gap-2 px-6"
-            >
-              <FileText size={20} /> View Lesson Plans
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={() => navigate('/admin/lesson-plans')}
+                className="w-full sm:w-auto !bg-green-600 hover:!bg-green-700 !border-0 text-white flex items-center justify-center gap-2 px-6"
+              >
+                <FileText size={20} /> View Lesson Plans
+              </Button>
+              <Button
+                onClick={() => navigate('/admin/assessment-progress')}
+                className="w-full sm:w-auto !bg-orange-500 hover:!bg-orange-600 !border-0 text-white flex items-center justify-center gap-2 px-6"
+              >
+                <BarChart2 size={20} /> View Assessment Progress
+              </Button>
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto">

@@ -73,7 +73,15 @@ const getSymbol = (average: number | null): string => {
 const MAX_TOPIC_CHARS = 22; // characters visible in one rotated line at 0.6rem
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function AssessmentSheet({ user }: { user: any }) {
+export default function AssessmentSheet({
+  user,
+  backPath = '/teacher/classes',
+  visibleTermIds,
+}: {
+  user: any;
+  backPath?: string;
+  visibleTermIds?: string[];
+}) {
   const { subject } = useParams<{ subject: string }>();
   const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
@@ -706,11 +714,14 @@ export default function AssessmentSheet({ user }: { user: any }) {
     );
   }
 
-  const sheetTerms = [
-    { name: 'Term 1', assessments: assessmentsT1 },
-    { name: 'Term 2', assessments: assessmentsT2 },
-    { name: 'Term 3', assessments: assessmentsT3 },
+  const allSheetTerms = [
+    { id: 'term-1', name: 'Term 1', assessments: assessmentsT1 },
+    { id: 'term-2', name: 'Term 2', assessments: assessmentsT2 },
+    { id: 'term-3', name: 'Term 3', assessments: assessmentsT3 },
   ];
+  const sheetTerms = visibleTermIds?.length
+    ? allSheetTerms.filter((term) => visibleTermIds.includes(term.id))
+    : allSheetTerms;
 
   return (
     <div className="w-full px-4 py-6 print:p-0 print:m-0">
@@ -792,7 +803,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
       <div className="mb-6 flex justify-between items-center print:hidden">
         <div>
           <button
-            onClick={() => navigateBackOr(navigate as any, '/teacher/classes')}
+            onClick={() => navigateBackOr(navigate as any, backPath)}
             className="mb-3 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
           >
             <ArrowLeft size={20} className="text-slate-600" />
@@ -811,12 +822,12 @@ export default function AssessmentSheet({ user }: { user: any }) {
                 icon: FileSpreadsheet,
                 onClick: () => generateExcel(term),
               })),
-              {
+              ...(sheetTerms.length > 1 ? [{
                 id: 'excel-all',
                 label: 'All Terms in One File',
                 icon: FileSpreadsheet,
                 onClick: () => generateExcel(),
-              },
+              }] : []),
             ]}
           />
           <ActionMenu
@@ -830,12 +841,12 @@ export default function AssessmentSheet({ user }: { user: any }) {
                 icon: Printer,
                 onClick: () => generatePDF(term, 'print'),
               })),
-              {
+              ...(sheetTerms.length > 1 ? [{
                 id: 'print-all',
                 label: 'All Terms in One File',
                 icon: Printer,
                 onClick: () => generatePDF(undefined, 'print'),
-              },
+              }] : []),
             ]}
           />
           <ActionMenu
@@ -849,12 +860,12 @@ export default function AssessmentSheet({ user }: { user: any }) {
                 icon: Download,
                 onClick: () => generatePDF(term),
               })),
-              {
+              ...(sheetTerms.length > 1 ? [{
                 id: 'pdf-all',
                 label: 'All Terms in One File',
                 icon: Download,
                 onClick: () => generatePDF(),
-              },
+              }] : []),
             ]}
           />
         </div>
@@ -863,7 +874,7 @@ export default function AssessmentSheet({ user }: { user: any }) {
       {/* ── Sheet preview ────────────────────────────────────────────────── */}
       <div className="space-y-8 print:space-y-0">
         {sheetTerms.map((term, termIdx) => {
-          const termId = term.name.toLowerCase().replace(' ', '-');
+          const termId = term.id;
           const termTopics = getTopicsForTerm(termId, term.assessments);
           const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
 
