@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GraduationCap, LogOut, X,
   FileText, Settings, Activity, ClipboardList, ChevronLeft,
   ChevronRight, Calendar, BarChart3, CreditCard, BookOpen,
 } from 'lucide-react';
 import { UserRole } from '../types';
-import { getHomeworkSubmissionsForClass, getPendingActionCounts, getStudentById } from '../services/dataService';
+import { getAllHomeworkSubmissions, getHomeworkSubmissionsForClass, getPaymentProofs, getPendingActionCounts, getStudentById } from '../services/dataService';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -17,6 +17,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, onLogout }) => {
+  const location = useLocation();
   const [applicationBadgeCount, setApplicationBadgeCount] = useState(0);
   const [paymentBadgeCount, setPaymentBadgeCount] = useState(0);
   const [homeworkBadgeCount, setHomeworkBadgeCount] = useState(0);
@@ -24,13 +25,55 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   const [isCollapsed, setIsCollapsed]     = useState(false);
   const [studentDivision, setStudentDivision] = useState<string | null>(null);
 
+  const getMillis = (value: any) => {
+    if (!value) return 0;
+    if (typeof value?.toDate === 'function') return value.toDate().getTime();
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+  };
+
+  const adminPaymentsViewKey = `coha_seen_admin_payments_${user?.id || 'admin'}`;
+  const adminHomeworksViewKey = `coha_seen_admin_homeworks_${user?.id || 'admin'}`;
+  const teacherHomeworksViewKey = `coha_seen_teacher_homeworks_${user?.id || 'teacher'}_${user?.assignedClass || 'class'}`;
+
+  useEffect(() => {
+    if (role === UserRole.ADMIN && location.pathname.startsWith('/admin/payments')) {
+      localStorage.setItem(adminPaymentsViewKey, String(Date.now()));
+      setPaymentBadgeCount(0);
+    }
+
+    if (role === UserRole.ADMIN && location.pathname.startsWith('/admin/homeworks')) {
+      localStorage.setItem(adminHomeworksViewKey, String(Date.now()));
+      setHomeworkBadgeCount(0);
+    }
+
+    if (role === UserRole.TEACHER && location.pathname.startsWith('/teacher/homework')) {
+      localStorage.setItem(teacherHomeworksViewKey, String(Date.now()));
+      setHomeworkBadgeCount(0);
+    }
+  }, [role, location.pathname, adminPaymentsViewKey, adminHomeworksViewKey, teacherHomeworksViewKey]);
+
   useEffect(() => {
     if (role === UserRole.ADMIN) {
       const fetchCounts = async () => {
-        const counts = await getPendingActionCounts();
+        const [counts, paymentProofs, homeworkSubmissions] = await Promise.all([
+          getPendingActionCounts(),
+          getPaymentProofs(),
+          getAllHomeworkSubmissions(),
+        ]);
+        const lastViewedPaymentsAt = parseInt(localStorage.getItem(adminPaymentsViewKey) || '0', 10) || 0;
+        const lastViewedHomeworksAt = parseInt(localStorage.getItem(adminHomeworksViewKey) || '0', 10) || 0;
         setApplicationBadgeCount(counts.pendingApps + counts.pendingVerifications);
-        setPaymentBadgeCount(counts.pendingPaymentProofs);
-        setHomeworkBadgeCount(counts.pendingHomeworkSubmissions);
+        setPaymentBadgeCount(
+          location.pathname.startsWith('/admin/payments')
+            ? 0
+            : paymentProofs.filter((item) => item.status === 'PENDING' && getMillis(item.submittedAt) > lastViewedPaymentsAt).length
+        );
+        setHomeworkBadgeCount(
+          location.pathname.startsWith('/admin/homeworks')
+            ? 0
+            : homeworkSubmissions.filter((item) => item.status === 'SUBMITTED' && getMillis(item.submittedAt) > lastViewedHomeworksAt).length
+        );
         setVtcBadgeCount(counts.pendingVtcApps);
       };
 
@@ -51,8 +94,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
       };
     } else if (role === UserRole.TEACHER && user?.assignedClass) {
       const fetchTeacherHomeworkCount = async () => {
+        if (location.pathname.startsWith('/teacher/homework')) {
+          setHomeworkBadgeCount(0);
+          return;
+        }
         const submissions = await getHomeworkSubmissionsForClass(user.assignedClass);
-        setHomeworkBadgeCount(submissions.filter((item) => item.status === 'SUBMITTED').length);
+        const lastViewedHomeworksAt = parseInt(localStorage.getItem(teacherHomeworksViewKey) || '0', 10) || 0;
+        setHomeworkBadgeCount(
+          submissions.filter((item) => item.status === 'SUBMITTED' && getMillis(item.submittedAt) > lastViewedHomeworksAt).length
+        );
       };
 
       const handleUpdate = () => {
@@ -75,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
       };
       fetchStudent();
     }
-  }, [role, user]);
+  }, [role, user, adminPaymentsViewKey, adminHomeworksViewKey, teacherHomeworksViewKey, location.pathname]);
 
   /* ─── nav link definitions ─── */
   const adminLinks = [

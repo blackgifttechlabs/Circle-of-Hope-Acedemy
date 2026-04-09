@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Image as ImageIcon } from 'lucide-react';
+import { CheckCircle2, Download, Image as ImageIcon, X } from 'lucide-react';
 import { getAllHomeworkSubmissions, markHomeworkSubmissionReviewed } from '../../services/dataService';
 import { HomeworkSubmission } from '../../types';
 import { Loader } from '../../components/ui/Loader';
@@ -10,6 +10,16 @@ export const AdminHomeworksPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [reviewNote, setReviewNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<{ src: string; name: string; fileName?: string } | null>(null);
+
+  const triggerImageDownload = (src: string, fileName: string) => {
+    const link = document.createElement('a');
+    link.href = src;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const load = async () => {
     const data = await getAllHomeworkSubmissions();
@@ -44,6 +54,41 @@ export const AdminHomeworksPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {fullscreenImage && (
+        <div className="fixed inset-0 z-[90] bg-slate-950/94 px-4 py-6">
+          <div className="mx-auto flex h-full w-full max-w-5xl flex-col">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-white">{fullscreenImage.name}</p>
+                <p className="mt-1 text-xs font-semibold text-white/65">Homework image preview</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => triggerImageDownload(fullscreenImage.src, fullscreenImage.fileName || `${fullscreenImage.name}.png`)}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-slate-900"
+                >
+                  <Download size={16} /> Download
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFullscreenImage(null)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFullscreenImage(null)}
+              className="flex-1 overflow-hidden rounded-[1.8rem] border border-white/10 bg-white/5 p-3"
+            >
+              <img src={fullscreenImage.src} alt={fullscreenImage.name} className="h-full w-full rounded-[1.2rem] object-contain" />
+            </button>
+          </div>
+        </div>
+      )}
       <div>
         <h2 className="text-2xl font-black text-coha-900">Homeworks</h2>
         <p className="text-sm text-gray-500">View homework images uploaded by parents across the school.</p>
@@ -75,7 +120,13 @@ export const AdminHomeworksPage: React.FC = () => {
                 <p className="text-xs font-black uppercase tracking-[0.25em] text-gray-400 mb-4">Homework Image</p>
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 min-h-[480px] flex items-center justify-center overflow-hidden">
                   {selected.imageBase64 ? (
-                    <img src={selected.imageBase64} alt={selected.studentName} className="w-full h-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setFullscreenImage({ src: selected.imageBase64, name: `${selected.studentName} homework`, fileName: selected.fileName || `${selected.studentName}-homework.png` })}
+                      className="h-full w-full"
+                    >
+                      <img src={selected.imageBase64} alt={selected.studentName} className="w-full h-full object-contain" />
+                    </button>
                   ) : (
                     <div className="text-gray-400 flex flex-col items-center gap-2">
                       <ImageIcon size={28} />
@@ -83,6 +134,15 @@ export const AdminHomeworksPage: React.FC = () => {
                     </div>
                   )}
                 </div>
+                {selected.imageBase64 && (
+                  <button
+                    type="button"
+                    onClick={() => triggerImageDownload(selected.imageBase64, selected.fileName || `${selected.studentName}-homework.png`)}
+                    className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-coha-900 px-4 text-sm font-bold text-white"
+                  >
+                    <Download size={16} /> Download
+                  </button>
+                )}
               </div>
 
               <div className="p-5">

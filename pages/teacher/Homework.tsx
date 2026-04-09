@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Image as ImageIcon, PlusCircle, Upload, X } from 'lucide-react';
+import { CheckCircle2, Download, Image as ImageIcon, PlusCircle, Upload, X } from 'lucide-react';
 import { createHomeworkAssignment, getHomeworkAssignmentsByTeacher, getHomeworkSubmissionsForClass, getTeacherById, markHomeworkSubmissionReviewed } from '../../services/dataService';
 import { HomeworkAssignment, HomeworkSubmission, Teacher } from '../../types';
 import { Loader } from '../../components/ui/Loader';
@@ -31,7 +31,17 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
   const [dueDate, setDueDate] = useState('');
   const [homeworkImages, setHomeworkImages] = useState<File[]>([]);
   const [imageError, setImageError] = useState('');
+  const [fullscreenImage, setFullscreenImage] = useState<{ src: string; name: string; fileName?: string } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const triggerImageDownload = (src: string, fileName: string) => {
+    const link = document.createElement('a');
+    link.href = src;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const load = async (teacherRecord?: Teacher | null) => {
     const currentTeacher = teacherRecord || teacher;
@@ -126,6 +136,41 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
 
   return (
     <div className="space-y-6">
+      {fullscreenImage && (
+        <div className="fixed inset-0 z-[90] bg-slate-950/94 px-4 py-6">
+          <div className="mx-auto flex h-full w-full max-w-5xl flex-col">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-white">{fullscreenImage.name}</p>
+                <p className="mt-1 text-xs font-semibold text-white/65">Homework image preview</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => triggerImageDownload(fullscreenImage.src, fullscreenImage.fileName || `${fullscreenImage.name}.png`)}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-slate-900"
+                >
+                  <Download size={16} /> Download
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFullscreenImage(null)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFullscreenImage(null)}
+              className="flex-1 overflow-hidden rounded-[1.8rem] border border-white/10 bg-white/5 p-3"
+            >
+              <img src={fullscreenImage.src} alt={fullscreenImage.name} className="h-full w-full rounded-[1.2rem] object-contain" />
+            </button>
+          </div>
+        </div>
+      )}
       <div>
         <h2 className="text-2xl font-black text-coha-900">Homework</h2>
         <p className="text-sm text-gray-500">Post homework for your class and review parent uploads for {teacher?.assignedClass || 'your class'}.</p>
@@ -203,9 +248,14 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
                   {!!assignment.imageAttachments?.length && (
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       {assignment.imageAttachments.map((image, index) => (
-                        <a key={`${assignment.id}-${index}`} href={image.fileBase64} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                        <button
+                          key={`${assignment.id}-${index}`}
+                          type="button"
+                          onClick={() => setFullscreenImage({ src: image.fileBase64, name: image.title, fileName: image.fileName })}
+                          className="block overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
+                        >
                           <img src={image.fileBase64} alt={image.title} className="h-20 w-full object-cover" />
-                        </a>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -241,7 +291,13 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
                   <p className="text-xs font-black uppercase tracking-[0.25em] text-gray-400">Submission Preview</p>
                   <div className="rounded-2xl border border-gray-200 bg-gray-50 min-h-[420px] flex items-center justify-center overflow-hidden">
                     {selectedSubmission.imageBase64 ? (
-                      <img src={selectedSubmission.imageBase64} alt={selectedSubmission.studentName} className="w-full h-full object-contain" />
+                      <button
+                        type="button"
+                        onClick={() => setFullscreenImage({ src: selectedSubmission.imageBase64, name: `${selectedSubmission.studentName} homework`, fileName: selectedSubmission.fileName || `${selectedSubmission.studentName}-homework.png` })}
+                        className="h-full w-full"
+                      >
+                        <img src={selectedSubmission.imageBase64} alt={selectedSubmission.studentName} className="w-full h-full object-contain" />
+                      </button>
                     ) : (
                       <div className="text-gray-400 flex flex-col items-center gap-2">
                         <ImageIcon size={28} />
@@ -249,6 +305,15 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
                       </div>
                     )}
                   </div>
+                  {selectedSubmission.imageBase64 && (
+                    <button
+                      type="button"
+                      onClick={() => triggerImageDownload(selectedSubmission.imageBase64, selectedSubmission.fileName || `${selectedSubmission.studentName}-homework.png`)}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-coha-900 px-4 text-sm font-bold text-white"
+                    >
+                      <Download size={16} /> Download
+                    </button>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="rounded-xl border border-gray-200 p-4">

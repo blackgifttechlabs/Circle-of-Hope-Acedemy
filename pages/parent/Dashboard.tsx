@@ -23,6 +23,7 @@ import {
   Upload,
   User,
   Users,
+  X,
 } from 'lucide-react';
 import {
   getHomeworkAssignmentsForClass,
@@ -175,6 +176,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
     teacher: true,
     uploads: false,
   });
+  const [homeworkPreviewImage, setHomeworkPreviewImage] = useState<{ src: string; title: string; fileName?: string } | null>(null);
 
   const paymentDeviceFileRef = useRef<HTMLInputElement>(null);
   const homeworkFileRef = useRef<HTMLInputElement>(null);
@@ -209,6 +211,15 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   }, [settings, receipts]);
   const paidPercent = financials.total > 0 ? Math.min(100, Math.round((financials.paid / financials.total) * 100)) : 0;
   const balancePercent = financials.total > 0 ? Math.min(100, Math.round((Math.max(financials.balance, 0) / financials.total) * 100)) : 0;
+
+  const triggerImageDownload = (src: string, fileName: string) => {
+    const link = document.createElement('a');
+    link.href = src;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const refreshData = async () => {
     if (!user?.id) return;
@@ -592,6 +603,43 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       </section>
     </div>
   );
+
+  const renderHomeworkImagePreview = () =>
+    homeworkPreviewImage ? (
+      <div className="fixed inset-0 z-[90] bg-slate-950/94 px-4 py-6">
+        <div className="mx-auto flex h-full w-full max-w-5xl flex-col">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black text-white">{homeworkPreviewImage.title}</p>
+              <p className="mt-1 text-xs font-semibold text-white/65">Image preview</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => triggerImageDownload(homeworkPreviewImage.src, homeworkPreviewImage.fileName || `${homeworkPreviewImage.title}.png`)}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-slate-900"
+              >
+                <Download size={16} /> Download
+              </button>
+              <button
+                type="button"
+                onClick={() => setHomeworkPreviewImage(null)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHomeworkPreviewImage(null)}
+            className="flex-1 overflow-hidden rounded-[1.8rem] border border-white/10 bg-white/5 p-3"
+          >
+            <img src={homeworkPreviewImage.src} alt={homeworkPreviewImage.title} className="h-full w-full rounded-[1.2rem] object-contain" />
+          </button>
+        </div>
+      </div>
+    ) : null;
 
   const renderDetails = () => (
     <div>
@@ -1083,9 +1131,14 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                       {!!assignment.imageAttachments?.length && (
                         <div className="mt-3 grid grid-cols-2 gap-2">
                           {assignment.imageAttachments.map((image, index) => (
-                            <a key={`${assignment.id}-${index}`} href={image.fileBase64} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-emerald-200 bg-white">
+                            <button
+                              key={`${assignment.id}-${index}`}
+                              type="button"
+                              onClick={() => setHomeworkPreviewImage({ src: image.fileBase64, title: image.title, fileName: image.fileName })}
+                              className="block overflow-hidden rounded-xl border border-emerald-200 bg-white"
+                            >
                               <img src={image.fileBase64} alt={image.title} className="h-24 w-full object-cover" />
-                            </a>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -1113,6 +1166,15 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                   {homeworkSubmissions.length === 0 && <p className="text-sm text-slate-500">No homework images sent yet.</p>}
                   {homeworkSubmissions.map((submission) => (
                     <div key={submission.id} className="rounded-[1.4rem] border border-violet-200 bg-violet-50/70 p-4 shadow-sm">
+                      {submission.imageBase64 && (
+                        <button
+                          type="button"
+                          onClick={() => setHomeworkPreviewImage({ src: submission.imageBase64, title: `${submission.studentName} homework upload`, fileName: submission.fileName || `${submission.studentName}-homework.png` })}
+                          className="mb-3 block w-full overflow-hidden rounded-[1.1rem] border border-violet-200 bg-white"
+                        >
+                          <img src={submission.imageBase64} alt={submission.studentName} className="h-28 w-full object-cover" />
+                        </button>
+                      )}
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-black text-slate-900">{fmtDate(submission.submittedAt)}</p>
@@ -1122,6 +1184,15 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                           {submission.status}
                         </span>
                       </div>
+                      {submission.imageBase64 && (
+                        <button
+                          type="button"
+                          onClick={() => triggerImageDownload(submission.imageBase64, submission.fileName || `${submission.studentName}-homework.png`)}
+                          className="mt-3 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 text-sm font-bold text-white"
+                        >
+                          <Download size={15} /> Download
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1260,6 +1331,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
 
   return (
     <div className="-m-5 min-h-[calc(100vh-64px)] bg-[#f7f8fa] text-slate-900">
+      {renderHomeworkImagePreview()}
       <div className="max-w-4xl mx-auto px-3 sm:px-5 pb-24">
         {tab === 'home' && renderHome()}
         {tab === 'details' && renderDetails()}
