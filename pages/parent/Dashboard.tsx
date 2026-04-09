@@ -311,6 +311,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       await refreshData();
       setPaymentMessageType('success');
       setPaymentMessage('Proof of payment sent successfully.');
+      window.dispatchEvent(new CustomEvent('coha-payment-proof-update'));
       setActiveTab('receipts');
     } catch (error) {
       console.error('Payment proof submission failed:', error);
@@ -355,6 +356,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       await refreshData();
       setHomeworkMessageType('success');
       setHomeworkMessage('Homework image sent successfully.');
+      window.dispatchEvent(new CustomEvent('coha-homework-submission-update'));
     } catch (error) {
       console.error('Homework submission failed:', error);
       setHomeworkMessageType('error');
@@ -1266,7 +1268,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
         {tab === 'settings' && renderSettings()}
       </div>
 
-      <ParentBottomNav activeTab={tab} />
+      <ParentBottomNav activeTab={tab} userId={user?.id} />
     </div>
   );
 };

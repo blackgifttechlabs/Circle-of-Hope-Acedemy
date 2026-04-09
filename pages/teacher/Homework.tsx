@@ -88,6 +88,7 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
       setHomeworkImages([]);
       setImageError('');
       if (imageInputRef.current) imageInputRef.current.value = '';
+      window.dispatchEvent(new CustomEvent('coha-homework-assignment-update'));
       await load(teacher);
     } finally {
       setBusy(false);
@@ -114,6 +115,7 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
     setBusy(true);
     try {
       await markHomeworkSubmissionReviewed(selectedSubmission.id, reviewNote);
+      window.dispatchEvent(new CustomEvent('coha-homework-submission-update'));
       await load(teacher);
     } finally {
       setBusy(false);

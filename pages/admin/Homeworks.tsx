@@ -33,6 +33,7 @@ export const AdminHomeworksPage: React.FC = () => {
     setBusy(true);
     try {
       await markHomeworkSubmissionReviewed(selected.id, reviewNote);
+      window.dispatchEvent(new CustomEvent('coha-homework-submission-update'));
       await load();
     } finally {
       setBusy(false);

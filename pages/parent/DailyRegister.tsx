@@ -140,7 +140,7 @@ export const ParentDailyRegister: React.FC<{ user: any }> = ({ user }) => {
         </div>
       </div>
       </div>
-      <ParentBottomNav />
+      <ParentBottomNav userId={user?.id} />
     </div>
   );
 };

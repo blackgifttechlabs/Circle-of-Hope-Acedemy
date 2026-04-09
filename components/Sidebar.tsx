@@ -6,7 +6,7 @@ import {
   ChevronRight, Calendar, BarChart3, CreditCard, BookOpen,
 } from 'lucide-react';
 import { UserRole } from '../types';
-import { getPendingActionCounts, getStudentById } from '../services/dataService';
+import { getHomeworkSubmissionsForClass, getPendingActionCounts, getStudentById } from '../services/dataService';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -17,7 +17,9 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, onLogout }) => {
-  const [badgeCount, setBadgeCount]       = useState(0);
+  const [applicationBadgeCount, setApplicationBadgeCount] = useState(0);
+  const [paymentBadgeCount, setPaymentBadgeCount] = useState(0);
+  const [homeworkBadgeCount, setHomeworkBadgeCount] = useState(0);
   const [vtcBadgeCount, setVtcBadgeCount] = useState(0);
   const [isCollapsed, setIsCollapsed]     = useState(false);
   const [studentDivision, setStudentDivision] = useState<string | null>(null);
@@ -26,12 +28,46 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     if (role === UserRole.ADMIN) {
       const fetchCounts = async () => {
         const counts = await getPendingActionCounts();
-        setBadgeCount(counts.pendingApps + counts.pendingVerifications);
+        setApplicationBadgeCount(counts.pendingApps + counts.pendingVerifications);
+        setPaymentBadgeCount(counts.pendingPaymentProofs);
+        setHomeworkBadgeCount(counts.pendingHomeworkSubmissions);
         setVtcBadgeCount(counts.pendingVtcApps);
       };
+
+      const handleUpdate = () => {
+        fetchCounts();
+      };
+
       fetchCounts();
-      const interval = setInterval(fetchCounts, 60000);
-      return () => clearInterval(interval);
+      window.addEventListener('focus', handleUpdate);
+      window.addEventListener('coha-payment-proof-update', handleUpdate as EventListener);
+      window.addEventListener('coha-homework-submission-update', handleUpdate as EventListener);
+      const interval = setInterval(fetchCounts, 30000);
+      return () => {
+        window.removeEventListener('focus', handleUpdate);
+        window.removeEventListener('coha-payment-proof-update', handleUpdate as EventListener);
+        window.removeEventListener('coha-homework-submission-update', handleUpdate as EventListener);
+        clearInterval(interval);
+      };
+    } else if (role === UserRole.TEACHER && user?.assignedClass) {
+      const fetchTeacherHomeworkCount = async () => {
+        const submissions = await getHomeworkSubmissionsForClass(user.assignedClass);
+        setHomeworkBadgeCount(submissions.filter((item) => item.status === 'SUBMITTED').length);
+      };
+
+      const handleUpdate = () => {
+        fetchTeacherHomeworkCount();
+      };
+
+      fetchTeacherHomeworkCount();
+      window.addEventListener('focus', handleUpdate);
+      window.addEventListener('coha-homework-submission-update', handleUpdate as EventListener);
+      const interval = setInterval(fetchTeacherHomeworkCount, 30000);
+      return () => {
+        window.removeEventListener('focus', handleUpdate);
+        window.removeEventListener('coha-homework-submission-update', handleUpdate as EventListener);
+        clearInterval(interval);
+      };
     } else if (role === UserRole.PARENT && user?.id) {
       const fetchStudent = async () => {
         const student = await getStudentById(user.id);
@@ -44,22 +80,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   /* ─── nav link definitions ─── */
   const adminLinks = [
     { label: 'Dashboard',        path: '/admin/dashboard',        icon: <LayoutDashboard size={17} strokeWidth={2.2} />, badge: 0 },
-    { label: 'Applications',     path: '/admin/applications',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: badgeCount },
+    { label: 'Applications',     path: '/admin/applications',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: applicationBadgeCount },
     { label: 'VTC Applications', path: '/admin/vtc-applications', icon: <FileText        size={17} strokeWidth={2.2} />, badge: vtcBadgeCount },
     { label: 'Teachers',         path: '/admin/teachers',         icon: <Users           size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Lesson Plans',     path: '/admin/lesson-plans',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Assessments',      path: '/admin/assessment-progress', icon: <BarChart3   size={17} strokeWidth={2.2} />, badge: 0 },
-    { label: 'Payments',         path: '/admin/payments',           icon: <CreditCard  size={17} strokeWidth={2.2} />, badge: 0 },
-    { label: 'Homeworks',        path: '/admin/homeworks',          icon: <BookOpen    size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Payments',         path: '/admin/payments',           icon: <CreditCard  size={17} strokeWidth={2.2} />, badge: paymentBadgeCount },
+    { label: 'Homeworks',        path: '/admin/homeworks',          icon: <BookOpen    size={17} strokeWidth={2.2} />, badge: homeworkBadgeCount },
     { label: 'Students',         path: '/admin/students',         icon: <GraduationCap   size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Settings',         path: '/admin/settings',         icon: <Settings        size={17} strokeWidth={2.2} />, badge: 0 },
   ];
 
   const subAdminLinks = [
-    { label: 'Applications',     path: '/admin/applications',     icon: <FileText      size={17} strokeWidth={2.2} />, badge: badgeCount },
+    { label: 'Applications',     path: '/admin/applications',     icon: <FileText      size={17} strokeWidth={2.2} />, badge: applicationBadgeCount },
     { label: 'VTC Applications', path: '/admin/vtc-applications', icon: <FileText      size={17} strokeWidth={2.2} />, badge: vtcBadgeCount },
-    { label: 'Payments',         path: '/admin/payments',         icon: <CreditCard    size={17} strokeWidth={2.2} />, badge: 0 },
-    { label: 'Homeworks',        path: '/admin/homeworks',        icon: <BookOpen      size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Payments',         path: '/admin/payments',         icon: <CreditCard    size={17} strokeWidth={2.2} />, badge: paymentBadgeCount },
+    { label: 'Homeworks',        path: '/admin/homeworks',        icon: <BookOpen      size={17} strokeWidth={2.2} />, badge: homeworkBadgeCount },
     { label: 'Students',         path: '/admin/students',         icon: <GraduationCap size={17} strokeWidth={2.2} />, badge: 0 },
   ];
 
@@ -67,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Dashboard', path: '/teacher/dashboard', icon: <LayoutDashboard size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'My Class',  path: '/teacher/classes',   icon: <GraduationCap   size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Register',  path: '/teacher/register',  icon: <ClipboardList   size={17} strokeWidth={2.2} />, badge: 0 },
-    { label: 'Homework',  path: '/teacher/homework',  icon: <BookOpen        size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Homework',  path: '/teacher/homework',  icon: <BookOpen        size={17} strokeWidth={2.2} />, badge: homeworkBadgeCount },
     { label: 'Settings',  path: '/teacher/settings',  icon: <Settings        size={17} strokeWidth={2.2} />, badge: 0 },
   ];
 
@@ -255,14 +291,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
 
                       {/* badge – expanded */}
                       {!isCollapsed && link.badge > 0 && (
-                        <span className="ml-auto shrink-0 bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+                        <span className={`ml-auto shrink-0 bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none ${link.label === 'Homework' || link.label === 'Homeworks' ? 'animate-pulse' : ''}`}>
                           {link.badge}
                         </span>
                       )}
 
                       {/* badge dot – collapsed */}
                       {isCollapsed && link.badge > 0 && (
-                        <span className="absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-red-500 border-[1.5px] border-[#2b2b5e]" />
+                        <span className={`absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-red-500 border-[1.5px] border-[#2b2b5e] ${link.label === 'Homework' || link.label === 'Homeworks' ? 'animate-pulse' : ''}`} />
                       )}
                     </>
                   )}

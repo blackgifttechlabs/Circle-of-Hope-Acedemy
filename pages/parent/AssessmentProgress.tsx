@@ -223,7 +223,7 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
                 )}
             </div>
             </div>
-            <ParentBottomNav />
+            <ParentBottomNav userId={user?.id} />
         </div>
       );
   }
@@ -390,7 +390,7 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
           </div>
       </div>
       </div>
-      <ParentBottomNav />
+      <ParentBottomNav userId={user?.id} />
     </div>
   );
 };

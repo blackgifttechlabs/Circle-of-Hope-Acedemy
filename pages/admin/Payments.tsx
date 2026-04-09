@@ -74,6 +74,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
         adminName: user?.name || 'Admin',
         notes,
       });
+      window.dispatchEvent(new CustomEvent('coha-payment-proof-update'));
       await load();
       const refreshed = await getPaymentProofs();
       const next = refreshed.find((item) => item.status === 'PENDING') || refreshed[0] || null;
@@ -88,6 +89,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
     setBusy(true);
     try {
       await rejectPaymentProof(selectedProof.id!, selectedProof.studentId, user?.name || 'Admin', notes);
+      window.dispatchEvent(new CustomEvent('coha-payment-proof-update'));
       await load();
       const refreshed = await getPaymentProofs();
       const next = refreshed.find((item) => item.status === 'PENDING') || refreshed[0] || null;
