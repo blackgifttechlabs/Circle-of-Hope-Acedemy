@@ -27,9 +27,18 @@ import {
 interface MyClassProps { user: any; }
 
 /* ─── avatar ─── */
-const Av = ({ name, size = 36 }: { name: string; size?: number }) => {
+const Av = ({ name, imageUrl, size = 36 }: { name: string; imageUrl?: string; size?: number }) => {
   const palette = ['#6366f1','#f59e0b','#10b981','#ec4899','#3b82f6','#8b5cf6','#06b6d4','#f43f5e'];
   const bg = palette[(name.charCodeAt(0) + (name.charCodeAt(1)||0)) % palette.length];
+  if (imageUrl) {
+    return (
+      <img
+        src={imageUrl}
+        alt={name}
+        style={{ width:size, height:size, borderRadius:'50%', objectFit:'cover', flexShrink:0, border:'1px solid #e2e8f0' }}
+      />
+    );
+  }
   return (
     <div style={{ width:size, height:size, borderRadius:'50%', background:bg, flexShrink:0,
       display:'flex', alignItems:'center', justifyContent:'center',
@@ -363,7 +372,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                     <tr key={s.id} className="hrow" style={{ borderBottom:'1px solid #f8fafc' }}>
                       <td className="rtd">
                         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                          <Av name={s.name} size={32}/>
+                          <Av name={s.name} imageUrl={s.profileImageBase64} size={32}/>
                           <div>
                             <p style={{ fontWeight:800, color:'#0f172a', margin:0,
                               fontSize:13, letterSpacing:-.3 }}>{s.name}</p>

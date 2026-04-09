@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
-import { Header } from './components/Header';
 import { LandingPage } from './pages/LandingPage';
 import { AboutUsPage } from './pages/AboutUsPage';
 import { LoginPage } from './pages/LoginPage';
@@ -70,16 +69,6 @@ const AppLayout: React.FC<{
         />
       </div>
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        {role !== UserRole.PARENT && (
-          <Header 
-            onMenuClick={() => setSidebarOpen(!sidebarOpen)} 
-            role={role}
-            userName={user?.name}
-            userId={user?.id}
-            onLogout={onLogout}
-            hideMobileMenu={hideSidebarOnMobile}
-          />
-        )}
         <main className="flex-1 p-5 overflow-y-auto">
           {children}
         </main>

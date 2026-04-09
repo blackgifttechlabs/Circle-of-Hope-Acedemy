@@ -340,9 +340,18 @@ const BreakdownBar = ({ label, pct, color, delay }: { label: string; pct: number
 };
 
 /* ─── avatar ─── */
-const Av = ({ name, size = 36 }: { name: string; size?: number }) => {
+const Av = ({ name, imageUrl, size = 36 }: { name: string; imageUrl?: string; size?: number }) => {
   const palette = ['#6366f1','#f59e0b','#10b981','#ec4899','#3b82f6','#8b5cf6','#06b6d4','#f43f5e'];
   const bg = palette[(name.charCodeAt(0) + (name.charCodeAt(1)||0)) % palette.length];
+  if (imageUrl) {
+    return (
+      <img
+        src={imageUrl}
+        alt={name}
+        style={{ width:size, height:size, borderRadius:'50%', objectFit:'cover', flexShrink:0, border:'1px solid #e2e8f0' }}
+      />
+    );
+  }
   return (
     <div style={{ width:size, height:size, borderRadius:'50%', background:bg, flexShrink:0,
       display:'flex', alignItems:'center', justifyContent:'center',
@@ -384,7 +393,7 @@ const StudentRow = ({
       }}
       onClick={onClick}
     >
-      <Av name={student.name} size={32}/>
+      <Av name={student.name} imageUrl={student.profileImageBase64} size={32}/>
       <div style={{ flex:1, minWidth:0 }}>
         <p style={{ fontSize:12, fontWeight:800, color:'#0f172a', margin:0,
           whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
@@ -552,6 +561,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   }));
 
   const recentStudents = [...enrolled].slice(-5).reverse();
+  const getStudentAssessmentPath = (student: Student) => (
+    student.studentStatus === 'ASSESSMENT'
+      ? `/teacher/assessment/${student.id}`
+      : `/teacher/assess/student/${student.id}`
+  );
 
   const card: React.CSSProperties = {
     background:'white', borderRadius:16,
@@ -835,7 +849,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                     student={s}
                     index={idx}
                     baseDelay={800}
-                    onClick={() => navigate(`/teacher/term-assessment/${s.id}`)}
+                    onClick={() => navigate(getStudentAssessmentPath(s))}
                     badge={<span style={{ width:7, height:7, borderRadius:'50%', background:'#10b981', flexShrink:0 }}/>}
                   />
                 ))}
@@ -865,8 +879,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                   const pct = Math.round((days/14)*100);
                   return (
                     <div key={s.id} className="ai" style={{ cursor:'pointer' }}
-                      onClick={() => navigate(`/teacher/assessment/${s.id}`)}>
-                      <Av name={s.name} size={32}/>
+                      onClick={() => navigate(getStudentAssessmentPath(s))}>
+                      <Av name={s.name} imageUrl={s.profileImageBase64} size={32}/>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ display:'flex', justifyContent:'space-between',
                           alignItems:'center', marginBottom:5 }}>
@@ -922,7 +936,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                       key={`${animKey}-all-${s.id}`}
                       student={s}
                       index={idx}
-                      onClick={() => navigate(`/teacher/term-assessment/${s.id}`)}
+                      onClick={() => navigate(getStudentAssessmentPath(s))}
                       badge={badge}
                     />
                   );

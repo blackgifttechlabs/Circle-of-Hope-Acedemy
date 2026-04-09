@@ -480,6 +480,7 @@ export interface HomeworkAssignment {
   className: string;
   dueDate?: string;
   subject?: string;
+  imageAttachments?: ApplicationFileAttachment[];
   createdAt: any;
 }
 

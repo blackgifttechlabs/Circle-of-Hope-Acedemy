@@ -1070,9 +1070,23 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                         <div>
                           <p className="text-sm font-black text-slate-900">{assignment.title}</p>
                           <p className="text-xs text-slate-600 mt-2">{assignment.description}</p>
+                          {!!assignment.imageAttachments?.length && (
+                            <p className="mt-2 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                              {assignment.imageAttachments.length} image{assignment.imageAttachments.length === 1 ? '' : 's'} attached
+                            </p>
+                          )}
                         </div>
                         {assignment.dueDate && <span className="text-[11px] font-black text-emerald-700">Due {fmtDate(assignment.dueDate)}</span>}
                       </div>
+                      {!!assignment.imageAttachments?.length && (
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          {assignment.imageAttachments.map((image, index) => (
+                            <a key={`${assignment.id}-${index}`} href={image.fileBase64} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-emerald-200 bg-white">
+                              <img src={image.fileBase64} alt={image.title} className="h-24 w-full object-cover" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -13,6 +13,7 @@ import { getGradeDisplayValue } from './assessmentWorkflow';
 import { getNonPromotionalSubjects, getPromotionalSubjects } from './subjects';
 
 const SCHOOL_LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const REPORT_HEADER_RIGHT_LOGO_URL = 'https://i.ibb.co/rRHGVgVL/images.png';
 const PRINCIPAL_SIGNATURE_URL = 'https://i.ibb.co/MkKndHWd/eraze-result-medium-1.png';
 
 const DEFAULT_TERMS = [
@@ -209,10 +210,11 @@ export const printGrade1To7Report = async (
   const subjectsNonPromotional = getNonPromotionalSubjects(grade);
   const allSubjects = [...subjectsPromotional, ...subjectsNonPromotional];
 
-  const [classStudentsRaw, subjectSnapshots, schoolLogo, principalSignature] = await Promise.all([
+  const [classStudentsRaw, subjectSnapshots, schoolLogo, rightHeaderLogo, principalSignature] = await Promise.all([
     getStudentsByAssignedClass(grade),
     loadSubjectSnapshots(grade, selectedTerm.id, allSubjects),
     fetchImage(SCHOOL_LOGO_URL),
+    fetchImage(REPORT_HEADER_RIGHT_LOGO_URL),
     fetchImage(PRINCIPAL_SIGNATURE_URL),
   ]);
 
@@ -264,7 +266,9 @@ export const printGrade1To7Report = async (
 
   if (schoolLogo) {
     doc.addImage(schoolLogo, 'PNG', margin, 8, 25, 25);
-    doc.addImage(schoolLogo, 'PNG', pageWidth - margin - 25, 8, 25, 25);
+  }
+  if (rightHeaderLogo) {
+    doc.addImage(rightHeaderLogo, 'PNG', pageWidth - margin - 25, 8, 25, 25);
   }
 
   doc.setFont('times', 'normal');
@@ -285,19 +289,15 @@ export const printGrade1To7Report = async (
   doc.setFontSize(11);
   doc.text('PROGRESS REPORT', pageWidth / 2, 52, { align: 'center' });
 
-  doc.rect(margin, 56, contentWidth, 18);
-  doc.line(margin + 110, 56, margin + 110, 74);
-  doc.line(margin + 155, 56, margin + 155, 74);
-
   doc.setFont('times', 'bold');
-  doc.setFontSize(8);
-  doc.text(`Name: ${student.name}`, margin + 2, 63);
-  doc.text(`Date of Birth: ${student.dob || '-'}`, margin + 112, 63);
-  doc.text(getGradeDisplayValue(grade), margin + 157, 63);
-  doc.text(`${selectedTerm.termName} ${student.academicYear || new Date().getFullYear()}`, margin + 157, 69);
+  doc.setFontSize(9);
+  doc.text(`Name: ${student.name}`, margin, 60);
+  doc.text(`Date of Birth: ${student.dob || '-'}`, margin + 90, 60);
+  doc.text(`${getGradeDisplayValue(grade)}`, margin + 150, 60);
+  doc.text(`${selectedTerm.termName} ${student.academicYear || new Date().getFullYear()}`, margin + 150, 66);
 
   autoTable(doc, {
-    startY: 74,
+    startY: 71,
     head: [['Promotional Subjects', 'Marks Obtained', 'Symbol', 'Class Average']],
     body: promotionalRows,
     theme: 'grid',

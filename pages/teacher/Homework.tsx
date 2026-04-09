@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Image as ImageIcon, PlusCircle } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CheckCircle2, Image as ImageIcon, PlusCircle, Upload, X } from 'lucide-react';
 import { createHomeworkAssignment, getHomeworkAssignmentsByTeacher, getHomeworkSubmissionsForClass, getTeacherById, markHomeworkSubmissionReviewed } from '../../services/dataService';
 import { HomeworkAssignment, HomeworkSubmission, Teacher } from '../../types';
 import { Loader } from '../../components/ui/Loader';
@@ -9,6 +9,14 @@ interface TeacherHomeworkPageProps {
 }
 
 export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }) => {
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [assignments, setAssignments] = useState<HomeworkAssignment[]>([]);
   const [submissions, setSubmissions] = useState<HomeworkSubmission[]>([]);
@@ -21,6 +29,9 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
   const [description, setDescription] = useState('');
   const [subject, setSubject] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [homeworkImages, setHomeworkImages] = useState<File[]>([]);
+  const [imageError, setImageError] = useState('');
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const load = async (teacherRecord?: Teacher | null) => {
     const currentTeacher = teacherRecord || teacher;
@@ -51,6 +62,15 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
     if (!teacher || !title.trim() || !description.trim()) return;
     setBusy(true);
     try {
+      const imageAttachments = await Promise.all(
+        homeworkImages.map(async (file, index) => ({
+          title: `${title.trim()} Image ${index + 1}`,
+          fileName: file.name,
+          mimeType: file.type,
+          fileBase64: await fileToDataUrl(file),
+        }))
+      );
+
       await createHomeworkAssignment({
         title: title.trim(),
         description: description.trim(),
@@ -59,15 +79,34 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
         className: teacher.assignedClass || '',
         dueDate,
         subject,
+        imageAttachments,
       });
       setTitle('');
       setDescription('');
       setSubject('');
       setDueDate('');
+      setHomeworkImages([]);
+      setImageError('');
+      if (imageInputRef.current) imageInputRef.current.value = '';
       await load(teacher);
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleImagePick = (files: FileList | null) => {
+    if (!files?.length) return;
+    const pickedFiles = Array.from(files).filter((file) => file.type.startsWith('image/'));
+    if (pickedFiles.length !== files.length) {
+      setImageError('Only image files can be added to homework.');
+    } else {
+      setImageError('');
+    }
+    setHomeworkImages((prev) => [...prev, ...pickedFiles]);
+  };
+
+  const removeHomeworkImage = (targetIndex: number) => {
+    setHomeworkImages((prev) => prev.filter((_, index) => index !== targetIndex));
   };
 
   const handleReviewed = async () => {
@@ -101,6 +140,47 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
                 <input value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full h-11 border border-gray-200 rounded-xl px-3 text-sm" placeholder="Subject" />
                 <input value={dueDate} onChange={(e) => setDueDate(e.target.value)} type="date" className="w-full h-11 border border-gray-200 rounded-xl px-3 text-sm" />
               </div>
+              <div className="rounded-2xl border border-dashed border-coha-300 bg-blue-50/40 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-coha-800">Homework Images</p>
+                    <p className="mt-1 text-xs text-gray-500">Add one or many images for this homework post.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-coha-900 border border-coha-200"
+                  >
+                    <Upload size={16} /> Add Images
+                  </button>
+                </div>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleImagePick(e.target.files)}
+                />
+                {imageError && <p className="mt-3 text-sm font-semibold text-red-600">{imageError}</p>}
+                {homeworkImages.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    {homeworkImages.map((file, index) => (
+                      <div key={`${file.name}-${index}`} className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-2">
+                        <img src={URL.createObjectURL(file)} alt={file.name} className="h-28 w-full rounded-xl object-cover" />
+                        <p className="mt-2 truncate text-xs font-semibold text-gray-600">{file.name}</p>
+                        <button
+                          type="button"
+                          onClick={() => removeHomeworkImage(index)}
+                          className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button disabled={busy || !title.trim() || !description.trim()} onClick={handleCreate} className="w-full h-12 rounded-xl bg-coha-900 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2">
                 <PlusCircle size={18} /> Publish homework
               </button>
@@ -118,6 +198,15 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
                   <p className="font-bold text-gray-900">{assignment.title}</p>
                   <p className="text-xs text-gray-500 mt-1">{assignment.description}</p>
                   <p className="text-xs text-gray-400 mt-2">{assignment.subject || 'General'} {assignment.dueDate ? `· Due ${assignment.dueDate}` : ''}</p>
+                  {!!assignment.imageAttachments?.length && (
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {assignment.imageAttachments.map((image, index) => (
+                        <a key={`${assignment.id}-${index}`} href={image.fileBase64} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                          <img src={image.fileBase64} alt={image.title} className="h-20 w-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -38,6 +38,49 @@ export const TeachersPage: React.FC = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchData();
+    };
+
+    const applyTeacherPinUpdate = (teacherId: string, pin: string) => {
+      setTeachers((prev) => prev.map((teacher) => (
+        teacher.id === teacherId ? { ...teacher, pin } : teacher
+      )));
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== 'coha_teacher_pin_update' || !event.newValue) return;
+      try {
+        const payload = JSON.parse(event.newValue);
+        if (payload?.teacherId && payload?.pin) {
+          applyTeacherPinUpdate(payload.teacherId, payload.pin);
+        }
+      } catch (error) {
+        console.error('Failed to parse teacher pin update:', error);
+      }
+    };
+
+    const handleCustomPinUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ teacherId: string; pin: string }>;
+      if (customEvent.detail?.teacherId && customEvent.detail?.pin) {
+        applyTeacherPinUpdate(customEvent.detail.teacherId, customEvent.detail.pin);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('coha-teacher-pin-update', handleCustomPinUpdate as EventListener);
+    const interval = setInterval(fetchData, 30000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('coha-teacher-pin-update', handleCustomPinUpdate as EventListener);
+      clearInterval(interval);
+    };
+  }, []);
+
   const handleEdit = (teacher: Teacher) => {
     setName(teacher.name);
     setSubject(teacher.subject || '');
@@ -210,6 +253,7 @@ export const TeachersPage: React.FC = () => {
                 <th className="px-6 py-4">Name</th>
                 <th className="px-6 py-4">Subject</th>
                 <th className="px-6 py-4">Assigned Class</th>
+                <th className="px-6 py-4">PIN</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -220,6 +264,9 @@ export const TeachersPage: React.FC = () => {
                   <td className="px-6 py-4">{teacher.subject}</td>
                   <td className="px-6 py-4">
                       {teacher.assignedClass ? <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 font-bold rounded">{teacher.assignedClass}</span> : <span className="text-gray-400 italic">Unassigned</span>}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="font-mono font-black text-coha-900 tracking-[0.2em]">{teacher.pin}</span>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2">
@@ -242,7 +289,7 @@ export const TeachersPage: React.FC = () => {
               ))}
               {filteredTeachers.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">No teachers found.</td>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No teachers found.</td>
                 </tr>
               )}
             </tbody>
