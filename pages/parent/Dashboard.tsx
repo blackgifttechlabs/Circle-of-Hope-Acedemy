@@ -58,9 +58,14 @@ const fmtDate = (value: any) => {
   return isNaN(date.getTime()) ? '-' : date.toLocaleDateString();
 };
 
-const fileToDataUrl = (file: File) =>
+const fileToDataUrl = (file: File, onProgress?: (progress: number) => void) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
+    reader.onloadstart = () => onProgress?.(0);
+    reader.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      onProgress?.(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+    };
     reader.onloadend = () => resolve(reader.result as string);
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -149,6 +154,10 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   const [paymentMessageType, setPaymentMessageType] = useState<'success' | 'error'>('success');
   const [homeworkMessage, setHomeworkMessage] = useState('');
   const [homeworkMessageType, setHomeworkMessageType] = useState<'success' | 'error'>('success');
+  const [documentMessage, setDocumentMessage] = useState('');
+  const [documentMessageType, setDocumentMessageType] = useState<'success' | 'error'>('success');
+  const [documentUploadTarget, setDocumentUploadTarget] = useState<UploadedDocument['documentType'] | null>(null);
+  const [documentUploadProgress, setDocumentUploadProgress] = useState(0);
   const [changedPinValue, setChangedPinValue] = useState('');
   const [profileFile, setProfileFile] = useState<File | null>(null);
   const [detailSectionsOpen, setDetailSectionsOpen] = useState({
@@ -356,10 +365,26 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   };
 
   const uploadDocument = async (documentType: UploadedDocument['documentType'], file: File | null, title: string, reset: () => void) => {
-    if (!student || !file) return;
+    if (!student) {
+      setDocumentUploadTarget(documentType);
+      setDocumentMessageType('error');
+      setDocumentMessage('Student record not found.');
+      return;
+    }
+    if (!file) {
+      setDocumentUploadTarget(documentType);
+      setDocumentMessageType('error');
+      setDocumentMessage('Please choose a file first.');
+      return;
+    }
     setBusyAction(documentType);
+    setDocumentUploadTarget(documentType);
+    setDocumentUploadProgress(0);
+    setDocumentMessage('');
     try {
-      const fileBase64 = await fileToDataUrl(file);
+      const fileBase64 = await fileToDataUrl(file, (progress) => {
+        setDocumentUploadProgress(progress);
+      });
       await uploadStudentDocument({
         studentId: student.id,
         studentName: student.name,
@@ -372,6 +397,13 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       });
       reset();
       await refreshData();
+      setDocumentUploadProgress(100);
+      setDocumentMessageType('success');
+      setDocumentMessage(`${title} uploaded successfully.`);
+    } catch (error) {
+      console.error('Document upload failed:', error);
+      setDocumentMessageType('error');
+      setDocumentMessage(`Failed to upload ${title.toLowerCase()}. Please try again.`);
     } finally {
       setBusyAction(null);
     }
@@ -393,6 +425,33 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
 
   if (loading) return <Loader />;
   if (!student) return <div className="p-6 text-sm text-slate-500">Student not found.</div>;
+
+  const renderDocumentFeedback = (documentType: UploadedDocument['documentType']) => {
+    if (documentUploadTarget !== documentType && !(documentMessage && documentUploadTarget === documentType)) return null;
+
+    return (
+      <div className="mt-3 space-y-2">
+        {(busyAction === documentType || (documentUploadTarget === documentType && documentUploadProgress > 0)) && (
+          <div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-emerald-100">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                style={{ width: `${Math.max(documentUploadProgress, busyAction === documentType ? 8 : 0)}%` }}
+              />
+            </div>
+            <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">
+              {busyAction === documentType ? `Uploading ${documentUploadProgress}%` : `Uploaded ${documentUploadProgress}%`}
+            </p>
+          </div>
+        )}
+        {documentMessage && documentUploadTarget === documentType && (
+          <p className={`text-sm font-semibold ${documentMessageType === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {documentMessage}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   const renderHome = () => (
     <div className="-mx-3 sm:-mx-5">
@@ -687,10 +746,11 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                 <FilePlus2 size={16} /> {birthFile ? 'Change file' : 'Upload PDF or image'}
               </button>
               <button disabled={!birthFile || busyAction === 'BIRTH_CERTIFICATE'} onClick={() => uploadDocument('BIRTH_CERTIFICATE', birthFile, 'Birth Certificate', () => { setBirthFile(null); if (birthFileRef.current) birthFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
-                Save
+                {busyAction === 'BIRTH_CERTIFICATE' ? <span className="inline-flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Uploading</span> : 'Save'}
               </button>
             </div>
-            <input ref={birthFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setBirthFile(e.target.files?.[0] || null)} />
+            {renderDocumentFeedback('BIRTH_CERTIFICATE')}
+            <input ref={birthFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => { setBirthFile(e.target.files?.[0] || null); if (documentUploadTarget === 'BIRTH_CERTIFICATE') { setDocumentMessage(''); setDocumentUploadProgress(0); } }} />
           </div>
 
           <div>
@@ -700,10 +760,11 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                 <ShieldCheck size={16} /> {medicalFile ? 'Change file' : 'Upload PDF or image'}
               </button>
               <button disabled={!medicalFile || busyAction === 'MEDICAL_DOCUMENT'} onClick={() => uploadDocument('MEDICAL_DOCUMENT', medicalFile, 'Medical Document', () => { setMedicalFile(null); if (medicalFileRef.current) medicalFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
-                Save
+                {busyAction === 'MEDICAL_DOCUMENT' ? <span className="inline-flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Uploading</span> : 'Save'}
               </button>
             </div>
-            <input ref={medicalFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setMedicalFile(e.target.files?.[0] || null)} />
+            {renderDocumentFeedback('MEDICAL_DOCUMENT')}
+            <input ref={medicalFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => { setMedicalFile(e.target.files?.[0] || null); if (documentUploadTarget === 'MEDICAL_DOCUMENT') { setDocumentMessage(''); setDocumentUploadProgress(0); } }} />
           </div>
 
           <div>
@@ -714,10 +775,11 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                 <FilePlus2 size={16} /> {otherFile ? 'Change file' : 'Upload PDF or image'}
               </button>
               <button disabled={!otherFile || !otherTitle || busyAction === 'OTHER_DOCUMENT'} onClick={() => uploadDocument('OTHER_DOCUMENT', otherFile, otherTitle, () => { setOtherFile(null); setOtherTitle(''); if (otherFileRef.current) otherFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
-                Save
+                {busyAction === 'OTHER_DOCUMENT' ? <span className="inline-flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Uploading</span> : 'Save'}
               </button>
             </div>
-            <input ref={otherFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setOtherFile(e.target.files?.[0] || null)} />
+            {renderDocumentFeedback('OTHER_DOCUMENT')}
+            <input ref={otherFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => { setOtherFile(e.target.files?.[0] || null); if (documentUploadTarget === 'OTHER_DOCUMENT') { setDocumentMessage(''); setDocumentUploadProgress(0); } }} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">

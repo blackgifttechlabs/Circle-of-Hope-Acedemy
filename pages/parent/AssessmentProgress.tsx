@@ -4,6 +4,7 @@ import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from
 import { Loader } from '../../components/ui/Loader';
 import { Calendar, Activity, Brain, CheckCircle, ClipboardList, Clock, FileText, Download } from 'lucide-react';
 import { printGrade0Report } from '../../utils/printGrade0Report';
+import { Grade1To7ReportCard, getGrade1To7ReportCards, printGrade1To7Report } from '../../utils/printGrade1To7Report';
 import { ParentBottomNav } from '../../components/ParentBottomNav';
 
 interface ParentAssessmentProgressProps {
@@ -14,6 +15,7 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
   const [student, setStudent] = useState<Student | null>(null);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [assessmentRecords, setAssessmentRecords] = useState<TermAssessmentRecord[]>([]);
+  const [gradeReports, setGradeReports] = useState<Grade1To7ReportCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(1);
   const [reportLoadingMap, setReportLoadingMap] = useState<Record<string, boolean>>({});
@@ -27,8 +29,16 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
         setSettings(setts);
         
         if (data && data.division === 'Mainstream') {
-            const records = await getAssessmentRecordsForStudent(data.grade || 'Grade 0', user.id);
-            setAssessmentRecords(records);
+            const className = data.assignedClass || data.grade || 'Grade 0';
+            if (/Grade [1-7]/i.test(className)) {
+                const records = await getGrade1To7ReportCards(data, setts);
+                setGradeReports(records);
+                setAssessmentRecords([]);
+            } else {
+                const records = await getAssessmentRecordsForStudent(data.grade || 'Grade 0', user.id);
+                setAssessmentRecords(records);
+                setGradeReports([]);
+            }
         }
         
         setLoading(false);
@@ -40,14 +50,20 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
   if (loading) return <Loader />;
   if (!student) return <div className="p-8 text-center text-gray-500">Student record not found.</div>;
 
-  const handleDownloadReport = async (record: TermAssessmentRecord) => {
+  const handleDownloadReport = async (record: TermAssessmentRecord | Grade1To7ReportCard) => {
     if (!record.isComplete || reportLoadingMap[record.termId]) return;
+    if (!student) return;
 
     setReportLoadingMap(prev => ({ ...prev, [record.termId]: true }));
     try {
-      const termName = settings?.schoolCalendars?.find(c => c.id === record.termId)?.termName || record.termId;
-      const year = new Date().getFullYear().toString();
-      await printGrade0Report(student, record, termName, year, 'Class Teacher');
+      const className = student.assignedClass || student.grade || 'Grade 0';
+      if (/Grade [1-7]/i.test(className)) {
+        await printGrade1To7Report(student, record.termId, 'Parent Portal');
+      } else {
+        const termName = settings?.schoolCalendars?.find(c => c.id === record.termId)?.termName || record.termId;
+        const year = new Date().getFullYear().toString();
+        await printGrade0Report(student, record as TermAssessmentRecord, termName, year, 'Class Teacher');
+      }
     } finally {
       setReportLoadingMap(prev => ({ ...prev, [record.termId]: false }));
     }
@@ -67,7 +83,66 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
             </div>
 
             <div className="p-4 sm:p-8 max-w-7xl mx-auto bg-white border border-gray-200 shadow-sm rounded-[20px]">
-                {assessmentRecords.length === 0 ? (
+                {/Grade [1-7]/i.test(student.assignedClass || student.grade || '') ? (
+                    gradeReports.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400 font-black uppercase tracking-widest text-xs italic border-2 border-dashed border-gray-200">
+                            No assessment reports found for this student.
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {gradeReports.map(record => {
+                                const isReportLoading = reportLoadingMap[record.termId] === true;
+                                return (
+                                    <div key={record.termId} className="border-2 border-gray-200 p-6 hover:border-coha-900 transition-colors flex flex-col justify-between h-full bg-gray-50">
+                                        <div>
+                                            <div className="flex justify-between items-start mb-4">
+                                                <h4 className="font-black text-xl uppercase tracking-tighter">{record.termName}</h4>
+                                                {record.isComplete ? (
+                                                    <span className="bg-green-100 text-green-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><CheckCircle size={10} /> Ready</span>
+                                                ) : (
+                                                    <span className="bg-yellow-100 text-yellow-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1">Pending</span>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
+                                                Last Updated: {record.updatedAt ? new Date(record.updatedAt).toLocaleDateString() : '-'}
+                                            </p>
+                                            <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Subjects Recorded</p>
+                                                <p className="mt-2 text-3xl font-black text-coha-900">{record.subjectCount}</p>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={() => handleDownloadReport(record)}
+                                            disabled={!record.isComplete || isReportLoading}
+                                            className={`mt-6 w-full py-3 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all border-none rounded-none
+                                                ${record.isComplete
+                                                    ? 'bg-coha-900 text-white hover:bg-coha-800 cursor-pointer'
+                                                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                                }
+                                                ${isReportLoading ? 'opacity-80 cursor-wait' : ''}
+                                            `}
+                                        >
+                                            {isReportLoading ? (
+                                                <>
+                                                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                                    </svg>
+                                                    Generating...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Download size={14} /> Download Report
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )
+                ) : assessmentRecords.length === 0 ? (
                     <div className="text-center py-12 text-gray-400 font-black uppercase tracking-widest text-xs italic border-2 border-dashed border-gray-200">
                         No assessment records found for this student.
                     </div>
