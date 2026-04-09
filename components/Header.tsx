@@ -9,9 +9,10 @@ interface HeaderProps {
   userName?: string;
   userId?: string;
   onLogout?: () => void;
+  hideMobileMenu?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onMenuClick, role, userName, userId, onLogout }) => {
+export const Header: React.FC<HeaderProps> = ({ onMenuClick, role, userName, userId, onLogout, hideMobileMenu = false }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [schoolName, setSchoolName] = useState('Circle of Hope Academy');
   const [activeTermName, setActiveTermName] = useState<string | null>(null);
@@ -40,12 +41,14 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, role, userName, use
     <header className="bg-white/90 backdrop-blur-md border-b border-gray-200 h-20 flex items-center justify-between px-6 lg:px-10 sticky top-0 z-40 transition-all duration-300 shadow-sm">
       {/* Left Section: Mobile Menu & Brand */}
       <div className="flex items-center gap-6">
-        <button
-          onClick={onMenuClick}
-          className="lg:hidden p-2 text-gray-600 hover:text-coha-900 hover:bg-gray-100 rounded-xl transition-all duration-200 active:scale-95 shadow-sm border border-transparent hover:border-gray-200"
-        >
-          <Menu size={24} />
-        </button>
+        {!hideMobileMenu && (
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2 text-gray-600 hover:text-coha-900 hover:bg-gray-100 rounded-xl transition-all duration-200 active:scale-95 shadow-sm border border-transparent hover:border-gray-200"
+          >
+            <Menu size={24} />
+          </button>
+        )}
 
         {/* Brand - Enhanced visual */}
         <div className="flex items-center gap-4 group cursor-default">

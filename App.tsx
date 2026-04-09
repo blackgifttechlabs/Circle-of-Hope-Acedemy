@@ -56,24 +56,30 @@ const AppLayout: React.FC<{
   onLogout: () => void 
 }> = ({ children, role, user, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const hideSidebarOnMobile = role === UserRole.PARENT;
 
   return (
     <div className="h-screen bg-gray-50 flex font-sans overflow-hidden">
-      <Sidebar 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
-        role={role}
-        user={user}
-        onLogout={onLogout}
-      />
-      <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        <Header 
-          onMenuClick={() => setSidebarOpen(!sidebarOpen)} 
+      <div className={hideSidebarOnMobile ? 'hidden lg:block' : ''}>
+        <Sidebar 
+          isOpen={sidebarOpen} 
+          onClose={() => setSidebarOpen(false)} 
           role={role}
-          userName={user?.name}
-          userId={user?.id}
+          user={user}
           onLogout={onLogout}
         />
+      </div>
+      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+        {role !== UserRole.PARENT && (
+          <Header 
+            onMenuClick={() => setSidebarOpen(!sidebarOpen)} 
+            role={role}
+            userName={user?.name}
+            userId={user?.id}
+            onLogout={onLogout}
+            hideMobileMenu={hideSidebarOnMobile}
+          />
+        )}
         <main className="flex-1 p-5 overflow-y-auto">
           {children}
         </main>
@@ -241,7 +247,7 @@ const App: React.FC = () => {
             <ProtectedRoute isAuthenticated={!!user} userRole={role} allowedRoles={[UserRole.PARENT]}>
                <AppLayout role={UserRole.PARENT} user={user} onLogout={handleLogout}>
                   <Routes>
-                      <Route path="dashboard" element={<ParentDashboard user={user} />} />
+                      <Route path="dashboard" element={<ParentDashboard user={user} onLogout={handleLogout} />} />
                       <Route path="assessment-form" element={<ParentAssessmentForm user={user} />} />
                       <Route path="assessment" element={<ParentAssessmentProgress user={user} />} />
                       <Route path="register" element={<ParentDailyRegister user={user} />} />

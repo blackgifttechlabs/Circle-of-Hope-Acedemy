@@ -1,13 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   BookOpen,
+  Calendar,
   ChevronRight,
+  ClipboardList,
   CreditCard,
   Download,
   FileImage,
+  FileText,
   FilePlus2,
   FolderUp,
+  GraduationCap,
   Home,
   Loader2,
   ShieldCheck,
@@ -25,6 +29,7 @@ import {
   getTeacherByClass,
   submitHomeworkSubmission,
   submitPaymentProof,
+  updateStudent,
   uploadStudentDocument,
 } from '../../services/dataService';
 import { HomeworkAssignment, HomeworkSubmission, PaymentProof, Receipt, Student, SystemSettings, Teacher, UploadedDocument } from '../../types';
@@ -33,16 +38,17 @@ import { printSchoolReceipt } from '../../utils/printSchoolReceipt';
 
 interface ParentDashboardProps {
   user: any;
+  onLogout?: () => void;
 }
 
-type ParentTab = 'home' | 'details' | 'receipts' | 'homework' | 'documents';
+type ParentTab = 'home' | 'details' | 'receipts' | 'homework' | 'settings';
 
 const TABS: { id: ParentTab; label: string; icon: React.ReactNode }[] = [
   { id: 'home', label: 'Home', icon: <Home size={18} /> },
   { id: 'details', label: 'Details', icon: <User size={18} /> },
   { id: 'receipts', label: 'Receipts', icon: <CreditCard size={18} /> },
   { id: 'homework', label: 'Homework', icon: <BookOpen size={18} /> },
-  { id: 'documents', label: 'Documents', icon: <FolderUp size={18} /> },
+  { id: 'settings', label: 'Settings', icon: <FileText size={18} /> },
 ];
 
 const fmtMoney = (value: number) => `N$ ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -63,12 +69,27 @@ const fileToDataUrl = (file: File) =>
 
 const Row: React.FC<{ label: string; value?: React.ReactNode; emphasis?: boolean }> = ({ label, value, emphasis }) => (
   <div className="py-3 border-b border-slate-200 last:border-b-0">
-    <p className="text-[10px] uppercase tracking-[0.24em] font-bold text-slate-400 mb-1">{label}</p>
+    <p className="text-[10px] uppercase tracking-[0.24em] font-black text-slate-700 mb-1">{label}</p>
     <div className={`text-sm ${emphasis ? 'font-bold text-slate-950' : 'text-slate-700'}`}>{value || '-'}</div>
   </div>
 );
 
-export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
+const SectionLabel: React.FC<{ icon: React.ReactNode; children: React.ReactNode }> = ({ icon, children }) => (
+  <div className="inline-flex items-center gap-2 mb-3 text-[11px] uppercase tracking-[0.18em] font-black text-slate-700">
+    <span className="text-coha-800">{icon}</span>
+    <span>{children}</span>
+  </div>
+);
+
+const MiniLabel: React.FC<{ icon: React.ReactNode; children: React.ReactNode; className?: string }> = ({ icon, children, className = '' }) => (
+  <div className={`inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] font-black text-slate-700 ${className}`}>
+    <span className="text-coha-800">{icon}</span>
+    <span>{children}</span>
+  </div>
+);
+
+export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout }) => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = (searchParams.get('tab') as ParentTab) || 'home';
 
@@ -94,6 +115,11 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
   const [medicalFile, setMedicalFile] = useState<File | null>(null);
   const [otherFile, setOtherFile] = useState<File | null>(null);
   const [otherTitle, setOtherTitle] = useState('');
+  const [currentPinInput, setCurrentPinInput] = useState('');
+  const [newPinInput, setNewPinInput] = useState('');
+  const [confirmPinInput, setConfirmPinInput] = useState('');
+  const [settingsMessage, setSettingsMessage] = useState('');
+  const [changedPinValue, setChangedPinValue] = useState('');
 
   const paymentFileRef = useRef<HTMLInputElement>(null);
   const homeworkFileRef = useRef<HTMLInputElement>(null);
@@ -271,11 +297,11 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
             </button>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400">Class</p>
+            <MiniLabel icon={<GraduationCap size={13} />} className="justify-end">Class</MiniLabel>
             <p className="text-sm font-bold text-slate-900">{student.assignedClass || student.grade || student.level || '-'}</p>
-            <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mt-3">Academic Year</p>
+            <MiniLabel icon={<Calendar size={13} />} className="justify-end mt-3">Academic Year</MiniLabel>
             <p className="text-sm font-bold text-slate-900">{academicYear}</p>
-            <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mt-3">Term</p>
+            <MiniLabel icon={<Calendar size={13} />} className="justify-end mt-3">Term</MiniLabel>
             <p className="text-sm font-bold text-slate-900">{currentTerm?.termName || 'Current Term'}</p>
           </div>
         </div>
@@ -283,22 +309,22 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
 
       <section className="py-4 border-b border-slate-200">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400">Fees Summary</p>
+          <SectionLabel icon={<CreditCard size={14} />}>Fees Summary</SectionLabel>
           <p className={`text-xs font-bold ${financials.balance <= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
             {financials.balance <= 0 ? 'Up to date' : 'Balance due'}
           </p>
         </div>
         <div className="grid grid-cols-3 gap-3 text-sm">
           <div>
-            <p className="text-slate-400 text-[11px] uppercase tracking-[0.16em] font-bold">Total</p>
+            <MiniLabel icon={<CreditCard size={12} />}>Total</MiniLabel>
             <p className="font-bold text-slate-900 mt-1">{fmtMoney(financials.total)}</p>
           </div>
           <div>
-            <p className="text-slate-400 text-[11px] uppercase tracking-[0.16em] font-bold">Paid</p>
+            <MiniLabel icon={<CreditCard size={12} />}>Paid</MiniLabel>
             <p className="font-bold text-emerald-700 mt-1">{fmtMoney(financials.paid)}</p>
           </div>
           <div>
-            <p className="text-slate-400 text-[11px] uppercase tracking-[0.16em] font-bold">Balance</p>
+            <MiniLabel icon={<CreditCard size={12} />}>Balance</MiniLabel>
             <p className="font-bold text-slate-900 mt-1">{fmtMoney(financials.balance)}</p>
           </div>
         </div>
@@ -313,23 +339,94 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
       </section>
 
       <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Quick Actions</p>
-        <div className="flex gap-2">
-          <button onClick={() => setActiveTab('homework')} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800">
-            Submit homework
+        <SectionLabel icon={<Home size={14} />}>Quick Actions</SectionLabel>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => navigate('/parent/assessment')}
+            className="min-h-[104px] rounded-[1.5rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.32), transparent 32%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%)' }}
+          >
+            <div className="relative z-10">
+              <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
+                <FileText size={20} />
+              </div>
+              <p className="text-base font-black tracking-[-0.02em]">View Reports</p>
+              <p className="text-xs text-white/80 mt-1 font-semibold">Assessment progress and report downloads</p>
+            </div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
           </button>
-          <button onClick={() => setActiveTab('documents')} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800">
-            Upload documents
+          <button
+            onClick={() => navigate('/parent/register')}
+            className="min-h-[104px] rounded-[1.5rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.28), transparent 32%), linear-gradient(135deg, #14532d 0%, #10b981 100%)' }}
+          >
+            <div className="relative z-10">
+              <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
+                <ClipboardList size={20} />
+              </div>
+              <p className="text-base font-black tracking-[-0.02em]">View Attendance</p>
+              <p className="text-xs text-white/80 mt-1 font-semibold">Daily register and attendance history</p>
+            </div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
+          </button>
+          <button
+            onClick={() => setActiveTab('homework')}
+            className="min-h-[104px] rounded-[1.5rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.28), transparent 32%), linear-gradient(135deg, #7c2d12 0%, #f97316 100%)' }}
+          >
+            <div className="relative z-10">
+              <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
+                <BookOpen size={20} />
+              </div>
+              <p className="text-base font-black tracking-[-0.02em]">Submit Homework</p>
+              <p className="text-xs text-white/80 mt-1 font-semibold">Capture and send homework images</p>
+            </div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className="min-h-[104px] rounded-[1.5rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.28), transparent 32%), linear-gradient(135deg, #4c1d95 0%, #a855f7 100%)' }}
+          >
+            <div className="relative z-10">
+              <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
+                <FileText size={20} />
+              </div>
+              <p className="text-base font-black tracking-[-0.02em]">Account Settings</p>
+              <p className="text-xs text-white/80 mt-1 font-semibold">Change PIN and sign out of the portal</p>
+            </div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
           </button>
         </div>
       </section>
 
       <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Overview</p>
-        <Row label="Portal status" value={student.studentStatus.replace(/_/g, ' ')} emphasis />
-        <Row label="Class teacher" value={teacher?.name || 'Not assigned'} />
-        <Row label="Latest payment proof" value={paymentProofs[0] ? `${paymentProofs[0].status} · ${fmtDate(paymentProofs[0].submittedAt)}` : 'No proof sent yet'} />
-        <Row label="Latest homework upload" value={homeworkSubmissions[0] ? `${fmtDate(homeworkSubmissions[0].submittedAt)} · ${homeworkSubmissions[0].status}` : 'No homework uploaded yet'} />
+        <SectionLabel icon={<User size={14} />}>Overview</SectionLabel>
+        <div
+          className="rounded-[1.75rem] p-4 sm:p-5 border border-slate-200 overflow-hidden relative"
+          style={{ background: 'radial-gradient(circle at top right, rgba(59,130,246,0.16), transparent 28%), radial-gradient(circle at bottom left, rgba(16,185,129,0.12), transparent 32%), linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-white/90 border border-slate-200 p-4 shadow-sm">
+              <MiniLabel icon={<User size={12} />}>Portal Status</MiniLabel>
+              <p className="mt-2 text-base font-black text-slate-950">{student.studentStatus.replace(/_/g, ' ')}</p>
+            </div>
+            <div className="rounded-2xl bg-white/90 border border-slate-200 p-4 shadow-sm">
+              <MiniLabel icon={<GraduationCap size={12} />}>Class Teacher</MiniLabel>
+              <p className="mt-2 text-base font-black text-slate-950">{teacher?.name || 'Not assigned'}</p>
+            </div>
+            <div className="rounded-2xl bg-white/90 border border-slate-200 p-4 shadow-sm">
+              <MiniLabel icon={<FileImage size={12} />}>Latest Payment</MiniLabel>
+              <p className="mt-2 text-sm font-black text-slate-950">{paymentProofs[0]?.status || 'No proof sent'}</p>
+              <p className="text-xs text-slate-600 mt-1">{paymentProofs[0] ? fmtDate(paymentProofs[0].submittedAt) : 'Waiting for upload'}</p>
+            </div>
+            <div className="rounded-2xl bg-white/90 border border-slate-200 p-4 shadow-sm">
+              <MiniLabel icon={<Upload size={12} />}>Latest Homework</MiniLabel>
+              <p className="mt-2 text-sm font-black text-slate-950">{homeworkSubmissions[0]?.status || 'No upload yet'}</p>
+              <p className="text-xs text-slate-600 mt-1">{homeworkSubmissions[0] ? fmtDate(homeworkSubmissions[0].submittedAt) : 'Waiting for upload'}</p>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   );
@@ -337,7 +434,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
   const renderDetails = () => (
     <div>
       <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-1">Student Details</p>
+        <SectionLabel icon={<User size={14} />}>Student Details</SectionLabel>
         <Row label="Student name" value={student.name} emphasis />
         <Row label="Student ID" value={student.id} />
         <Row label="Date of birth" value={student.dob} />
@@ -348,13 +445,75 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
       </section>
 
       <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-1">Parent Details</p>
+        <SectionLabel icon={<User size={14} />}>Parent Details</SectionLabel>
         <Row label="Parent / guardian" value={student.parentName || '-'} emphasis />
         <Row label="Father name" value={student.fatherName} />
         <Row label="Father phone" value={student.fatherPhone} />
         <Row label="Mother name" value={student.motherName} />
         <Row label="Mother phone" value={student.motherPhone} />
         <Row label="Address" value={student.address} />
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <SectionLabel icon={<FolderUp size={14} />}>Uploaded Documents</SectionLabel>
+        <div className="space-y-4">
+          <div>
+            <MiniLabel icon={<FilePlus2 size={12} />}>Birth Certificate</MiniLabel>
+            <div className="mt-2 flex gap-2">
+              <button onClick={() => birthFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
+                <FilePlus2 size={16} /> {birthFile ? 'Change file' : 'Upload PDF or image'}
+              </button>
+              <button disabled={!birthFile || busyAction === 'BIRTH_CERTIFICATE'} onClick={() => uploadDocument('BIRTH_CERTIFICATE', birthFile, 'Birth Certificate', () => { setBirthFile(null); if (birthFileRef.current) birthFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
+                Save
+              </button>
+            </div>
+            <input ref={birthFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setBirthFile(e.target.files?.[0] || null)} />
+          </div>
+
+          <div>
+            <MiniLabel icon={<ShieldCheck size={12} />}>Medical Documents</MiniLabel>
+            <div className="mt-2 flex gap-2">
+              <button onClick={() => medicalFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
+                <ShieldCheck size={16} /> {medicalFile ? 'Change file' : 'Upload PDF or image'}
+              </button>
+              <button disabled={!medicalFile || busyAction === 'MEDICAL_DOCUMENT'} onClick={() => uploadDocument('MEDICAL_DOCUMENT', medicalFile, 'Medical Document', () => { setMedicalFile(null); if (medicalFileRef.current) medicalFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
+                Save
+              </button>
+            </div>
+            <input ref={medicalFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setMedicalFile(e.target.files?.[0] || null)} />
+          </div>
+
+          <div>
+            <MiniLabel icon={<FolderUp size={12} />}>Other Documents</MiniLabel>
+            <input value={otherTitle} onChange={(e) => setOtherTitle(e.target.value)} placeholder="Document title" className="w-full h-11 border border-slate-300 px-3 text-sm mt-2 mb-2" />
+            <div className="flex gap-2">
+              <button onClick={() => otherFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
+                <FilePlus2 size={16} /> {otherFile ? 'Change file' : 'Upload PDF or image'}
+              </button>
+              <button disabled={!otherFile || !otherTitle || busyAction === 'OTHER_DOCUMENT'} onClick={() => uploadDocument('OTHER_DOCUMENT', otherFile, otherTitle, () => { setOtherFile(null); setOtherTitle(''); if (otherFileRef.current) otherFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
+                Save
+              </button>
+            </div>
+            <input ref={otherFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setOtherFile(e.target.files?.[0] || null)} />
+          </div>
+
+          <div className="space-y-3 pt-2">
+            {documents.length === 0 && <p className="text-sm text-slate-500">No documents uploaded yet.</p>}
+            {documents.map((item) => (
+              <div key={item.id} className="border-b border-slate-200 pb-3 last:border-b-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                    <p className="text-xs text-slate-500">{item.documentType.replace(/_/g, ' ')} · {fmtDate(item.uploadedAt)}</p>
+                  </div>
+                  <a href={item.fileBase64} download={item.fileName} className="inline-flex items-center gap-1 text-sm font-semibold text-coha-700">
+                    <Download size={15} /> Open
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
     </div>
   );
@@ -363,7 +522,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
     <div>
       <section className="py-4 border-b border-slate-200">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400">Send Proof Of Payment</p>
+          <SectionLabel icon={<FileImage size={14} />}>Send Proof Of Payment</SectionLabel>
           <span className="text-xs text-slate-500">{currentTerm?.termName || 'Current term'}</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -388,7 +547,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
       </section>
 
       <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Submitted Proofs</p>
+        <SectionLabel icon={<FileImage size={14} />}>Submitted Proofs</SectionLabel>
         <div className="space-y-3">
           {paymentProofs.length === 0 && <p className="text-sm text-slate-500">No payment proofs submitted yet.</p>}
           {paymentProofs.map((proof) => (
@@ -409,7 +568,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
       </section>
 
       <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Official Receipts</p>
+        <SectionLabel icon={<FileText size={14} />}>Official Receipts</SectionLabel>
         <div className="space-y-3">
           {receipts.length === 0 && <p className="text-sm text-slate-500">No approved school receipts yet.</p>}
           {receipts.map((receipt) => (
@@ -437,7 +596,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
   const renderHomework = () => (
     <div>
       <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Submit Homework</p>
+        <SectionLabel icon={<BookOpen size={14} />}>Submit Homework</SectionLabel>
         <select value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)} className="w-full h-11 border border-slate-300 bg-white px-3 text-sm mb-2">
           <option value="">Select homework task</option>
           {assignments.map((assignment) => (
@@ -458,7 +617,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
       </section>
 
       <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Teacher Homework</p>
+        <SectionLabel icon={<BookOpen size={14} />}>Teacher Homework</SectionLabel>
         <div className="space-y-3">
           {assignments.length === 0 && <p className="text-sm text-slate-500">No homework posted for this class yet.</p>}
           {assignments.map((assignment) => (
@@ -476,7 +635,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
       </section>
 
       <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">My Uploads</p>
+        <SectionLabel icon={<Upload size={14} />}>My Uploads</SectionLabel>
         <div className="space-y-3">
           {homeworkSubmissions.length === 0 && <p className="text-sm text-slate-500">No homework images sent yet.</p>}
           {homeworkSubmissions.map((submission) => (
@@ -497,65 +656,76 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
     </div>
   );
 
-  const renderDocuments = () => (
+  const handlePinChange = async () => {
+    if (!student) return;
+    if (currentPinInput !== student.parentPin) {
+      setSettingsMessage('Current PIN is incorrect.');
+      return;
+    }
+    if (newPinInput.length < 4) {
+      setSettingsMessage('New PIN must be at least 4 digits.');
+      return;
+    }
+    if (newPinInput !== confirmPinInput) {
+      setSettingsMessage('New PIN and confirm PIN do not match.');
+      return;
+    }
+    setBusyAction('PIN_UPDATE');
+    try {
+      await updateStudent(student.id, { parentPin: newPinInput });
+      setChangedPinValue(newPinInput);
+      setCurrentPinInput('');
+      setNewPinInput('');
+      setConfirmPinInput('');
+      setSettingsMessage('PIN updated successfully.');
+      await refreshData();
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const renderSettings = () => (
     <div>
       <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Birth Certificate</p>
-        <div className="flex gap-2">
-          <button onClick={() => birthFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
-            <FilePlus2 size={16} /> {birthFile ? 'Change file' : 'Upload PDF or image'}
-          </button>
-          <button disabled={!birthFile || busyAction === 'BIRTH_CERTIFICATE'} onClick={() => uploadDocument('BIRTH_CERTIFICATE', birthFile, 'Birth Certificate', () => { setBirthFile(null); if (birthFileRef.current) birthFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
-            Save
-          </button>
-        </div>
-        <input ref={birthFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setBirthFile(e.target.files?.[0] || null)} />
-      </section>
-
-      <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Medical Documents</p>
-        <div className="flex gap-2">
-          <button onClick={() => medicalFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
-            <ShieldCheck size={16} /> {medicalFile ? 'Change file' : 'Upload PDF or image'}
-          </button>
-          <button disabled={!medicalFile || busyAction === 'MEDICAL_DOCUMENT'} onClick={() => uploadDocument('MEDICAL_DOCUMENT', medicalFile, 'Medical Document', () => { setMedicalFile(null); if (medicalFileRef.current) medicalFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
-            Save
-          </button>
-        </div>
-        <input ref={medicalFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setMedicalFile(e.target.files?.[0] || null)} />
-      </section>
-
-      <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Other Documents</p>
-        <input value={otherTitle} onChange={(e) => setOtherTitle(e.target.value)} placeholder="Document title" className="w-full h-11 border border-slate-300 px-3 text-sm mb-2" />
-        <div className="flex gap-2">
-          <button onClick={() => otherFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
-            <FilePlus2 size={16} /> {otherFile ? 'Change file' : 'Upload PDF or image'}
-          </button>
-          <button disabled={!otherFile || !otherTitle || busyAction === 'OTHER_DOCUMENT'} onClick={() => uploadDocument('OTHER_DOCUMENT', otherFile, otherTitle, () => { setOtherFile(null); setOtherTitle(''); if (otherFileRef.current) otherFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
-            Save
-          </button>
-        </div>
-        <input ref={otherFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setOtherFile(e.target.files?.[0] || null)} />
-      </section>
-
-      <section className="py-4 border-b border-slate-200">
-        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Uploaded Documents</p>
+        <SectionLabel icon={<FileText size={14} />}>Account Settings</SectionLabel>
         <div className="space-y-3">
-          {documents.length === 0 && <p className="text-sm text-slate-500">No documents uploaded yet.</p>}
-          {documents.map((item) => (
-            <div key={item.id} className="border-b border-slate-200 pb-3 last:border-b-0">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                  <p className="text-xs text-slate-500">{item.documentType.replace(/_/g, ' ')} · {fmtDate(item.uploadedAt)}</p>
-                </div>
-                <a href={item.fileBase64} download={item.fileName} className="inline-flex items-center gap-1 text-sm font-semibold text-coha-700">
-                  <Download size={15} /> Open
-                </a>
-              </div>
+          <div>
+            <MiniLabel icon={<User size={12} />}>Parent Account</MiniLabel>
+            <p className="mt-2 text-base font-black text-slate-950">{student.parentName || user?.name || 'Parent'}</p>
+            <p className="text-sm text-slate-600">Linked to {student.name}</p>
+          </div>
+
+          <div>
+            <MiniLabel icon={<FileText size={12} />}>Change PIN</MiniLabel>
+            <div className="grid gap-2 mt-2">
+              <input value={currentPinInput} onChange={(e) => setCurrentPinInput(e.target.value)} type="password" inputMode="numeric" placeholder="Current PIN" className="w-full h-11 border border-slate-300 px-3 text-sm" />
+              <input value={newPinInput} onChange={(e) => setNewPinInput(e.target.value)} type="password" inputMode="numeric" placeholder="New PIN" className="w-full h-11 border border-slate-300 px-3 text-sm" />
+              <input value={confirmPinInput} onChange={(e) => setConfirmPinInput(e.target.value)} type="password" inputMode="numeric" placeholder="Confirm new PIN" className="w-full h-11 border border-slate-300 px-3 text-sm" />
             </div>
-          ))}
+            {settingsMessage && <p className="mt-2 text-sm font-semibold text-slate-700">{settingsMessage}</p>}
+            {changedPinValue && (
+              <div className="mt-3 rounded-[1.25rem] border border-orange-200 bg-orange-50/70 px-4 py-4">
+                <p className="text-[11px] uppercase tracking-[0.22em] font-black text-orange-600">Changed To</p>
+                <p className="mt-2 text-3xl font-black tracking-[0.28em] text-green-600">{changedPinValue}</p>
+              </div>
+            )}
+            <button disabled={busyAction === 'PIN_UPDATE'} onClick={handlePinChange} className="mt-3 w-full h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
+              Update PIN
+            </button>
+          </div>
+
+          <div className="pt-2">
+            <MiniLabel icon={<Home size={12} />}>Session</MiniLabel>
+            <button
+              onClick={() => {
+                if (onLogout) onLogout();
+                navigate('/login');
+              }}
+              className="mt-3 w-full h-11 border border-red-200 bg-red-50 text-red-700 text-sm font-semibold"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </section>
     </div>
@@ -564,25 +734,13 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
   return (
     <div className="-m-5 min-h-[calc(100vh-64px)] bg-[#f7f8fa] text-slate-900">
       <div className="max-w-4xl mx-auto px-3 sm:px-5 pb-24">
-        <div className="pt-3 sticky top-0 z-10 bg-[#f7f8fa] border-b border-slate-200">
-          <div className="flex gap-2 overflow-x-auto pb-3">
-            {TABS.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`h-9 px-3 whitespace-nowrap text-sm font-semibold border ${tab === item.id ? 'bg-coha-900 border-coha-900 text-white' : 'bg-white border-slate-300 text-slate-700'}`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <div className="pt-3" />
 
         {tab === 'home' && renderHome()}
         {tab === 'details' && renderDetails()}
         {tab === 'receipts' && renderReceipts()}
         {tab === 'homework' && renderHomework()}
-        {tab === 'documents' && renderDocuments()}
+        {tab === 'settings' && renderSettings()}
       </div>
 
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white/98 backdrop-blur">

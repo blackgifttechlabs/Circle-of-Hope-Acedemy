@@ -40,6 +40,20 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
     fetchStudents();
   }, [viewMode]);
 
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchStudents();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(fetchStudents, 30000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [viewMode]);
+
   const handleFinalizeAssessment = async (studentId: string) => {
       if(window.confirm('Calculate final stage and enroll student?')) {
           setLoading(true);
