@@ -131,10 +131,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const [paymentTerm, setPaymentTerm] = useState('');
-  const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentFile, setPaymentFile] = useState<File | null>(null);
 
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState('');
   const [homeworkFile, setHomeworkFile] = useState<File | null>(null);
 
   const [birthFile, setBirthFile] = useState<File | null>(null);
@@ -146,6 +144,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   const [confirmPinInput, setConfirmPinInput] = useState('');
   const [settingsMessage, setSettingsMessage] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
+  const [profileMessageType, setProfileMessageType] = useState<'success' | 'error'>('success');
   const [paymentMessage, setPaymentMessage] = useState('');
   const [paymentMessageType, setPaymentMessageType] = useState<'success' | 'error'>('success');
   const [homeworkMessage, setHomeworkMessage] = useState('');
@@ -159,14 +158,22 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
     parent: false,
     documents: false,
   });
+  const [receiptSectionsOpen, setReceiptSectionsOpen] = useState({
+    submitted: true,
+    official: false,
+  });
+  const [homeworkSectionsOpen, setHomeworkSectionsOpen] = useState({
+    teacher: true,
+    uploads: false,
+  });
 
-  const paymentFileRef = useRef<HTMLInputElement>(null);
   const paymentDeviceFileRef = useRef<HTMLInputElement>(null);
   const homeworkFileRef = useRef<HTMLInputElement>(null);
   const birthFileRef = useRef<HTMLInputElement>(null);
   const medicalFileRef = useRef<HTMLInputElement>(null);
   const otherFileRef = useRef<HTMLInputElement>(null);
   const profileFileRef = useRef<HTMLInputElement>(null);
+  const profileDeviceFileRef = useRef<HTMLInputElement>(null);
 
   const currentTerm = useMemo(() => {
     const activeTerm = settings?.schoolCalendars?.find((term) => term.id === settings?.activeTermId);
@@ -280,7 +287,6 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
         studentClass: student.assignedClass || student.grade || student.level || '',
         academicYear,
         termId: paymentTerm,
-        amountClaimed: paymentAmount,
         imageBase64,
         fileName: paymentFile.name,
         mimeType: paymentFile.type,
@@ -291,9 +297,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
         return;
       }
       setPaymentFile(null);
-      setPaymentAmount('');
       setPaymentTerm(currentTerm?.id || paymentTerm);
-      if (paymentFileRef.current) paymentFileRef.current.value = '';
       if (paymentDeviceFileRef.current) paymentDeviceFileRef.current.value = '';
       await refreshData();
       setPaymentMessageType('success');
@@ -324,7 +328,6 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
     try {
       const imageBase64 = await fileToDataUrl(homeworkFile);
       const result = await submitHomeworkSubmission({
-        assignmentId: selectedAssignmentId || undefined,
         studentId: student.id,
         studentName: student.name,
         parentName: student.parentName || user?.name || 'Parent',
@@ -339,7 +342,6 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
         return;
       }
       setHomeworkFile(null);
-      setSelectedAssignmentId('');
       if (homeworkFileRef.current) homeworkFileRef.current.value = '';
       await refreshData();
       setHomeworkMessageType('success');
@@ -544,19 +546,37 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
             ) : (
               <AvatarFallback letter={studentInitial} sizeClass="h-24 w-24" textClass="text-4xl" />
             )}
-            <label className="mt-3 inline-flex items-center gap-2 rounded-full bg-coha-500 px-4 py-2 text-white text-sm font-bold cursor-pointer">
-              <FileImage size={16} /> Edit Photo
-              <input
-                ref={profileFileRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => setProfileFile(e.target.files?.[0] || null)}
-              />
-            </label>
+            <div className="mt-3 flex gap-2">
+              <label className="inline-flex items-center gap-2 rounded-full bg-coha-500 px-4 py-2 text-white text-sm font-bold cursor-pointer">
+                <FileImage size={16} /> Take Photo
+                <input
+                  ref={profileFileRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    setProfileFile(e.target.files?.[0] || null);
+                    if (profileMessage) setProfileMessage('');
+                  }}
+                />
+              </label>
+              <label className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-slate-800 text-sm font-bold cursor-pointer">
+                <Upload size={16} /> Choose from device
+                <input
+                  ref={profileDeviceFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    setProfileFile(e.target.files?.[0] || null);
+                    if (profileMessage) setProfileMessage('');
+                  }}
+                />
+              </label>
+            </div>
             {profileFile && <p className="mt-2 text-xs text-slate-500">{profileFile.name}</p>}
-            {profileMessage && <p className="mt-2 text-sm font-semibold text-slate-700">{profileMessage}</p>}
+            {profileMessage && <p className={`mt-2 text-sm font-semibold ${profileMessageType === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>{profileMessage}</p>}
             <button
               disabled={!profileFile || busyAction === 'PROFILE_IMAGE'}
               onClick={handleProfileImageSave}
@@ -759,24 +779,35 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
 
           <div className="mt-4 rounded-[1.9rem] bg-white p-4 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
             <SectionLabel icon={<FileImage size={14} />}>Send Proof Of Payment</SectionLabel>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2">
               <select value={paymentTerm} onChange={(e) => setPaymentTerm(e.target.value)} className="h-12 rounded-[0.95rem] border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800">
                 {(settings?.schoolCalendars || []).map((term) => (
                   <option key={term.id} value={term.id}>{term.termName}</option>
                 ))}
               </select>
-              <input value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Amount paid" className="h-12 rounded-[0.95rem] border border-slate-300 px-3 text-sm font-semibold text-slate-800" />
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <button onClick={() => paymentFileRef.current?.click()} className="h-14 rounded-[0.95rem] border border-slate-300 text-sm font-bold text-slate-800 inline-flex items-center justify-center gap-2 bg-white px-3 text-left">
-                <FileImage size={16} />
-                <span className="leading-tight">Take photo</span>
-              </button>
-              <button onClick={() => paymentDeviceFileRef.current?.click()} className="h-14 rounded-[0.95rem] border border-slate-300 text-sm font-bold text-slate-800 inline-flex items-center justify-center gap-2 bg-white px-3 text-left">
-                <FileImage size={16} />
-                <span className="leading-tight">{paymentFile ? 'Choose different photo' : 'Choose from device'}</span>
-              </button>
-            </div>
+            <button
+              onClick={() => paymentDeviceFileRef.current?.click()}
+              className="relative mt-3 w-full overflow-hidden rounded-[1.5rem] border border-dashed border-coha-300 bg-[radial-gradient(circle_at_center,rgba(43,43,94,0.08),transparent_38%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 py-8 text-center shadow-sm"
+            >
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="absolute h-24 w-24 rounded-full border border-coha-200/70 animate-ping [animation-duration:2.8s]" />
+                <div className="absolute h-36 w-36 rounded-full border border-coha-200/50 animate-ping [animation-duration:3.2s]" />
+                <div className="absolute h-52 w-52 rounded-full border border-coha-100/60 animate-ping [animation-duration:3.8s]" />
+              </div>
+              <div className="relative z-10 flex flex-col items-center justify-center">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-coha-900 text-white shadow-[0_14px_30px_rgba(43,43,94,0.18)]">
+                  <FileImage size={28} />
+                </div>
+                <p className="max-w-[16rem] text-base font-black tracking-[-0.02em] text-slate-950">
+                  Click anywhere to upload your receipt image
+                </p>
+                <p className="mt-2 text-xs font-semibold text-slate-500">
+                  Choose from device and send it to the school
+                </p>
+                {paymentFile && <p className="mt-3 text-xs font-black text-coha-800">{paymentFile.name}</p>}
+              </div>
+            </button>
             <div className="mt-2">
               <button disabled={!paymentFile || !paymentTerm || busyAction === 'payment'} onClick={handlePaymentSubmit} className="w-full h-14 rounded-[0.95rem] bg-coha-900 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-[0_12px_24px_rgba(43,43,94,0.22)]">
                 {busyAction === 'payment' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
@@ -789,17 +820,6 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
               </p>
             )}
             <input
-              ref={paymentFileRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => {
-                setPaymentFile(e.target.files?.[0] || null);
-                if (paymentMessage) setPaymentMessage('');
-              }}
-            />
-            <input
               ref={paymentDeviceFileRef}
               type="file"
               accept="image/*"
@@ -809,83 +829,107 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                 if (paymentMessage) setPaymentMessage('');
               }}
             />
-            {paymentFile && <p className="mt-2 text-xs font-semibold text-slate-500">{paymentFile.name}</p>}
           </div>
         </div>
       </section>
 
       <section className="pt-4">
-        <div className="rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm">
-          <SectionLabel icon={<FileBadge2 size={14} />}>Submitted Proofs</SectionLabel>
-          <div className="space-y-3">
-            {paymentProofs.length === 0 && <p className="text-sm text-slate-500">No payment proofs submitted yet.</p>}
-            {paymentProofs.map((proof) => (
-              <div key={proof.id} className="rounded-[1.15rem] border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex items-start gap-2">
-                    <div className="mt-0.5 text-slate-400">
-                      <FileText size={16} />
+        <div className="space-y-4">
+          <section className="rounded-[1.4rem] border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <button
+              onClick={() => setReceiptSectionsOpen((prev) => ({ ...prev, submitted: !prev.submitted }))}
+              className="w-full px-4 py-4 flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center"><FileBadge2 size={18} /></div>
+                <span className="font-bold text-slate-900">Submitted Proofs</span>
+              </div>
+              <ChevronDown size={18} className={`text-slate-500 transition-transform ${receiptSectionsOpen.submitted ? 'rotate-180' : ''}`} />
+            </button>
+            {receiptSectionsOpen.submitted && (
+              <div className="px-4 pb-4">
+                <div className="space-y-3">
+                  {paymentProofs.length === 0 && <p className="text-sm text-slate-500">No payment proofs submitted yet.</p>}
+                  {paymentProofs.map((proof) => (
+                    <div key={proof.id} className="rounded-[1.15rem] border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex items-start gap-2">
+                          <div className="mt-0.5 text-slate-400">
+                            <FileText size={16} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-black text-slate-900">{getTermLabel(proof.termId)}</p>
+                            <p className="text-xs text-slate-500 mt-1">{fmtDate(proof.submittedAt)}</p>
+                          </div>
+                        </div>
+                        <span className={`text-[11px] font-black uppercase ${proof.status === 'APPROVED' ? 'text-emerald-500' : proof.status === 'REJECTED' ? 'text-rose-500' : 'text-amber-500'}`}>
+                          {proof.status}
+                        </span>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-slate-900">{getTermLabel(proof.termId)}</p>
-                      <p className="text-xs text-slate-500 mt-1">{fmtDate(proof.submittedAt)}</p>
-                      {proof.amountClaimed && <p className="text-xs font-semibold text-slate-500 mt-1">{proof.amountClaimed}</p>}
-                    </div>
-                  </div>
-                  <span className={`text-[11px] font-black uppercase ${proof.status === 'APPROVED' ? 'text-emerald-500' : proof.status === 'REJECTED' ? 'text-rose-500' : 'text-amber-500'}`}>
-                    {proof.status}
-                  </span>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
+            )}
+          </section>
 
-      <section className="py-4">
-        <div className="rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm">
-          <SectionLabel icon={<FileText size={14} />}>Official Receipts</SectionLabel>
-          <div className="space-y-3">
-            {receipts.length === 0 && <p className="text-sm text-slate-500">No approved school receipts yet.</p>}
-            {receipts.map((receipt) => (
-              <div key={receipt.id} className="rounded-[1.2rem] border border-slate-200 bg-white overflow-hidden shadow-sm">
-                <div className="px-4 pt-4 pb-3">
-                  <div className="flex justify-center">
-                    <div className="h-16 w-16 rounded-full border border-slate-200 bg-white flex items-center justify-center overflow-hidden">
-                      <img
-                        src="https://i.ibb.co/LzYXwYfX/logo.png"
-                        alt={`${schoolName} logo`}
-                        className="h-12 w-12 object-contain"
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-4 border-t border-slate-100 pt-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-lg font-black tracking-[-0.03em] text-slate-950">{receipt.number}</p>
-                        <p className="text-xs text-slate-500 mt-1">{fmtDate(receipt.generatedAt || receipt.createdAt || receipt.date)}</p>
+          <section className="rounded-[1.4rem] border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <button
+              onClick={() => setReceiptSectionsOpen((prev) => ({ ...prev, official: !prev.official }))}
+              className="w-full px-4 py-4 flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center"><FileText size={18} /></div>
+                <span className="font-bold text-slate-900">Official Receipts</span>
+              </div>
+              <ChevronDown size={18} className={`text-slate-500 transition-transform ${receiptSectionsOpen.official ? 'rotate-180' : ''}`} />
+            </button>
+            {receiptSectionsOpen.official && (
+              <div className="px-4 pb-4">
+                <div className="space-y-3">
+                  {receipts.length === 0 && <p className="text-sm text-slate-500">No approved school receipts yet.</p>}
+                  {receipts.map((receipt) => (
+                    <div key={receipt.id} className="rounded-[1.2rem] border border-slate-200 bg-white overflow-hidden shadow-sm">
+                      <div className="px-4 pt-4 pb-3">
+                        <div className="flex justify-center">
+                          <div className="h-16 w-16 rounded-full border border-slate-200 bg-white flex items-center justify-center overflow-hidden">
+                            <img
+                              src="https://i.ibb.co/LzYXwYfX/logo.png"
+                              alt={`${schoolName} logo`}
+                              className="h-12 w-12 object-contain"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-4 border-t border-slate-100 pt-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-lg font-black tracking-[-0.03em] text-slate-950">{receipt.number}</p>
+                              <p className="text-xs text-slate-500 mt-1">{fmtDate(receipt.generatedAt || receipt.createdAt || receipt.date)}</p>
+                            </div>
+                            <button
+                              onClick={() => downloadReceipt(receipt)}
+                              className="inline-flex items-center justify-center rounded-[0.9rem] bg-slate-100 px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-700"
+                            >
+                              Download Receipt
+                            </button>
+                          </div>
+                          <div className="mt-3 flex items-end justify-between gap-3">
+                            <div>
+                              <p className="text-base font-black text-slate-900">{getTermLabel(receipt.termId) || 'School fee payment'}</p>
+                              <p className="text-xs font-semibold text-slate-500 mt-1">{academicYear}</p>
+                            </div>
+                            <span className="text-[1.55rem] leading-none font-black tracking-[-0.04em] text-slate-950">
+                              {fmtMoney(parseFloat(receipt.amount || '0'))}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => downloadReceipt(receipt)}
-                        className="inline-flex items-center justify-center rounded-[0.9rem] bg-slate-100 px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-700"
-                      >
-                        Download Receipt
-                      </button>
                     </div>
-                    <div className="mt-3 flex items-end justify-between gap-3">
-                      <div>
-                        <p className="text-base font-black text-slate-900">{getTermLabel(receipt.termId) || 'School fee payment'}</p>
-                        <p className="text-xs font-semibold text-slate-500 mt-1">{academicYear}</p>
-                      </div>
-                      <span className="text-[1.55rem] leading-none font-black tracking-[-0.04em] text-slate-950">
-                        {fmtMoney(parseFloat(receipt.amount || '0'))}
-                      </span>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+            )}
+          </section>
         </div>
       </section>
     </div>
@@ -942,40 +986,70 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       </section>
 
       <section className="py-4">
-        <SectionLabel icon={<BookOpen size={14} />}>Teacher Homework</SectionLabel>
-        <div className="grid grid-cols-2 gap-3">
-          {assignments.length === 0 && <p className="text-sm text-slate-500">No homework posted for this class yet.</p>}
-          {assignments.map((assignment) => (
-            <div key={assignment.id} className="rounded-[1.4rem] border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-black text-slate-900">{assignment.title}</p>
-                  <p className="text-xs text-slate-600 mt-2">{assignment.description}</p>
-                </div>
-                {assignment.dueDate && <span className="text-[11px] font-black text-emerald-700">Due {fmtDate(assignment.dueDate)}</span>}
+        <div className="space-y-4">
+          <section className="rounded-[1.4rem] border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <button
+              onClick={() => setHomeworkSectionsOpen((prev) => ({ ...prev, teacher: !prev.teacher }))}
+              className="w-full px-4 py-4 flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center"><BookOpen size={18} /></div>
+                <span className="font-bold text-slate-900">Teacher Homework</span>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
+              <ChevronDown size={18} className={`text-slate-500 transition-transform ${homeworkSectionsOpen.teacher ? 'rotate-180' : ''}`} />
+            </button>
+            {homeworkSectionsOpen.teacher && (
+              <div className="px-4 pb-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {assignments.length === 0 && <p className="text-sm text-slate-500">No homework posted for this class yet.</p>}
+                  {assignments.map((assignment) => (
+                    <div key={assignment.id} className="rounded-[1.4rem] border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-slate-900">{assignment.title}</p>
+                          <p className="text-xs text-slate-600 mt-2">{assignment.description}</p>
+                        </div>
+                        {assignment.dueDate && <span className="text-[11px] font-black text-emerald-700">Due {fmtDate(assignment.dueDate)}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
 
-      <section className="py-4">
-        <SectionLabel icon={<Upload size={14} />}>My Uploads</SectionLabel>
-        <div className="grid grid-cols-2 gap-3">
-          {homeworkSubmissions.length === 0 && <p className="text-sm text-slate-500">No homework images sent yet.</p>}
-          {homeworkSubmissions.map((submission) => (
-            <div key={submission.id} className="rounded-[1.4rem] border border-violet-200 bg-violet-50/70 p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-black text-slate-900">{fmtDate(submission.submittedAt)}</p>
-                  <p className="text-xs text-slate-600 mt-2">{submission.assignmentId ? 'Linked to assignment' : 'General homework upload'}</p>
-                </div>
-                <span className={`text-[11px] font-black ${submission.status === 'REVIEWED' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                  {submission.status}
-                </span>
+          <section className="rounded-[1.4rem] border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <button
+              onClick={() => setHomeworkSectionsOpen((prev) => ({ ...prev, uploads: !prev.uploads }))}
+              className="w-full px-4 py-4 flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-violet-50 text-violet-700 flex items-center justify-center"><Upload size={18} /></div>
+                <span className="font-bold text-slate-900">My Uploads</span>
               </div>
-            </div>
-          ))}
+              <ChevronDown size={18} className={`text-slate-500 transition-transform ${homeworkSectionsOpen.uploads ? 'rotate-180' : ''}`} />
+            </button>
+            {homeworkSectionsOpen.uploads && (
+              <div className="px-4 pb-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {homeworkSubmissions.length === 0 && <p className="text-sm text-slate-500">No homework images sent yet.</p>}
+                  {homeworkSubmissions.map((submission) => (
+                    <div key={submission.id} className="rounded-[1.4rem] border border-violet-200 bg-violet-50/70 p-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-slate-900">{fmtDate(submission.submittedAt)}</p>
+                          <p className="text-xs text-slate-600 mt-2">{submission.assignmentId ? 'Linked to assignment' : 'General homework upload'}</p>
+                        </div>
+                        <span className={`text-[11px] font-black ${submission.status === 'REVIEWED' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {submission.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
         </div>
       </section>
     </div>
@@ -1017,16 +1091,43 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   };
 
   const handleProfileImageSave = async () => {
-    if (!student || !profileFile) return;
+    if (!student) {
+      setProfileMessageType('error');
+      setProfileMessage('Student record not found.');
+      return;
+    }
+    if (!profileFile) {
+      setProfileMessageType('error');
+      setProfileMessage('Please take a photo or choose one from your device first.');
+      return;
+    }
     setBusyAction('PROFILE_IMAGE');
     setProfileMessage('');
     try {
       const imageBase64 = await fileToDataUrl(profileFile);
-      await updateStudent(student.id, { profileImageBase64: imageBase64 });
+      const success = await updateStudent(student.id, { profileImageBase64: imageBase64 });
+      if (!success) {
+        setProfileMessageType('error');
+        setProfileMessage('Failed to save profile photo. Please try again.');
+        return;
+      }
+      const profileUpdate = {
+        studentId: student.id,
+        profileImageBase64: imageBase64,
+        updatedAt: Date.now(),
+      };
+      localStorage.setItem('coha_student_profile_image_update', JSON.stringify(profileUpdate));
+      window.dispatchEvent(new CustomEvent('coha-student-profile-image-update', { detail: profileUpdate }));
       setProfileFile(null);
       if (profileFileRef.current) profileFileRef.current.value = '';
+      if (profileDeviceFileRef.current) profileDeviceFileRef.current.value = '';
+      setProfileMessageType('success');
       setProfileMessage('Profile photo updated.');
       await refreshData();
+    } catch (error) {
+      console.error('Profile photo update failed:', error);
+      setProfileMessageType('error');
+      setProfileMessage('Could not upload profile photo. Check your connection and try again.');
     } finally {
       setBusyAction(null);
     }

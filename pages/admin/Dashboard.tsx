@@ -76,8 +76,32 @@ export const AdminDashboard: React.FC = () => {
   const [createAdminError, setCreateAdminError] = useState('');
   const [createAdminSuccess, setCreateAdminSuccess] = useState('');
 
+  const refreshStats = async () => {
+    const data = await getDashboardStats();
+    setStats(data);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    getDashboardStats().then(data => { setStats(data); setLoading(false); });
+    refreshStats();
+
+    const handleFocus = () => refreshStats();
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'coha_student_profile_image_update') refreshStats();
+    };
+    const handleCustomProfileImageUpdate = () => refreshStats();
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('coha-student-profile-image-update', handleCustomProfileImageUpdate);
+    const interval = setInterval(refreshStats, 30000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('coha-student-profile-image-update', handleCustomProfileImageUpdate);
+      clearInterval(interval);
+    };
   }, []);
 
   if (loading) return <Loader />;

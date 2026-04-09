@@ -55,15 +55,28 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
       });
     };
 
+    const applyProfileImageUpdate = (studentId: string, profileImageBase64: string) => {
+      setStudents((prev) => {
+        const hasMatch = prev.some((student) => student.id === studentId);
+        if (!hasMatch) return prev;
+        return prev.map((student) => (
+          student.id === studentId ? { ...student, profileImageBase64 } : student
+        ));
+      });
+    };
+
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== 'coha_parent_pin_update' || !event.newValue) return;
+      if (!event.newValue) return;
       try {
         const payload = JSON.parse(event.newValue);
-        if (payload?.studentId && payload?.parentPin) {
+        if (event.key === 'coha_parent_pin_update' && payload?.studentId && payload?.parentPin) {
           applyPinUpdate(payload.studentId, payload.parentPin);
         }
+        if (event.key === 'coha_student_profile_image_update' && payload?.studentId && payload?.profileImageBase64) {
+          applyProfileImageUpdate(payload.studentId, payload.profileImageBase64);
+        }
       } catch (error) {
-        console.error('Failed to parse parent PIN update event:', error);
+        console.error('Failed to parse student update event:', error);
       }
     };
 
@@ -74,15 +87,24 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
       }
     };
 
+    const handleCustomProfileImageUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ studentId: string; profileImageBase64: string }>;
+      if (customEvent.detail?.studentId && customEvent.detail?.profileImageBase64) {
+        applyProfileImageUpdate(customEvent.detail.studentId, customEvent.detail.profileImageBase64);
+      }
+    };
+
     window.addEventListener('focus', handleFocus);
     window.addEventListener('storage', handleStorage);
     window.addEventListener('coha-parent-pin-update', handleCustomPinUpdate as EventListener);
+    window.addEventListener('coha-student-profile-image-update', handleCustomProfileImageUpdate as EventListener);
     const interval = setInterval(fetchStudents, 30000);
 
     return () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('coha-parent-pin-update', handleCustomPinUpdate as EventListener);
+      window.removeEventListener('coha-student-profile-image-update', handleCustomProfileImageUpdate as EventListener);
       clearInterval(interval);
     };
   }, [viewMode]);
