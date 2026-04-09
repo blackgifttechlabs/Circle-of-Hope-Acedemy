@@ -3,10 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   BookOpen,
   Calendar,
+  CheckCircle2,
   ChevronRight,
   ClipboardList,
   CreditCard,
   Download,
+  FileBadge2,
   FileImage,
   FileText,
   FilePlus2,
@@ -14,6 +16,7 @@ import {
   GraduationCap,
   Home,
   Loader2,
+  RefreshCw,
   ShieldCheck,
   Upload,
   User,
@@ -154,6 +157,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   const portalTitle = `${schoolName} Parent Portal`;
   const studentProfileImage = student?.profileImageBase64 || '';
   const studentInitial = getInitialLetter(student?.name);
+  const getTermLabel = (termId?: string) => settings?.schoolCalendars?.find((term) => term.id === termId)?.termName || termId || '-';
 
   const financials = useMemo(() => {
     let total = 0;
@@ -305,23 +309,25 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   if (!student) return <div className="p-6 text-sm text-slate-500">Student not found.</div>;
 
   const renderHome = () => (
-    <div>
-      <section className="pt-2">
-        <div className="rounded-[2rem] bg-coha-900 px-4 pb-5 pt-4 text-white shadow-[0_24px_50px_rgba(43,43,94,0.28)]">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[1.1rem] font-black tracking-[-0.03em] truncate">{portalTitle}</p>
-              <p className="text-xs font-semibold text-white/70 mt-1">Family dashboard</p>
-            </div>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className="h-10 w-10 rounded-full border border-white/15 bg-white/10 inline-flex items-center justify-center shrink-0"
-            >
-              <FileText size={18} className="text-white" />
-            </button>
+    <div className="-mx-3 sm:-mx-5">
+      <section className="bg-coha-900 px-4 pt-4 pb-10 text-white">
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[1.1rem] font-black tracking-[-0.03em] truncate">{portalTitle}</p>
+            <p className="text-xs font-semibold text-white/70 mt-1">Family dashboard</p>
           </div>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className="h-10 w-10 rounded-full border border-white/15 bg-white/10 inline-flex items-center justify-center shrink-0"
+          >
+            <FileText size={18} className="text-white" />
+          </button>
+        </div>
+      </section>
 
-          <div className="mt-4 rounded-[1.9rem] bg-white p-4 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+      <section className="-mt-6 rounded-t-[2rem] bg-white px-3 sm:px-5 pt-5 pb-2 shadow-[0_-12px_30px_rgba(15,23,42,0.06)]">
+        <div className="max-w-4xl mx-auto">
+          <div className="rounded-[1.9rem] border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
             <div className="flex items-center gap-4">
               {studentProfileImage ? (
                 <img
@@ -356,146 +362,131 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
               </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section className="pt-4">
-        <div className="rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm">
-          <SectionLabel icon={<User size={14} />}>Student Profile</SectionLabel>
-          <div className="grid grid-cols-3 gap-3 mt-1">
-            <div>
-              <MiniLabel icon={<GraduationCap size={12} />}>Grade</MiniLabel>
-              <p className="mt-2 text-[1.05rem] font-black text-slate-950">{student.assignedClass || student.grade || student.level || '-'}</p>
-            </div>
-            <div>
-              <MiniLabel icon={<Calendar size={12} />}>Academic Year</MiniLabel>
-              <p className="mt-2 text-[1.05rem] font-black text-slate-950">{academicYear}</p>
-            </div>
-            <div>
-              <MiniLabel icon={<Calendar size={12} />}>Term</MiniLabel>
-              <p className="mt-2 text-[1.05rem] font-black text-slate-950">{currentTerm?.termName || 'Term 1'}</p>
+          <div className="pt-4">
+            <div className="rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm">
+              <SectionLabel icon={<User size={14} />}>Student Profile</SectionLabel>
+              <div className="grid grid-cols-3 gap-3 mt-1">
+                <div>
+                  <MiniLabel icon={<GraduationCap size={12} />}>Grade</MiniLabel>
+                  <p className="mt-2 text-[1rem] font-black text-slate-950 whitespace-nowrap">{student.assignedClass || student.grade || student.level || '-'}</p>
+                </div>
+                <div>
+                  <MiniLabel icon={<Calendar size={12} />} className="whitespace-nowrap">Academic Year</MiniLabel>
+                  <p className="mt-2 text-[0.95rem] font-black text-slate-950 whitespace-nowrap">{academicYear}</p>
+                </div>
+                <div>
+                  <MiniLabel icon={<Calendar size={12} />}>Term</MiniLabel>
+                  <p className="mt-2 text-[1rem] font-black text-slate-950 whitespace-nowrap">{currentTerm?.termName || 'Term 1'}</p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section className="pt-4">
-        <div className="flex items-center justify-between mb-3 px-1">
-          <SectionLabel icon={<CreditCard size={14} />}>Fees Summary</SectionLabel>
-          <p className={`text-sm font-black ${financials.balance <= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-            {financials.balance <= 0 ? 'Up to date' : 'Balance due'}
-          </p>
-        </div>
-        <div className="grid grid-cols-3 gap-3 rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm text-sm">
-          <div className="min-w-0">
-            <MiniLabel icon={<CreditCard size={12} />}>Total</MiniLabel>
-            <p className="font-black text-slate-900 mt-2 text-[1.05rem] leading-tight">{fmtMoney(financials.total)}</p>
+          <div className="pt-4">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <SectionLabel icon={<CreditCard size={14} />}>Fees Summary</SectionLabel>
+              <p className={`text-sm font-black ${financials.balance <= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {financials.balance <= 0 ? 'Up to date' : 'Balance due'}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-3 rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm text-sm">
+              <div className="min-w-0">
+                <MiniLabel icon={<CreditCard size={12} />}>Total</MiniLabel>
+                <p className="font-black text-slate-900 mt-2 text-[1rem] leading-tight">{fmtMoney(financials.total)}</p>
+              </div>
+              <div className="min-w-0">
+                <MiniLabel icon={<CreditCard size={12} />}>Paid</MiniLabel>
+                <p className="font-black text-emerald-600 mt-2 text-[1rem] leading-tight">{fmtMoney(financials.paid)}</p>
+              </div>
+              <div className="min-w-0">
+                <MiniLabel icon={<CreditCard size={12} />}>Balance</MiniLabel>
+                <p className="font-black text-slate-900 mt-2 text-[1rem] leading-tight">{fmtMoney(financials.balance)}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button onClick={() => setActiveTab('receipts')} className="flex-1 h-12 text-sm font-bold border-2 border-coha-900 text-coha-900 rounded-[1rem] bg-white">
+                View receipts
+              </button>
+              <button onClick={() => setActiveTab('receipts')} className="flex-1 h-12 text-sm font-bold bg-coha-900 text-white rounded-[1rem]">
+                Send proof of payment
+              </button>
+            </div>
           </div>
-          <div className="min-w-0">
-            <MiniLabel icon={<CreditCard size={12} />}>Paid</MiniLabel>
-            <p className="font-black text-emerald-600 mt-2 text-[1.05rem] leading-tight">{fmtMoney(financials.paid)}</p>
-          </div>
-          <div className="min-w-0">
-            <MiniLabel icon={<CreditCard size={12} />}>Balance</MiniLabel>
-            <p className="font-black text-slate-900 mt-2 text-[1.05rem] leading-tight">{fmtMoney(financials.balance)}</p>
-          </div>
-        </div>
-        <div className="mt-3 flex gap-2">
-          <button onClick={() => setActiveTab('receipts')} className="flex-1 h-12 text-sm font-bold border-2 border-coha-900 text-coha-900 rounded-[1rem] bg-white">
-            View receipts
-          </button>
-          <button onClick={() => setActiveTab('receipts')} className="flex-1 h-12 text-sm font-bold bg-coha-900 text-white rounded-[1rem]">
-            Send proof of payment
-          </button>
-        </div>
-      </section>
 
-      <section className="py-5">
-        <SectionLabel icon={<Home size={14} />}>Quick Actions</SectionLabel>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => navigate('/parent/assessment')}
-            className="min-h-[132px] rounded-[1.7rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.3), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.18), transparent 34%), linear-gradient(135deg, #14206f 0%, #13a0d8 100%)' }}
-          >
-            <div className="relative z-10">
-              <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
-                <FileText size={20} />
-              </div>
-              <p className="text-base font-black tracking-[-0.02em]">View Reports</p>
-              <p className="text-xs text-white/80 mt-1 font-semibold">Assessment progress and report downloads</p>
+          <div className="py-5">
+            <SectionLabel icon={<Home size={14} />}>Quick Actions</SectionLabel>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => navigate('/parent/assessment')}
+                className="min-h-[112px] rounded-[1.45rem] px-3 py-4 text-center text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+                style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.3), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.18), transparent 34%), linear-gradient(135deg, #14206f 0%, #13a0d8 100%)' }}
+              >
+                <div className="relative z-10 flex h-full flex-col items-center justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-3">
+                    <FileText size={18} />
+                  </div>
+                  <p className="text-[0.95rem] font-black tracking-[-0.02em]">View Reports</p>
+                  <p className="text-[11px] text-white/80 mt-1 font-semibold leading-tight">Assessment progress and report downloads</p>
+                </div>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
+              </button>
+              <button
+                onClick={() => navigate('/parent/register')}
+                className="min-h-[112px] rounded-[1.45rem] px-3 py-4 text-center text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+                style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.26), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #00a37a 0%, #34d399 100%)' }}
+              >
+                <div className="relative z-10 flex h-full flex-col items-center justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-3">
+                    <ClipboardList size={18} />
+                  </div>
+                  <p className="text-[0.95rem] font-black tracking-[-0.02em]">View Attendance</p>
+                  <p className="text-[11px] text-white/80 mt-1 font-semibold leading-tight">Daily register and attendance history</p>
+                </div>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
+              </button>
+              <button
+                onClick={() => setActiveTab('homework')}
+                className="min-h-[112px] rounded-[1.45rem] px-3 py-4 text-center text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+                style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.26), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #c2410c 0%, #fb7185 100%)' }}
+              >
+                <div className="relative z-10 flex h-full flex-col items-center justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-3">
+                    <BookOpen size={18} />
+                  </div>
+                  <p className="text-[0.95rem] font-black tracking-[-0.02em]">Submit Homework</p>
+                  <p className="text-[11px] text-white/80 mt-1 font-semibold leading-tight">Capture and send homework images</p>
+                </div>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
+              </button>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className="min-h-[112px] rounded-[1.45rem] px-3 py-4 text-center text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+                style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.28), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #7e22ce 0%, #d946ef 100%)' }}
+              >
+                <div className="relative z-10 flex h-full flex-col items-center justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-3">
+                    <FileText size={18} />
+                  </div>
+                  <p className="text-[0.95rem] font-black tracking-[-0.02em]">Account Settings</p>
+                  <p className="text-[11px] text-white/80 mt-1 font-semibold leading-tight">Change PIN and sign out of the portal</p>
+                </div>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
+              </button>
             </div>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
-          </button>
-          <button
-            onClick={() => navigate('/parent/register')}
-            className="min-h-[132px] rounded-[1.7rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.26), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #00a37a 0%, #34d399 100%)' }}
-          >
-            <div className="relative z-10">
-              <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
-                <ClipboardList size={20} />
-              </div>
-              <p className="text-base font-black tracking-[-0.02em]">View Attendance</p>
-              <p className="text-xs text-white/80 mt-1 font-semibold">Daily register and attendance history</p>
-            </div>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
-          </button>
-          <button
-            onClick={() => setActiveTab('homework')}
-            className="min-h-[132px] rounded-[1.7rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.26), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #c2410c 0%, #fb7185 100%)' }}
-          >
-            <div className="relative z-10">
-              <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
-                <BookOpen size={20} />
-              </div>
-              <p className="text-base font-black tracking-[-0.02em]">Submit Homework</p>
-              <p className="text-xs text-white/80 mt-1 font-semibold">Capture and send homework images</p>
-            </div>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
-          </button>
-          <button
-            onClick={() => setActiveTab('settings')}
-            className="min-h-[132px] rounded-[1.7rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.28), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #7e22ce 0%, #d946ef 100%)' }}
-          >
-            <div className="relative z-10">
-              <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
-                <FileText size={20} />
-              </div>
-              <p className="text-base font-black tracking-[-0.02em]">Account Settings</p>
-              <p className="text-xs text-white/80 mt-1 font-semibold">Change PIN and sign out of the portal</p>
-            </div>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
-          </button>
-        </div>
-      </section>
+          </div>
 
-      <section className="pb-1">
-        <SectionLabel icon={<User size={14} />}>Overview</SectionLabel>
-        <div
-          className="rounded-[1.75rem] p-4 sm:p-5 border border-slate-200 overflow-hidden relative"
-          style={{ background: 'radial-gradient(circle at top right, rgba(59,130,246,0.16), transparent 28%), radial-gradient(circle at bottom left, rgba(16,185,129,0.12), transparent 32%), linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}
-        >
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-white/90 border border-slate-200 p-4 shadow-sm">
-              <MiniLabel icon={<User size={12} />}>Portal Status</MiniLabel>
-              <p className="mt-2 text-base font-black text-slate-950">{student.studentStatus.replace(/_/g, ' ')}</p>
-            </div>
-            <div className="rounded-2xl bg-white/90 border border-slate-200 p-4 shadow-sm">
-              <MiniLabel icon={<GraduationCap size={12} />}>Class Teacher</MiniLabel>
-              <p className="mt-2 text-base font-black text-slate-950">{teacher?.name || 'Not assigned'}</p>
-            </div>
-            <div className="rounded-2xl bg-white/90 border border-slate-200 p-4 shadow-sm">
-              <MiniLabel icon={<FileImage size={12} />}>Latest Payment</MiniLabel>
-              <p className="mt-2 text-sm font-black text-slate-950">{paymentProofs[0]?.status || 'No proof sent'}</p>
-              <p className="text-xs text-slate-600 mt-1">{paymentProofs[0] ? fmtDate(paymentProofs[0].submittedAt) : 'Waiting for upload'}</p>
-            </div>
-            <div className="rounded-2xl bg-white/90 border border-slate-200 p-4 shadow-sm">
-              <MiniLabel icon={<Upload size={12} />}>Latest Homework</MiniLabel>
-              <p className="mt-2 text-sm font-black text-slate-950">{homeworkSubmissions[0]?.status || 'No upload yet'}</p>
-              <p className="text-xs text-slate-600 mt-1">{homeworkSubmissions[0] ? fmtDate(homeworkSubmissions[0].submittedAt) : 'Waiting for upload'}</p>
+          <div className="pb-1">
+            <SectionLabel icon={<User size={14} />}>Overview</SectionLabel>
+            <div className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm">
+              <DetailTable
+                rows={[
+                  { label: 'Portal Status', value: student.studentStatus.replace(/_/g, ' ') },
+                  { label: 'Class Teacher', value: teacher?.name || 'Not assigned' },
+                  { label: 'Latest Payment', value: paymentProofs[0] ? `${paymentProofs[0].status} · ${fmtDate(paymentProofs[0].submittedAt)}` : 'Waiting for upload' },
+                  { label: 'Latest Homework', value: homeworkSubmissions[0] ? `${homeworkSubmissions[0].status} · ${fmtDate(homeworkSubmissions[0].submittedAt)}` : 'Waiting for upload' },
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -618,74 +609,121 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
 
   const renderReceipts = () => (
     <div>
-      <section className="py-4 border-b border-slate-200">
-        <div className="flex items-center justify-between mb-3">
-          <SectionLabel icon={<FileImage size={14} />}>Send Proof Of Payment</SectionLabel>
-          <span className="text-xs text-slate-500">{currentTerm?.termName || 'Current term'}</span>
+      <section className="pt-2">
+        <div className="rounded-[2rem] bg-coha-900 px-4 pb-5 pt-4 text-white shadow-[0_24px_50px_rgba(43,43,94,0.28)]">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[1.2rem] font-black tracking-[-0.03em] truncate">Payment & Receipts</p>
+              <p className="text-xs font-semibold text-white/70 mt-1">{schoolName}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setActiveTab('settings')}
+                className="h-10 w-10 rounded-full border border-white/15 bg-white/10 inline-flex items-center justify-center"
+              >
+                <FileText size={18} className="text-white" />
+              </button>
+              <button
+                onClick={refreshData}
+                className="h-10 w-10 rounded-full border border-white/15 bg-white/10 inline-flex items-center justify-center"
+              >
+                <RefreshCw size={18} className="text-white" />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[1.9rem] bg-white p-4 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+            <SectionLabel icon={<FileImage size={14} />}>Send Proof Of Payment</SectionLabel>
+            <div className="grid grid-cols-2 gap-2">
+              <select value={paymentTerm} onChange={(e) => setPaymentTerm(e.target.value)} className="h-12 rounded-[0.95rem] border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800">
+                {(settings?.schoolCalendars || []).map((term) => (
+                  <option key={term.id} value={term.id}>{term.termName}</option>
+                ))}
+              </select>
+              <input value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Amount paid" className="h-12 rounded-[0.95rem] border border-slate-300 px-3 text-sm font-semibold text-slate-800" />
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button onClick={() => paymentFileRef.current?.click()} className="h-14 rounded-[0.95rem] border border-slate-300 text-sm font-bold text-slate-800 inline-flex items-center justify-center gap-2 bg-white px-3 text-left">
+                <FileImage size={16} />
+                <span className="leading-tight">{paymentFile ? 'Change receipt' : 'Take / choose receipt'}</span>
+              </button>
+              <button disabled={!paymentFile || !paymentTerm || busyAction === 'payment'} onClick={handlePaymentSubmit} className="h-14 rounded-[0.95rem] bg-coha-900 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-[0_12px_24px_rgba(43,43,94,0.22)]">
+                {busyAction === 'payment' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                Send proof
+              </button>
+            </div>
+            <input ref={paymentFileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => setPaymentFile(e.target.files?.[0] || null)} />
+            {paymentFile && <p className="mt-2 text-xs font-semibold text-slate-500">{paymentFile.name}</p>}
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <select value={paymentTerm} onChange={(e) => setPaymentTerm(e.target.value)} className="h-11 border border-slate-300 bg-white px-3 text-sm">
-            {(settings?.schoolCalendars || []).map((term) => (
-              <option key={term.id} value={term.id}>{term.termName}</option>
+      </section>
+
+      <section className="pt-4">
+        <div className="rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm">
+          <SectionLabel icon={<FileBadge2 size={14} />}>Submitted Proofs</SectionLabel>
+          <div className="space-y-3">
+            {paymentProofs.length === 0 && <p className="text-sm text-slate-500">No payment proofs submitted yet.</p>}
+            {paymentProofs.map((proof) => (
+              <div key={proof.id} className="rounded-[1.15rem] border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex items-start gap-2">
+                    <div className="mt-0.5 text-slate-400">
+                      <FileText size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-900">{getTermLabel(proof.termId)}</p>
+                      <p className="text-xs text-slate-500 mt-1">{fmtDate(proof.submittedAt)}</p>
+                      {proof.amountClaimed && <p className="text-xs font-semibold text-slate-500 mt-1">{proof.amountClaimed}</p>}
+                    </div>
+                  </div>
+                  <span className={`text-[11px] font-black uppercase ${proof.status === 'APPROVED' ? 'text-emerald-500' : proof.status === 'REJECTED' ? 'text-rose-500' : 'text-amber-500'}`}>
+                    {proof.status}
+                  </span>
+                </div>
+              </div>
             ))}
-          </select>
-          <input value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Amount paid" className="h-11 border border-slate-300 px-3 text-sm" />
-        </div>
-        <div className="mt-2 flex gap-2">
-          <button onClick={() => paymentFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
-            <FileImage size={16} /> {paymentFile ? 'Change image' : 'Take / choose receipt'}
-          </button>
-          <button disabled={!paymentFile || !paymentTerm || busyAction === 'payment'} onClick={handlePaymentSubmit} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2">
-            {busyAction === 'payment' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-            Send proof
-          </button>
-        </div>
-        <input ref={paymentFileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => setPaymentFile(e.target.files?.[0] || null)} />
-        {paymentFile && <p className="mt-2 text-xs text-slate-500">{paymentFile.name}</p>}
-      </section>
-
-      <section className="py-4 border-b border-slate-200">
-        <SectionLabel icon={<FileImage size={14} />}>Submitted Proofs</SectionLabel>
-        <div className="space-y-3">
-          {paymentProofs.length === 0 && <p className="text-sm text-slate-500">No payment proofs submitted yet.</p>}
-          {paymentProofs.map((proof) => (
-            <div key={proof.id} className="border-b border-slate-200 pb-3 last:border-b-0">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{proof.termId}</p>
-                  <p className="text-xs text-slate-500">{fmtDate(proof.submittedAt)}</p>
-                </div>
-                <span className={`text-[11px] font-bold ${proof.status === 'APPROVED' ? 'text-emerald-600' : proof.status === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'}`}>
-                  {proof.status}
-                </span>
-              </div>
-              {proof.amountClaimed && <p className="text-sm text-slate-600 mt-1">Claimed amount: {proof.amountClaimed}</p>}
-            </div>
-          ))}
+          </div>
         </div>
       </section>
 
-      <section className="py-4 border-b border-slate-200">
-        <SectionLabel icon={<FileText size={14} />}>Official Receipts</SectionLabel>
-        <div className="space-y-3">
-          {receipts.length === 0 && <p className="text-sm text-slate-500">No approved school receipts yet.</p>}
-          {receipts.map((receipt) => (
-            <div key={receipt.id} className="border-b border-slate-200 pb-3 last:border-b-0">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{receipt.number}</p>
-                  <p className="text-xs text-slate-500">{fmtDate(receipt.generatedAt || receipt.createdAt || receipt.date)}</p>
+      <section className="py-4">
+        <div className="rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm">
+          <SectionLabel icon={<FileText size={14} />}>Official Receipts</SectionLabel>
+          <div className="space-y-3">
+            {receipts.length === 0 && <p className="text-sm text-slate-500">No approved school receipts yet.</p>}
+            {receipts.map((receipt) => (
+              <div key={receipt.id} className="rounded-[1.2rem] border border-slate-200 bg-white overflow-hidden shadow-sm">
+                <div className="px-4 pt-4 pb-3">
+                  <div className="flex justify-center">
+                    <div className="h-16 w-16 rounded-full border border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-[10px] font-black tracking-[0.16em] text-coha-900">
+                      <span>COHA</span>
+                      <CheckCircle2 size={14} className="mt-1" />
+                    </div>
+                  </div>
+                  <div className="mt-4 border-t border-slate-100 pt-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-black tracking-[-0.03em] text-slate-950">{receipt.number}</p>
+                        <p className="text-xs text-slate-500 mt-1">{fmtDate(receipt.generatedAt || receipt.createdAt || receipt.date)}</p>
+                      </div>
+                      <button onClick={() => downloadReceipt(receipt)} className="inline-flex items-center gap-1 text-sm font-black text-slate-500">
+                        <Download size={15} /> PDF
+                      </button>
+                    </div>
+                    <div className="mt-3 flex items-end justify-between gap-3">
+                      <div>
+                        <p className="text-base font-black text-slate-900">{getTermLabel(receipt.termId) || 'School fee payment'}</p>
+                        <p className="text-xs font-semibold text-slate-500 mt-1">{academicYear}</p>
+                      </div>
+                      <span className="text-[1.55rem] leading-none font-black tracking-[-0.04em] text-slate-950">
+                        {fmtMoney(parseFloat(receipt.amount || '0'))}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <button onClick={() => downloadReceipt(receipt)} className="inline-flex items-center gap-1 text-sm font-semibold text-coha-700">
-                  <Download size={15} /> PDF
-                </button>
               </div>
-              <div className="mt-1 flex items-center justify-between text-sm">
-                <span className="text-slate-600">{receipt.termId || 'School fee payment'}</span>
-                <span className="font-bold text-slate-900">{fmtMoney(parseFloat(receipt.amount || '0'))}</span>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
     </div>
