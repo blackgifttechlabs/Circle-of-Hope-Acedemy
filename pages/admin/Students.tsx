@@ -230,7 +230,18 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
               {filteredStudents.map((student) => (
                 <tr key={student.id} className="hover:bg-gray-50 group">
                   <td className="px-6 py-4 font-mono text-xs text-gray-400">{student.id}</td>
-                  <td className="px-6 py-4 font-bold text-coha-900">{student.name}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      {student.profileImageBase64 ? (
+                        <img src={student.profileImageBase64} alt={student.name} className="w-9 h-9 rounded-full object-cover border border-gray-200" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-coha-700 to-coha-500 text-white flex items-center justify-center text-sm font-black">
+                          {student.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="font-bold text-coha-900">{student.name}</span>
+                    </div>
+                  </td>
                   {user?.adminRole !== 'sub_admin' && (
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">

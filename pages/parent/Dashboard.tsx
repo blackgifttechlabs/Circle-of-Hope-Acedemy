@@ -4,6 +4,7 @@ import {
   BookOpen,
   Calendar,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   ClipboardList,
   CreditCard,
@@ -21,6 +22,7 @@ import {
   ShieldCheck,
   Upload,
   User,
+  Users,
 } from 'lucide-react';
 import {
   getHomeworkAssignmentsForClass,
@@ -104,6 +106,12 @@ const DetailTable: React.FC<{ rows: Array<{ label: string; value: React.ReactNod
   </div>
 );
 
+const AvatarFallback: React.FC<{ letter: string; sizeClass?: string; textClass?: string }> = ({ letter, sizeClass = 'h-20 w-20', textClass = 'text-3xl' }) => (
+  <div className={`${sizeClass} rounded-full bg-gradient-to-br from-coha-700 to-coha-500 text-white flex items-center justify-center ${textClass} font-black border-4 border-white shadow-sm`}>
+    {letter}
+  </div>
+);
+
 const getInitialLetter = (name?: string) => (name?.trim()?.charAt(0) || 'S').toUpperCase();
 
 export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout }) => {
@@ -144,6 +152,13 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   const [homeworkMessageType, setHomeworkMessageType] = useState<'success' | 'error'>('success');
   const [changedPinValue, setChangedPinValue] = useState('');
   const [profileFile, setProfileFile] = useState<File | null>(null);
+  const [detailSectionsOpen, setDetailSectionsOpen] = useState({
+    profile: true,
+    basic: true,
+    academic: false,
+    parent: false,
+    documents: false,
+  });
 
   const paymentFileRef = useRef<HTMLInputElement>(null);
   const paymentDeviceFileRef = useRef<HTMLInputElement>(null);
@@ -214,6 +229,20 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       await refreshData();
       setLoading(false);
     })();
+  }, [user?.id]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshData();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(refreshData, 30000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
   }, [user?.id]);
 
   const setActiveTab = (nextTab: ParentTab) => {
@@ -503,12 +532,57 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
 
   const renderDetails = () => (
     <div>
-      <section className="py-4 border-b border-slate-200">
-        <SectionLabel icon={<User size={14} />}>Student Details</SectionLabel>
-        <div className="space-y-4">
-          <div>
-            <MiniLabel icon={<User size={12} />}>Basic Details</MiniLabel>
-            <div className="mt-2">
+      <section className="py-4">
+        <div className="rounded-[1.7rem] bg-[linear-gradient(180deg,#fff7f2_0%,#ffffff_100%)] border border-orange-100 p-5 shadow-sm">
+          <div className="flex flex-col items-center text-center">
+            {studentProfileImage ? (
+              <img
+                src={studentProfileImage}
+                alt={student.name}
+                className="h-24 w-24 rounded-full object-cover border-4 border-white shadow-sm"
+              />
+            ) : (
+              <AvatarFallback letter={studentInitial} sizeClass="h-24 w-24" textClass="text-4xl" />
+            )}
+            <label className="mt-3 inline-flex items-center gap-2 rounded-full bg-coha-500 px-4 py-2 text-white text-sm font-bold cursor-pointer">
+              <FileImage size={16} /> Edit Photo
+              <input
+                ref={profileFileRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => setProfileFile(e.target.files?.[0] || null)}
+              />
+            </label>
+            {profileFile && <p className="mt-2 text-xs text-slate-500">{profileFile.name}</p>}
+            {profileMessage && <p className="mt-2 text-sm font-semibold text-slate-700">{profileMessage}</p>}
+            <button
+              disabled={!profileFile || busyAction === 'PROFILE_IMAGE'}
+              onClick={handleProfileImageSave}
+              className="mt-3 h-11 px-5 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50 rounded-[0.9rem] inline-flex items-center justify-center gap-2"
+            >
+              {busyAction === 'PROFILE_IMAGE' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+              Save profile photo
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div className="space-y-4">
+        <section className="rounded-[1.4rem] border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <button
+            onClick={() => setDetailSectionsOpen((prev) => ({ ...prev, basic: !prev.basic }))}
+            className="w-full px-4 py-4 flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-coha-50 text-coha-800 flex items-center justify-center"><User size={18} /></div>
+              <span className="font-bold text-slate-900">Profile Details</span>
+            </div>
+            <ChevronDown size={18} className={`text-slate-500 transition-transform ${detailSectionsOpen.basic ? 'rotate-180' : ''}`} />
+          </button>
+          {detailSectionsOpen.basic && (
+            <div className="px-4 pb-4">
               <DetailTable
                 rows={[
                   { label: 'Student Name', value: student.name },
@@ -518,11 +592,22 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                 ]}
               />
             </div>
-          </div>
+          )}
+        </section>
 
-          <div>
-            <MiniLabel icon={<GraduationCap size={12} />}>Academic Details</MiniLabel>
-            <div className="mt-2">
+        <section className="rounded-[1.4rem] border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <button
+            onClick={() => setDetailSectionsOpen((prev) => ({ ...prev, academic: !prev.academic }))}
+            className="w-full px-4 py-4 flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center"><GraduationCap size={18} /></div>
+              <span className="font-bold text-slate-900">Academic Details</span>
+            </div>
+            <ChevronDown size={18} className={`text-slate-500 transition-transform ${detailSectionsOpen.academic ? 'rotate-180' : ''}`} />
+          </button>
+          {detailSectionsOpen.academic && (
+            <div className="px-4 pb-4">
               <DetailTable
                 rows={[
                   { label: 'Division', value: student.division || '-' },
@@ -532,27 +617,49 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                 ]}
               />
             </div>
-          </div>
-        </div>
-      </section>
+          )}
+        </section>
 
-      <section className="py-4 border-b border-slate-200">
-        <SectionLabel icon={<User size={14} />}>Parent Details</SectionLabel>
-        <DetailTable
-          rows={[
-            { label: 'Parent / Guardian', value: student.parentName || '-' },
-            { label: 'Father Name', value: student.fatherName || '-' },
-            { label: 'Father Phone', value: student.fatherPhone || '-' },
-            { label: 'Mother Name', value: student.motherName || '-' },
-            { label: 'Mother Phone', value: student.motherPhone || '-' },
-            { label: 'Address', value: student.address || '-' },
-          ]}
-        />
-      </section>
+        <section className="rounded-[1.4rem] border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <button
+            onClick={() => setDetailSectionsOpen((prev) => ({ ...prev, parent: !prev.parent }))}
+            className="w-full px-4 py-4 flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center"><Users size={18} /></div>
+              <span className="font-bold text-slate-900">Parent Details</span>
+            </div>
+            <ChevronDown size={18} className={`text-slate-500 transition-transform ${detailSectionsOpen.parent ? 'rotate-180' : ''}`} />
+          </button>
+          {detailSectionsOpen.parent && (
+            <div className="px-4 pb-4">
+              <DetailTable
+                rows={[
+                  { label: 'Parent / Guardian', value: student.parentName || '-' },
+                  { label: 'Father Name', value: student.fatherName || '-' },
+                  { label: 'Father Phone', value: student.fatherPhone || '-' },
+                  { label: 'Mother Name', value: student.motherName || '-' },
+                  { label: 'Mother Phone', value: student.motherPhone || '-' },
+                  { label: 'Address', value: student.address || '-' },
+                ]}
+              />
+            </div>
+          )}
+        </section>
 
-      <section className="py-4 border-b border-slate-200">
-        <SectionLabel icon={<FolderUp size={14} />}>Uploaded Documents</SectionLabel>
-        <div className="space-y-4">
+        <section className="rounded-[1.4rem] border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <button
+            onClick={() => setDetailSectionsOpen((prev) => ({ ...prev, documents: !prev.documents }))}
+            className="w-full px-4 py-4 flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-violet-50 text-violet-700 flex items-center justify-center"><FolderUp size={18} /></div>
+              <span className="font-bold text-slate-900">Uploaded Documents</span>
+            </div>
+            <ChevronDown size={18} className={`text-slate-500 transition-transform ${detailSectionsOpen.documents ? 'rotate-180' : ''}`} />
+          </button>
+          {detailSectionsOpen.documents && (
+            <div className="px-4 pb-4 space-y-4">
           <div>
             <MiniLabel icon={<FilePlus2 size={12} />}>Birth Certificate</MiniLabel>
             <div className="mt-2 flex gap-2">
@@ -618,8 +725,10 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
               </div>
             ))}
           </div>
-        </div>
-      </section>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 
@@ -932,49 +1041,6 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
             <MiniLabel icon={<User size={12} />}>Parent Account</MiniLabel>
             <p className="mt-2 text-base font-black text-slate-950">{student.parentName || user?.name || 'Parent'}</p>
             <p className="text-sm text-slate-600">Linked to {student.name}</p>
-          </div>
-
-          <div>
-            <MiniLabel icon={<FileImage size={12} />}>Profile Photo</MiniLabel>
-            <div className="mt-3 flex items-center gap-4">
-              {studentProfileImage ? (
-                <img
-                  src={studentProfileImage}
-                  alt={student.name}
-                  className="h-20 w-20 rounded-[1.35rem] object-cover border border-slate-200"
-                />
-              ) : (
-                <div className="h-20 w-20 rounded-[1.35rem] bg-gradient-to-br from-slate-300 to-slate-500 text-white flex items-center justify-center text-3xl font-black">
-                  {studentInitial}
-                </div>
-              )}
-              <div className="flex-1">
-                <button
-                  onClick={() => profileFileRef.current?.click()}
-                  className="w-full h-11 border border-slate-300 text-sm font-semibold text-slate-800 rounded-[0.9rem] inline-flex items-center justify-center gap-2"
-                >
-                  <Upload size={16} /> {profileFile ? 'Change photo' : 'Upload profile photo'}
-                </button>
-                <input
-                  ref={profileFileRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => setProfileFile(e.target.files?.[0] || null)}
-                />
-                {profileFile && <p className="mt-2 text-xs text-slate-500">{profileFile.name}</p>}
-              </div>
-            </div>
-            {profileMessage && <p className="mt-2 text-sm font-semibold text-slate-700">{profileMessage}</p>}
-            <button
-              disabled={!profileFile || busyAction === 'PROFILE_IMAGE'}
-              onClick={handleProfileImageSave}
-              className="mt-3 w-full h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50 rounded-[0.9rem] inline-flex items-center justify-center gap-2"
-            >
-              {busyAction === 'PROFILE_IMAGE' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-              Save profile photo
-            </button>
           </div>
 
           <div>

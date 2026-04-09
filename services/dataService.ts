@@ -1040,12 +1040,14 @@ export const getDashboardStats = async () => {
     const studentsSnap = await getDocs(collection(db, STUDENTS_COLLECTION));
     const teachersSnap = await getDocs(collection(db, TEACHERS_COLLECTION));
     const applicationsSnap = await getDocs(collection(db, APPLICATIONS_COLLECTION));
+    const receiptsSnap = await getDocs(collection(db, RECEIPTS_COLLECTION));
     const settings = await getSystemSettings();
 
     const totalStudents = studentsSnap.size;
     const totalTeachers = teachersSnap.size;
     
     let expectedRevenue = 0;
+    let yearlyFeePerStudent = 0;
     
     if (settings && settings.fees) {
       settings.fees.forEach(fee => {
@@ -1054,20 +1056,39 @@ export const getDashboardStats = async () => {
         if (fee.frequency === 'Monthly') multiplier = 12; 
         else if (fee.frequency === 'Termly') multiplier = 3; 
         else if (fee.frequency === 'Once-off') multiplier = 1;
-        expectedRevenue += (amount * multiplier * totalStudents);
+        yearlyFeePerStudent += amount * multiplier;
       });
+      expectedRevenue = yearlyFeePerStudent * totalStudents;
     }
 
-    const defaulters = studentsSnap.docs.map(doc => {
-        const d = doc.data();
-        return {
-            id: doc.id,
-            name: d.name,
-            grade: d.grade,
-            parentName: d.parentName,
-            parentPhone: d.fatherPhone || d.motherPhone || 'N/A'
-        };
+    const paidByStudent = new Map<string, number>();
+    receiptsSnap.docs.forEach((receiptDoc) => {
+      const data = receiptDoc.data();
+      const studentId = data.usedByStudentId;
+      if (!studentId) return;
+      const amount = parseFloat(data.amount) || 0;
+      paidByStudent.set(studentId, (paidByStudent.get(studentId) || 0) + amount);
     });
+
+    let collectedRevenue = 0;
+    const defaulters = studentsSnap.docs
+      .map((doc) => {
+        const d = doc.data();
+        const paid = paidByStudent.get(doc.id) || 0;
+        collectedRevenue += paid;
+        const balance = Math.max(yearlyFeePerStudent - paid, 0);
+        return {
+          id: doc.id,
+          name: d.name,
+          grade: d.assignedClass || d.grade || d.level || '-',
+          parentName: d.parentName,
+          parentPhone: d.fatherPhone || d.motherPhone || 'N/A',
+          profileImageBase64: d.profileImageBase64 || '',
+          paid,
+          balance,
+        };
+      })
+      .filter((student) => student.balance > 0);
 
     const monthCounts = new Array(12).fill(0);
     studentsSnap.forEach(doc => {
@@ -1111,8 +1132,8 @@ export const getDashboardStats = async () => {
       totalTeachers,
       totalApps: applicationsSnap.size,
       expectedRevenue,
-      collectedRevenue: 0, 
-      outstandingRevenue: expectedRevenue,
+      collectedRevenue,
+      outstandingRevenue: Math.max(expectedRevenue - collectedRevenue, 0),
       defaulters,
       graphData,
       recentActivities
