@@ -138,6 +138,10 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   const [confirmPinInput, setConfirmPinInput] = useState('');
   const [settingsMessage, setSettingsMessage] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
+  const [paymentMessage, setPaymentMessage] = useState('');
+  const [paymentMessageType, setPaymentMessageType] = useState<'success' | 'error'>('success');
+  const [homeworkMessage, setHomeworkMessage] = useState('');
+  const [homeworkMessageType, setHomeworkMessageType] = useState<'success' | 'error'>('success');
   const [changedPinValue, setChangedPinValue] = useState('');
   const [profileFile, setProfileFile] = useState<File | null>(null);
 
@@ -221,11 +225,26 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   };
 
   const handlePaymentSubmit = async () => {
-    if (!student || !paymentFile || !paymentTerm) return;
+    if (!student) {
+      setPaymentMessageType('error');
+      setPaymentMessage('Student record not found.');
+      return;
+    }
+    if (!paymentTerm) {
+      setPaymentMessageType('error');
+      setPaymentMessage('Please select the school term first.');
+      return;
+    }
+    if (!paymentFile) {
+      setPaymentMessageType('error');
+      setPaymentMessage('Please take or choose a receipt photo first.');
+      return;
+    }
     setBusyAction('payment');
+    setPaymentMessage('');
     try {
       const imageBase64 = await fileToDataUrl(paymentFile);
-      await submitPaymentProof({
+      const result = await submitPaymentProof({
         studentId: student.id,
         studentName: student.name,
         parentName: student.parentName || user?.name || 'Parent',
@@ -237,23 +256,45 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
         fileName: paymentFile.name,
         mimeType: paymentFile.type,
       });
+      if (!result.success) {
+        setPaymentMessageType('error');
+        setPaymentMessage('Failed to send proof of payment. Please try again.');
+        return;
+      }
       setPaymentFile(null);
       setPaymentAmount('');
       setPaymentTerm(currentTerm?.id || paymentTerm);
       if (paymentFileRef.current) paymentFileRef.current.value = '';
+      if (paymentDeviceFileRef.current) paymentDeviceFileRef.current.value = '';
       await refreshData();
+      setPaymentMessageType('success');
+      setPaymentMessage('Proof of payment sent successfully.');
       setActiveTab('receipts');
+    } catch (error) {
+      console.error('Payment proof submission failed:', error);
+      setPaymentMessageType('error');
+      setPaymentMessage('Could not send proof of payment. Check your connection and try again.');
     } finally {
       setBusyAction(null);
     }
   };
 
   const handleHomeworkSubmit = async () => {
-    if (!student || !homeworkFile) return;
+    if (!student) {
+      setHomeworkMessageType('error');
+      setHomeworkMessage('Student record not found.');
+      return;
+    }
+    if (!homeworkFile) {
+      setHomeworkMessageType('error');
+      setHomeworkMessage('Please choose or capture a homework image first.');
+      return;
+    }
     setBusyAction('homework');
+    setHomeworkMessage('');
     try {
       const imageBase64 = await fileToDataUrl(homeworkFile);
-      await submitHomeworkSubmission({
+      const result = await submitHomeworkSubmission({
         assignmentId: selectedAssignmentId || undefined,
         studentId: student.id,
         studentName: student.name,
@@ -263,10 +304,21 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
         fileName: homeworkFile.name,
         mimeType: homeworkFile.type,
       });
+      if (!result.success) {
+        setHomeworkMessageType('error');
+        setHomeworkMessage('Homework upload failed. Please try again.');
+        return;
+      }
       setHomeworkFile(null);
       setSelectedAssignmentId('');
       if (homeworkFileRef.current) homeworkFileRef.current.value = '';
       await refreshData();
+      setHomeworkMessageType('success');
+      setHomeworkMessage('Homework image sent successfully.');
+    } catch (error) {
+      console.error('Homework submission failed:', error);
+      setHomeworkMessageType('error');
+      setHomeworkMessage('Failed to send homework. Check your connection and try again.');
     } finally {
       setBusyAction(null);
     }
@@ -319,40 +371,24 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
             <p className="text-[1.2rem] font-black tracking-[0.14em] uppercase truncate">COHA</p>
             <p className="text-sm font-bold text-white/85 mt-1">Parent Portal</p>
             <p className="text-xs font-semibold text-white/70 mt-1">
-              Grade: {student.assignedClass || student.grade || student.level || '-'} | Term: {currentTerm?.termName || '-'} | Academic Year: {academicYear}
+              {student.assignedClass || student.grade || student.level || '-'} | {currentTerm?.termName || '-'}
+            </p>
+            <p className="text-xs font-semibold text-white/70 mt-1">
+              {academicYear}
             </p>
           </div>
-          <button
-            onClick={() => setActiveTab('settings')}
-            className="h-10 w-10 rounded-full border border-white/15 bg-white/10 inline-flex items-center justify-center shrink-0"
-          >
-            <Settings size={18} className="text-white" />
-          </button>
+          <div className="h-11 w-11 rounded-full border border-white/15 bg-white/10 inline-flex items-center justify-center shrink-0 overflow-hidden">
+            <img
+              src="https://i.ibb.co/LzYXwYfX/logo.png"
+              alt={`${schoolName} logo`}
+              className="h-8 w-8 object-contain"
+            />
+          </div>
         </div>
       </section>
 
       <section className="-mt-6 rounded-t-[2rem] bg-white px-3 sm:px-5 pt-5 pb-2 shadow-[0_-12px_30px_rgba(15,23,42,0.06)]">
         <div className="max-w-4xl mx-auto">
-          <div className="pt-4">
-            <div className="rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm">
-              <SectionLabel icon={<User size={14} />}>Student Profile</SectionLabel>
-              <div className="grid grid-cols-3 gap-3 mt-1">
-                <div>
-                  <MiniLabel icon={<GraduationCap size={12} />}>Grade</MiniLabel>
-                  <p className="mt-2 text-[1rem] font-black text-slate-950 whitespace-nowrap">{student.assignedClass || student.grade || student.level || '-'}</p>
-                </div>
-                <div>
-                  <MiniLabel icon={<Calendar size={12} />} className="whitespace-nowrap">Academic Year</MiniLabel>
-                  <p className="mt-2 text-[0.95rem] font-black text-slate-950 whitespace-nowrap">{academicYear}</p>
-                </div>
-                <div>
-                  <MiniLabel icon={<Calendar size={12} />}>Term</MiniLabel>
-                  <p className="mt-2 text-[1rem] font-black text-slate-950 whitespace-nowrap">{currentTerm?.termName || 'Term 1'}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div className="pt-4">
             <div className="mb-1 px-1">
               <SectionLabel icon={<CreditCard size={14} />}>Fees Summary</SectionLabel>
@@ -638,8 +674,32 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                 Send proof
               </button>
             </div>
-            <input ref={paymentFileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => setPaymentFile(e.target.files?.[0] || null)} />
-            <input ref={paymentDeviceFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => setPaymentFile(e.target.files?.[0] || null)} />
+            {paymentMessage && (
+              <p className={`mt-3 text-sm font-semibold ${paymentMessageType === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {paymentMessage}
+              </p>
+            )}
+            <input
+              ref={paymentFileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                setPaymentFile(e.target.files?.[0] || null);
+                if (paymentMessage) setPaymentMessage('');
+              }}
+            />
+            <input
+              ref={paymentDeviceFileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                setPaymentFile(e.target.files?.[0] || null);
+                if (paymentMessage) setPaymentMessage('');
+              }}
+            />
             {paymentFile && <p className="mt-2 text-xs font-semibold text-slate-500">{paymentFile.name}</p>}
           </div>
         </div>
@@ -754,7 +814,22 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
             Send homework
           </button>
         </div>
-        <input ref={homeworkFileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => setHomeworkFile(e.target.files?.[0] || null)} />
+        {homeworkMessage && (
+          <p className={`mt-3 text-sm font-semibold ${homeworkMessageType === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {homeworkMessage}
+          </p>
+        )}
+        <input
+          ref={homeworkFileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            setHomeworkFile(e.target.files?.[0] || null);
+            if (homeworkMessage) setHomeworkMessage('');
+          }}
+        />
       </section>
 
       <section className="py-4">
@@ -814,6 +889,13 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
     setBusyAction('PIN_UPDATE');
     try {
       await updateStudent(student.id, { parentPin: newPinInput });
+      const pinUpdate = {
+        studentId: student.id,
+        parentPin: newPinInput,
+        updatedAt: Date.now(),
+      };
+      localStorage.setItem('coha_parent_pin_update', JSON.stringify(pinUpdate));
+      window.dispatchEvent(new CustomEvent('coha-parent-pin-update', { detail: pinUpdate }));
       setChangedPinValue(newPinInput);
       setCurrentPinInput('');
       setNewPinInput('');

@@ -45,11 +45,44 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
       fetchStudents();
     };
 
+    const applyPinUpdate = (studentId: string, parentPin: string) => {
+      setStudents((prev) => {
+        const hasMatch = prev.some((student) => student.id === studentId);
+        if (!hasMatch) return prev;
+        return prev.map((student) => (
+          student.id === studentId ? { ...student, parentPin } : student
+        ));
+      });
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== 'coha_parent_pin_update' || !event.newValue) return;
+      try {
+        const payload = JSON.parse(event.newValue);
+        if (payload?.studentId && payload?.parentPin) {
+          applyPinUpdate(payload.studentId, payload.parentPin);
+        }
+      } catch (error) {
+        console.error('Failed to parse parent PIN update event:', error);
+      }
+    };
+
+    const handleCustomPinUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ studentId: string; parentPin: string }>;
+      if (customEvent.detail?.studentId && customEvent.detail?.parentPin) {
+        applyPinUpdate(customEvent.detail.studentId, customEvent.detail.parentPin);
+      }
+    };
+
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('coha-parent-pin-update', handleCustomPinUpdate as EventListener);
     const interval = setInterval(fetchStudents, 30000);
 
     return () => {
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('coha-parent-pin-update', handleCustomPinUpdate as EventListener);
       clearInterval(interval);
     };
   }, [viewMode]);

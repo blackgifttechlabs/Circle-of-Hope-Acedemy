@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, CreditCard, FileText, Home, User, type LucideIcon } from 'lucide-react';
+import { BookOpen, CreditCard, Home, Settings, User, type LucideIcon } from 'lucide-react';
 
 export type ParentPrimaryTab = 'home' | 'details' | 'receipts' | 'homework' | 'settings';
 
@@ -9,7 +9,7 @@ const NAV_ITEMS: { id: ParentPrimaryTab; label: string; Icon: LucideIcon }[] = [
   { id: 'details', label: 'Details', Icon: User },
   { id: 'receipts', label: 'Receipts', Icon: CreditCard },
   { id: 'homework', label: 'Homework', Icon: BookOpen },
-  { id: 'settings', label: 'Settings', Icon: FileText },
+  { id: 'settings', label: 'Settings', Icon: Settings },
 ];
 
 export const ParentBottomNav: React.FC<{ activeTab?: ParentPrimaryTab | null }> = ({ activeTab = null }) => {
