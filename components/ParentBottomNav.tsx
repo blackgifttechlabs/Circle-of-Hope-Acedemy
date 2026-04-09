@@ -16,7 +16,7 @@ export const ParentBottomNav: React.FC<{ activeTab?: ParentPrimaryTab | null }> 
   const navigate = useNavigate();
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 border-t border-white/10 bg-[#2b2b5e] backdrop-blur">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-[#3b3b78] bg-[#2b2b5e] shadow-[0_-10px_30px_rgba(15,23,42,0.28)]">
       <div className="grid grid-cols-5">
         {NAV_ITEMS.map(({ id, label, Icon }) => {
           const isActive = activeTab === id;
