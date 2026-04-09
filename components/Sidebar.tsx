@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GraduationCap, LogOut, X,
   FileText, Settings, Activity, ClipboardList, ChevronLeft,
-  ChevronRight, Calendar, BarChart3,
+  ChevronRight, Calendar, BarChart3, CreditCard, BookOpen,
 } from 'lucide-react';
 import { UserRole } from '../types';
 import { getPendingActionCounts, getStudentById } from '../services/dataService';
@@ -49,6 +49,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Teachers',         path: '/admin/teachers',         icon: <Users           size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Lesson Plans',     path: '/admin/lesson-plans',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Assessments',      path: '/admin/assessment-progress', icon: <BarChart3   size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Payments',         path: '/admin/payments',           icon: <CreditCard  size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Homeworks',        path: '/admin/homeworks',          icon: <BookOpen    size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Students',         path: '/admin/students',         icon: <GraduationCap   size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Settings',         path: '/admin/settings',         icon: <Settings        size={17} strokeWidth={2.2} />, badge: 0 },
   ];
@@ -56,6 +58,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   const subAdminLinks = [
     { label: 'Applications',     path: '/admin/applications',     icon: <FileText      size={17} strokeWidth={2.2} />, badge: badgeCount },
     { label: 'VTC Applications', path: '/admin/vtc-applications', icon: <FileText      size={17} strokeWidth={2.2} />, badge: vtcBadgeCount },
+    { label: 'Payments',         path: '/admin/payments',         icon: <CreditCard    size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Homeworks',        path: '/admin/homeworks',        icon: <BookOpen      size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Students',         path: '/admin/students',         icon: <GraduationCap size={17} strokeWidth={2.2} />, badge: 0 },
   ];
 
@@ -63,6 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Dashboard', path: '/teacher/dashboard', icon: <LayoutDashboard size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'My Class',  path: '/teacher/classes',   icon: <GraduationCap   size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Register',  path: '/teacher/register',  icon: <ClipboardList   size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Homework',  path: '/teacher/homework',  icon: <BookOpen        size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Settings',  path: '/teacher/settings',  icon: <Settings        size={17} strokeWidth={2.2} />, badge: 0 },
   ];
 

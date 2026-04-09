@@ -1,7 +1,7 @@
 import { db, auth } from '../firebase';
 import { collection, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 
@@ -13,6 +13,10 @@ const VTC_APPLICATIONS_COLLECTION = 'vtcApplications';
 const SETTINGS_COLLECTION = 'settings';
 const RECEIPTS_COLLECTION = 'receipts';
 const ASSESSMENT_RECORDS_COLLECTION = 'assessment_records';
+const PAYMENT_PROOFS_COLLECTION = 'payment_proofs';
+const HOMEWORK_ASSIGNMENTS_COLLECTION = 'homework_assignments';
+const HOMEWORK_SUBMISSIONS_COLLECTION = 'homework_submissions';
+const STUDENT_DOCUMENTS_COLLECTION = 'student_documents';
 
 // Admin Auth Configuration
 const ADMIN_EMAIL = "admin@coha.com";
@@ -301,6 +305,11 @@ export const getReceipts = async (): Promise<Receipt[]> => {
     return snap.docs.map(d => ({ id: d.id, ...d.data() } as Receipt));
 };
 
+export const getReceiptsForStudent = async (studentId: string): Promise<Receipt[]> => {
+    const receipts = await getReceipts();
+    return receipts.filter(r => r.usedByStudentId === studentId);
+};
+
 export const addReceipt = async (number: string, amount: string, date: string) => {
     try {
         await addDoc(collection(db, RECEIPTS_COLLECTION), {
@@ -376,6 +385,262 @@ export const rejectPayment = async (studentId: string) => {
         receiptNumber: '',
         paymentRejected: true
     });
+};
+
+const buildSchoolReceiptNumber = () => {
+    const stamp = Date.now().toString().slice(-8);
+    return `COHA-${stamp}`;
+};
+
+const getNextStatusAfterPayment = (student?: Student | null): Student['studentStatus'] => {
+    if (!student) return 'ENROLLED';
+    if (student.studentStatus === 'ENROLLED') return 'ENROLLED';
+    return student.division === Division.MAINSTREAM ? 'ENROLLED' : 'ASSESSMENT';
+};
+
+export const submitPaymentProof = async (
+    data: Omit<PaymentProof, 'id' | 'submittedAt' | 'status'>
+) => {
+    try {
+        const student = await getStudentById(data.studentId);
+        const payload = JSON.parse(JSON.stringify({
+            ...data,
+            submittedAt: Timestamp.now(),
+            status: 'PENDING'
+        }));
+        const docRef = await addDoc(collection(db, PAYMENT_PROOFS_COLLECTION), payload);
+
+        await updateStudent(data.studentId, {
+            receiptSubmissionDate: Timestamp.now(),
+            studentStatus: student?.studentStatus === 'ENROLLED' ? 'ENROLLED' : 'PAYMENT_VERIFICATION'
+        });
+
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error submitting payment proof:', error);
+        return { success: false, id: null };
+    }
+};
+
+export const getPaymentProofs = async (): Promise<PaymentProof[]> => {
+    const q = query(collection(db, PAYMENT_PROOFS_COLLECTION), orderBy('submittedAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentProof));
+};
+
+export const getPaymentProofsForStudent = async (studentId: string): Promise<PaymentProof[]> => {
+    const q = query(collection(db, PAYMENT_PROOFS_COLLECTION), where('studentId', '==', studentId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentProof))
+      .sort((a, b) => {
+        const aTime = a.submittedAt?.seconds || 0;
+        const bTime = b.submittedAt?.seconds || 0;
+        return bTime - aTime;
+      });
+};
+
+export const approvePaymentProof = async ({
+    proofId,
+    studentId,
+    amount,
+    termId,
+    academicYear,
+    adminName,
+    notes,
+}: {
+    proofId: string;
+    studentId: string;
+    amount: number;
+    termId: string;
+    academicYear: string;
+    adminName: string;
+    notes?: string;
+}) => {
+    try {
+        const student = await getStudentById(studentId);
+        if (!student) {
+            return { success: false, message: 'Student not found.' };
+        }
+
+        const existingReceipts = await getReceiptsForStudent(studentId);
+        const settings = await getSystemSettings();
+
+        let yearlyFees = 0;
+        (settings?.fees || []).forEach(f => {
+            const feeAmount = parseFloat(f.amount) || 0;
+            let multiplier = 1;
+            if (f.frequency === 'Monthly') multiplier = 12;
+            else if (f.frequency === 'Termly') multiplier = 3;
+            yearlyFees += feeAmount * multiplier;
+        });
+
+        const paidBefore = existingReceipts.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        const balanceAfterPayment = yearlyFees - (paidBefore + amount);
+        const receiptNumber = buildSchoolReceiptNumber();
+
+        const receiptRef = await addDoc(collection(db, RECEIPTS_COLLECTION), {
+            number: receiptNumber,
+            amount: amount.toFixed(2),
+            date: new Date().toISOString(),
+            isUsed: true,
+            usedByStudentId: studentId,
+            type: 'SCHOOL_RECEIPT',
+            termId,
+            academicYear,
+            studentName: student.name,
+            studentClass: student.assignedClass || student.grade || student.level || '',
+            generatedAt: Timestamp.now(),
+            generatedBy: adminName,
+            createdAt: Timestamp.now(),
+            balanceAfterPayment,
+            paymentProofId: proofId,
+            notes: notes || '',
+        });
+
+        await updateDoc(doc(db, PAYMENT_PROOFS_COLLECTION, proofId), {
+            status: 'APPROVED',
+            reviewedAt: Timestamp.now(),
+            reviewedBy: adminName,
+            reviewedReceiptId: receiptRef.id,
+            reviewNotes: notes || '',
+        });
+
+        await updateStudent(studentId, {
+            studentStatus: getNextStatusAfterPayment(student),
+            paymentRejected: false,
+            academicYear,
+        });
+
+        return { success: true, receiptId: receiptRef.id, receiptNumber };
+    } catch (error) {
+        console.error('Error approving payment proof:', error);
+        return { success: false, message: 'Failed to approve payment proof.' };
+    }
+};
+
+export const rejectPaymentProof = async (proofId: string, studentId: string, adminName: string, notes?: string) => {
+    try {
+        const student = await getStudentById(studentId);
+        await updateDoc(doc(db, PAYMENT_PROOFS_COLLECTION, proofId), {
+            status: 'REJECTED',
+            reviewedAt: Timestamp.now(),
+            reviewedBy: adminName,
+            reviewNotes: notes || '',
+        });
+        await updateStudent(studentId, {
+            studentStatus: student?.studentStatus === 'ENROLLED' ? 'ENROLLED' : 'WAITING_PAYMENT',
+            paymentRejected: true,
+        });
+        return true;
+    } catch (error) {
+        console.error('Error rejecting payment proof:', error);
+        return false;
+    }
+};
+
+export const createHomeworkAssignment = async (
+    data: Omit<HomeworkAssignment, 'id' | 'createdAt'>
+) => {
+    try {
+        const payload = JSON.parse(JSON.stringify({
+            ...data,
+            createdAt: Timestamp.now(),
+        }));
+        const docRef = await addDoc(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION), payload);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error creating homework assignment:', error);
+        return { success: false, id: null };
+    }
+};
+
+export const getHomeworkAssignmentsForClass = async (className: string): Promise<HomeworkAssignment[]> => {
+    const q = query(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION), where('className', '==', className));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkAssignment))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+};
+
+export const getHomeworkAssignmentsByTeacher = async (teacherId: string): Promise<HomeworkAssignment[]> => {
+    const q = query(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION), where('teacherId', '==', teacherId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkAssignment))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+};
+
+export const submitHomeworkSubmission = async (
+    data: Omit<HomeworkSubmission, 'id' | 'submittedAt' | 'status' | 'teacherId'>
+) => {
+    try {
+        const teacher = data.className ? await getTeacherByClass(data.className) : null;
+        const payload = JSON.parse(JSON.stringify({
+            ...data,
+            teacherId: teacher?.id || '',
+            submittedAt: Timestamp.now(),
+            status: 'SUBMITTED',
+        }));
+        const docRef = await addDoc(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), payload);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error submitting homework:', error);
+        return { success: false, id: null };
+    }
+};
+
+export const getHomeworkSubmissionsForStudent = async (studentId: string): Promise<HomeworkSubmission[]> => {
+    const q = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), where('studentId', '==', studentId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission))
+      .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+};
+
+export const getHomeworkSubmissionsForClass = async (className: string): Promise<HomeworkSubmission[]> => {
+    const q = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), where('className', '==', className));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission))
+      .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+};
+
+export const getAllHomeworkSubmissions = async (): Promise<HomeworkSubmission[]> => {
+    const q = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), orderBy('submittedAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission));
+};
+
+export const markHomeworkSubmissionReviewed = async (submissionId: string, notes?: string) => {
+    try {
+        await updateDoc(doc(db, HOMEWORK_SUBMISSIONS_COLLECTION, submissionId), {
+            status: 'REVIEWED',
+            notes: notes || '',
+        });
+        return true;
+    } catch (error) {
+        console.error('Error marking homework reviewed:', error);
+        return false;
+    }
+};
+
+export const uploadStudentDocument = async (
+    data: Omit<UploadedDocument, 'id' | 'uploadedAt'>
+) => {
+    try {
+        const payload = JSON.parse(JSON.stringify({
+            ...data,
+            uploadedAt: Timestamp.now(),
+        }));
+        const docRef = await addDoc(collection(db, STUDENT_DOCUMENTS_COLLECTION), payload);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error uploading student document:', error);
+        return { success: false, id: null };
+    }
+};
+
+export const getStudentDocuments = async (studentId: string): Promise<UploadedDocument[]> => {
+    const q = query(collection(db, STUDENT_DOCUMENTS_COLLECTION), where('studentId', '==', studentId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as UploadedDocument))
+      .sort((a, b) => (b.uploadedAt?.seconds || 0) - (a.uploadedAt?.seconds || 0));
 };
 
 // --- ASSESSMENT LOGIC ---
@@ -704,19 +969,27 @@ export const getPendingActionCounts = async () => {
         
         const verifyQuery = query(collection(db, STUDENTS_COLLECTION), where("studentStatus", "==", "PAYMENT_VERIFICATION"));
         const verifySnap = await getDocs(verifyQuery);
+
+        const paymentProofQuery = query(collection(db, PAYMENT_PROOFS_COLLECTION), where('status', '==', 'PENDING'));
+        const paymentProofSnap = await getDocs(paymentProofQuery);
         
         const vtcAppsQuery = query(collection(db, VTC_APPLICATIONS_COLLECTION), where("status", "==", "PENDING"));
         const vtcAppsSnap = await getDocs(vtcAppsQuery);
+
+        const homeworkQuery = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), where('status', '==', 'SUBMITTED'));
+        const homeworkSnap = await getDocs(homeworkQuery);
         
         return {
             pendingApps: appsSnap.size,
             pendingVerifications: verifySnap.size,
+            pendingPaymentProofs: paymentProofSnap.size,
             pendingVtcApps: vtcAppsSnap.size,
-            total: appsSnap.size + verifySnap.size + vtcAppsSnap.size
+            pendingHomeworkSubmissions: homeworkSnap.size,
+            total: appsSnap.size + verifySnap.size + paymentProofSnap.size + vtcAppsSnap.size + homeworkSnap.size
         };
     } catch (e) {
         console.error("Error fetching counts", e);
-        return { pendingApps: 0, pendingVerifications: 0, pendingVtcApps: 0, total: 0 };
+        return { pendingApps: 0, pendingVerifications: 0, pendingPaymentProofs: 0, pendingVtcApps: 0, pendingHomeworkSubmissions: 0, total: 0 };
     }
 };
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getSystemSettings } from '../services/dataService';
 import { SystemSettings } from '../types';
+import { FOUNDER_PROFILE, STAFF_TEAM, TEAM_IMAGES } from '../utils/publicSiteContent';
 import {
   Calendar, ArrowLeft, Users, Home, BookOpen,
   MapPin, Trophy, Monitor, MessageSquare,
@@ -30,29 +31,8 @@ const SECTIONS = [
 ];
 
 const ADMIN_MEMBERS = [
-  {
-    id: 'victoria',
-    name: 'Victoria Joel',
-    role: 'Founder & Principal',
-    img: 'https://i.ibb.co/My2rxxYJ/founder.png',
-    bio: 'Victoria Joel is a 31-year-old social entrepreneur and an Olafika SMEs and Mentorship graduate, awarded the 2020 Most Diligent Entrepreneur of the Year. She is a devoted, trained special needs teacher with seven years of teaching experience in four different schools. Trained by SES Experts from Germany, she has passionately advocated for children with Autism Spectrum Disorder and other intellectual disabilities for the past ten years, serving as an expert and mentor.',
-  },
-  {
-    id: 'team',
-    name: 'Our Team',
-    role: 'Dedicated Educators & Support Staff',
-    img: 'https://i.ibb.co/7t5FL0rZ/IMG-20260318-WA0084.jpg',
-    bio: 'Our passionate team of educators and support staff are committed to every child\'s growth, wellbeing, and success. Together they create a nurturing, inclusive environment where every learner thrives.',
-  },
-];
-
-const TEAM_IMGS = [
-  'https://i.ibb.co/7t5FL0rZ/IMG-20260318-WA0084.jpg',
-  'https://i.ibb.co/mVT7hG9K/IMG-20260318-WA0085.jpg',
-  'https://i.ibb.co/cKG6sdxz/IMG-20260318-WA0086.jpg',
-  'https://i.ibb.co/CKv68BHv/IMG-20260318-WA0087.jpg',
-  'https://i.ibb.co/sv6zSw8j/IMG-20260318-WA0091.jpg',
-  'https://i.ibb.co/ycRfx7Rh/IMG-20260318-WA0092.jpg',
+  FOUNDER_PROFILE,
+  STAFF_TEAM,
 ];
 
 const CLASSROOM_IMGS = [
@@ -797,7 +777,7 @@ export const SchoolTour: React.FC = () => {
                   {ADMIN_MEMBERS[1].bio}
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {TEAM_IMGS.map((src,i)=>(
+                  {TEAM_IMAGES.map((src,i)=>(
                     <div key={i} className="rounded-2xl overflow-hidden shadow-sm group cursor-pointer"
                       style={{border:'2px solid #E9D8FD',aspectRatio:'3/4'}}>
                       <img src={src} alt={`Team member ${i+1}`}

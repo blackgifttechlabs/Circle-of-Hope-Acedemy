@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getStudentById, updateStudent, deleteStudent, getSystemSettings, getReceipts, getAssessmentRecordsForStudent } from '../../services/dataService';
-import { Student, SystemSettings, Receipt, TermAssessmentRecord, PRE_PRIMARY_AREAS } from '../../types';
+import { getStudentById, updateStudent, deleteStudent, getSystemSettings, getReceipts, getAssessmentRecordsForStudent, getStudentDocuments } from '../../services/dataService';
+import { Student, SystemSettings, Receipt, TermAssessmentRecord, PRE_PRIMARY_AREAS, UploadedDocument } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Loader } from '../../components/ui/Loader';
 import { ArrowLeft, Printer, Trash2, Edit2, Save, X, Key, Eye, EyeOff, DollarSign, User, LayoutDashboard, CheckCircle, CreditCard, Heart, Calendar, FileText, Download } from 'lucide-react';
@@ -29,7 +29,8 @@ export const StudentDetailsPage: React.FC = () => {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [assessmentRecords, setAssessmentRecords] = useState<TermAssessmentRecord[]>([]);
-  const [activeTab, setActiveTab] = useState<'PERSONAL' | 'PARENTS' | 'FINANCE' | 'ASSESSMENTS'>('PERSONAL');
+  const [documents, setDocuments] = useState<UploadedDocument[]>([]);
+  const [activeTab, setActiveTab] = useState<'PERSONAL' | 'PARENTS' | 'FINANCE' | 'ASSESSMENTS' | 'DOCUMENTS'>('PERSONAL');
   const [showPin, setShowPin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -43,9 +44,11 @@ export const StudentDetailsPage: React.FC = () => {
         const s = await getStudentById(id);
         const setts = await getSystemSettings();
         const rects = await getReceipts();
+        const docs = await getStudentDocuments(id);
         setStudent(s);
         setSettings(setts);
         setReceipts(rects.filter(r => r.usedByStudentId === id));
+        setDocuments(docs);
         
         if (s && s.grade === 'Grade 0') {
             const records = await getAssessmentRecordsForStudent('Grade 0', id);
@@ -169,6 +172,12 @@ export const StudentDetailsPage: React.FC = () => {
                 className={`px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'FINANCE' ? 'border-b-4 border-coha-900 text-coha-900' : 'text-gray-400 hover:text-coha-900 hover:bg-gray-50'}`}
             >
                 <DollarSign size={16} /> Fees & Finance
+            </button>
+            <button 
+                onClick={() => setActiveTab('DOCUMENTS')}
+                className={`px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'DOCUMENTS' ? 'border-b-4 border-coha-900 text-coha-900' : 'text-gray-400 hover:text-coha-900 hover:bg-gray-50'}`}
+            >
+                <FileText size={16} /> Uploaded Documents
             </button>
             {student.grade === 'Grade 0' && (
                 <button 
@@ -371,6 +380,47 @@ export const StudentDetailsPage: React.FC = () => {
                                     </div>
                                 );
                             })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {activeTab === 'DOCUMENTS' && (
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between mb-6 border-b pb-2">
+                        <h3 className="text-[10px] font-black uppercase text-coha-900 tracking-[0.3em] flex items-center gap-2"><FileText size={14}/> Uploaded Documents</h3>
+                    </div>
+
+                    {documents.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400 font-black uppercase tracking-widest text-xs italic border-2 border-dashed border-gray-200">
+                            No documents uploaded for this learner.
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {documents.map((item) => (
+                                <div key={item.id} className="border border-gray-200 rounded-2xl overflow-hidden bg-gray-50">
+                                    <div className="p-5 border-b border-gray-200 flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-lg font-black text-gray-900">{item.title}</p>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mt-1">
+                                                {item.documentType.replace(/_/g, ' ')} · {item.uploadedAt?.toDate ? item.uploadedAt.toDate().toLocaleDateString() : '-'}
+                                            </p>
+                                        </div>
+                                        <a href={item.fileBase64} download={item.fileName} className="text-sm font-bold text-coha-700 inline-flex items-center gap-1">
+                                            <Download size={14} /> Open
+                                        </a>
+                                    </div>
+                                    <div className="p-5">
+                                        {item.mimeType.startsWith('image/') ? (
+                                            <img src={item.fileBase64} alt={item.title} className="w-full h-72 object-contain bg-white border border-gray-200 rounded-xl" />
+                                        ) : (
+                                            <div className="h-72 flex items-center justify-center bg-white border border-gray-200 rounded-xl text-gray-500 font-bold">
+                                                PDF document ready to open
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>

@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-d
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { LandingPage } from './pages/LandingPage';
+import { AboutUsPage } from './pages/AboutUsPage';
 import { LoginPage } from './pages/LoginPage';
 import { ApplyPage } from './pages/ApplyPage';
 import { VtcApplyPage } from './pages/VtcApplyPage';
@@ -20,11 +21,14 @@ import { SettingsPage } from './pages/admin/Settings';
 import { ViewLessonPlans } from './pages/admin/ViewLessonPlans';
 import { ViewAssessmentProgress } from './pages/admin/ViewAssessmentProgress';
 import { AdminAssessmentSheetViewer } from './pages/admin/AdminAssessmentSheetViewer';
+import { PaymentsPage } from './pages/admin/Payments';
+import { AdminHomeworksPage } from './pages/admin/Homeworks';
 import { ParentDashboard } from './pages/parent/Dashboard';
 import { ParentAssessmentForm } from './pages/parent/AssessmentForm';
 import { ParentAssessmentProgress } from './pages/parent/AssessmentProgress';
 import { ParentDailyRegister } from './pages/parent/DailyRegister';
 import { TeacherDashboard } from './pages/teacher/Dashboard';
+import { TeacherHomeworkPage } from './pages/teacher/Homework';
 import { AssessmentPage } from './pages/teacher/AssessmentPage';
 import { TermAssessmentPage } from './pages/teacher/TermAssessmentPage';
 import { TermAssessmentComponentPage } from './pages/teacher/TermAssessmentComponentPage';
@@ -149,6 +153,7 @@ const App: React.FC = () => {
       <HashRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/about-us" element={<AboutUsPage />} />
           <Route path="/apply" element={<ApplyPage />} />
           <Route path="/vtc-apply" element={<VtcApplyPage />} />
           <Route path="/tour" element={<SchoolTour />} />
@@ -165,6 +170,8 @@ const App: React.FC = () => {
                       <Route path="applications/:id" element={<ApplicationDetailsPage />} />
                       <Route path="vtc-applications" element={<VtcApplicationsPage />} />
                       <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
+                      <Route path="payments" element={<PaymentsPage user={user} />} />
+                      <Route path="homeworks" element={<AdminHomeworksPage />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
                       <Route path="*" element={<Navigate to="applications" />} />
                     </>
@@ -180,6 +187,8 @@ const App: React.FC = () => {
                       <Route path="lesson-plans" element={<ViewLessonPlans />} />
                       <Route path="assessment-progress" element={<ViewAssessmentProgress />} />
                       <Route path="assessment-progress/view/:className/:subject" element={<AdminAssessmentSheetViewer />} />
+                      <Route path="payments" element={<PaymentsPage user={user} />} />
+                      <Route path="homeworks" element={<AdminHomeworksPage />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
                       <Route path="students/:id" element={<StudentDetailsPage />} />
                       <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.ADMIN} user={user} />} />
@@ -200,6 +209,7 @@ const App: React.FC = () => {
                     <Route path="dashboard" element={<TeacherDashboard user={user} />} />
                     <Route path="classes" element={<MyClass user={user} />} />
                     <Route path="register" element={<DailyRegister user={user} />} />
+                    <Route path="homework" element={<TeacherHomeworkPage user={user} />} />
                     <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.TEACHER} user={user} />} />
                     <Route path="term-assessment/:id" element={<TermAssessmentPage user={user} />} />
                     <Route path="term-assessment-component" element={<TermAssessmentComponentPage user={user} />} />

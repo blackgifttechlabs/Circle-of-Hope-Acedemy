@@ -1,625 +1,600 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-  getStudentById, getSystemSettings, getTeacherByClass,
-  getReceipts, getAssessmentRecordsForStudent
-} from '../../services/dataService';
-import { Student, Teacher, SystemSettings, TermAssessmentRecord, PRE_PRIMARY_AREAS } from '../../types';
-import { Loader } from '../../components/ui/Loader';
-import {
-  User, BookOpen, DollarSign, CheckCircle, Clock,
-  AlertTriangle, ArrowRight, Download, FileText,
-  Bell, TrendingUp, ChevronRight, Banknote, GraduationCap,
-  MessageCircle, Calendar, Star
+  BookOpen,
+  ChevronRight,
+  CreditCard,
+  Download,
+  FileImage,
+  FilePlus2,
+  FolderUp,
+  Home,
+  Loader2,
+  ShieldCheck,
+  Upload,
+  User,
 } from 'lucide-react';
-import { printGrade0Report } from '../../utils/printGrade0Report';
+import {
+  getHomeworkAssignmentsForClass,
+  getHomeworkSubmissionsForStudent,
+  getPaymentProofsForStudent,
+  getReceiptsForStudent,
+  getStudentById,
+  getStudentDocuments,
+  getSystemSettings,
+  getTeacherByClass,
+  submitHomeworkSubmission,
+  submitPaymentProof,
+  uploadStudentDocument,
+} from '../../services/dataService';
+import { HomeworkAssignment, HomeworkSubmission, PaymentProof, Receipt, Student, SystemSettings, Teacher, UploadedDocument } from '../../types';
+import { Loader } from '../../components/ui/Loader';
+import { printSchoolReceipt } from '../../utils/printSchoolReceipt';
 
-interface ParentDashboardProps { user: any; }
+interface ParentDashboardProps {
+  user: any;
+}
 
-/* ─── Ring chart ─── */
-const Ring = ({ pct, color, size = 64 }: { pct: number; color: string; size?: number }) => {
-  const r = (size - 8) / 2, circ = 2 * Math.PI * r;
-  return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f1f5f9" strokeWidth={6} />
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={6}
-        strokeDasharray={`${(pct/100)*circ} ${circ}`} strokeLinecap="round"
-        style={{ transition: 'stroke-dasharray 1.2s cubic-bezier(.4,0,.2,1)' }} />
-    </svg>
-  );
+type ParentTab = 'home' | 'details' | 'receipts' | 'homework' | 'documents';
+
+const TABS: { id: ParentTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'home', label: 'Home', icon: <Home size={18} /> },
+  { id: 'details', label: 'Details', icon: <User size={18} /> },
+  { id: 'receipts', label: 'Receipts', icon: <CreditCard size={18} /> },
+  { id: 'homework', label: 'Homework', icon: <BookOpen size={18} /> },
+  { id: 'documents', label: 'Documents', icon: <FolderUp size={18} /> },
+];
+
+const fmtMoney = (value: number) => `N$ ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const fmtDate = (value: any) => {
+  if (!value) return '-';
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  return isNaN(date.getTime()) ? '-' : date.toLocaleDateString();
 };
 
-/* ─── Avatar ─── */
-const Av = ({ name, size = 44 }: { name: string; size?: number }) => {
-  const palette = ['#6366f1','#f59e0b','#10b981','#ec4899','#3b82f6','#8b5cf6','#06b6d4'];
-  const bg = palette[(name.charCodeAt(0) + (name.charCodeAt(1)||0)) % palette.length];
-  return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: bg, flexShrink: 0,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.38, fontWeight: 900, color: 'white' }}>
-      {name.charAt(0).toUpperCase()}
-    </div>
-  );
-};
+const fileToDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+const Row: React.FC<{ label: string; value?: React.ReactNode; emphasis?: boolean }> = ({ label, value, emphasis }) => (
+  <div className="py-3 border-b border-slate-200 last:border-b-0">
+    <p className="text-[10px] uppercase tracking-[0.24em] font-bold text-slate-400 mb-1">{label}</p>
+    <div className={`text-sm ${emphasis ? 'font-bold text-slate-950' : 'text-slate-700'}`}>{value || '-'}</div>
+  </div>
+);
 
 export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user }) => {
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = (searchParams.get('tab') as ParentTab) || 'home';
+
   const [student, setStudent] = useState<Student | null>(null);
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [financials, setFinancials] = useState({ totalFees: 0, paid: 0, balance: 0 });
-  const [assessmentRecords, setAssessmentRecords] = useState<TermAssessmentRecord[]>([]);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [paymentProofs, setPaymentProofs] = useState<PaymentProof[]>([]);
+  const [assignments, setAssignments] = useState<HomeworkAssignment[]>([]);
+  const [homeworkSubmissions, setHomeworkSubmissions] = useState<HomeworkSubmission[]>([]);
+  const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [reportLoading, setReportLoading] = useState<Record<string, boolean>>({});
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+
+  const [paymentTerm, setPaymentTerm] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentFile, setPaymentFile] = useState<File | null>(null);
+
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState('');
+  const [homeworkFile, setHomeworkFile] = useState<File | null>(null);
+
+  const [birthFile, setBirthFile] = useState<File | null>(null);
+  const [medicalFile, setMedicalFile] = useState<File | null>(null);
+  const [otherFile, setOtherFile] = useState<File | null>(null);
+  const [otherTitle, setOtherTitle] = useState('');
+
+  const paymentFileRef = useRef<HTMLInputElement>(null);
+  const homeworkFileRef = useRef<HTMLInputElement>(null);
+  const birthFileRef = useRef<HTMLInputElement>(null);
+  const medicalFileRef = useRef<HTMLInputElement>(null);
+  const otherFileRef = useRef<HTMLInputElement>(null);
+
+  const currentTerm = useMemo(() => {
+    const activeTerm = settings?.schoolCalendars?.find((term) => term.id === settings?.activeTermId);
+    return activeTerm || settings?.schoolCalendars?.[0] || null;
+  }, [settings]);
+
+  const academicYear = student?.academicYear || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`;
+
+  const financials = useMemo(() => {
+    let total = 0;
+    (settings?.fees || []).forEach((fee) => {
+      const amount = parseFloat(fee.amount) || 0;
+      let multiplier = 1;
+      if (fee.frequency === 'Monthly') multiplier = 12;
+      else if (fee.frequency === 'Termly') multiplier = 3;
+      total += amount * multiplier;
+    });
+    const paid = receipts.reduce((sum, receipt) => sum + (parseFloat(receipt.amount) || 0), 0);
+    return { total, paid, balance: total - paid };
+  }, [settings, receipts]);
+
+  const refreshData = async () => {
+    if (!user?.id) return;
+    const stud = await getStudentById(user.id);
+    const setts = await getSystemSettings();
+    setStudent(stud);
+    setSettings(setts);
+
+    if (stud?.assignedClass) {
+      const classTeacher = await getTeacherByClass(stud.assignedClass);
+      setTeacher(classTeacher);
+      const classAssignments = await getHomeworkAssignmentsForClass(stud.assignedClass);
+      setAssignments(classAssignments);
+    } else {
+      setTeacher(null);
+      setAssignments([]);
+    }
+
+    const [studentReceipts, proofs, submissions, docs] = await Promise.all([
+      getReceiptsForStudent(user.id),
+      getPaymentProofsForStudent(user.id),
+      getHomeworkSubmissionsForStudent(user.id),
+      getStudentDocuments(user.id),
+    ]);
+
+    setReceipts(studentReceipts.filter((item) => item.type !== 'BANK_REFERENCE' || item.usedByStudentId));
+    setPaymentProofs(proofs);
+    setHomeworkSubmissions(submissions);
+    setDocuments(docs);
+  };
 
   useEffect(() => {
     (async () => {
-      if (user?.id) {
-        const stud = await getStudentById(user.id);
-        const setts = await getSystemSettings();
-        setStudent(stud);
-        setSettings(setts);
-        if (stud) {
-          if (stud.assignedClass) {
-            const t = await getTeacherByClass(stud.assignedClass);
-            setTeacher(t);
-          }
-          if (stud.grade === 'Grade 0') {
-            const recs = await getAssessmentRecordsForStudent('Grade 0', stud.id);
-            setAssessmentRecords(recs.filter(r => r.isComplete));
-          }
-          if (setts?.fees) {
-            const feeItem = setts.fees.find((f: any) => f.category.includes('Tuition'));
-            const monthly = parseFloat(feeItem?.amount || '0');
-            const allReceipts = await getReceipts();
-            const paid = allReceipts
-              .filter((r: any) => r.usedByStudentId === stud.id)
-              .reduce((a: number, r: any) => a + parseFloat(r.amount), 0);
-            const total = monthly * 12;
-            setFinancials({ totalFees: total, paid, balance: total - paid });
-          }
-        }
-      }
+      await refreshData();
       setLoading(false);
     })();
-  }, [user]);
+  }, [user?.id]);
 
-  if (loading) return <Loader />;
-  if (!student) return (
-    <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontWeight: 700 }}>
-      Student not found.
-    </div>
-  );
+  const setActiveTab = (nextTab: ParentTab) => {
+    setSearchParams((prev) => {
+      const updated = new URLSearchParams(prev);
+      updated.set('tab', nextTab);
+      return updated;
+    });
+  };
 
-  const isEnrolled       = student.studentStatus === 'ENROLLED';
-  const isAssessment     = student.studentStatus === 'ASSESSMENT';
-  const isWaitingPayment = student.studentStatus === 'WAITING_PAYMENT';
-  const collectionPct    = financials.totalFees > 0
-    ? Math.round((financials.paid / financials.totalFees) * 100) : 0;
-
-  const handleReport = async (record: TermAssessmentRecord) => {
-    setReportLoading(p => ({ ...p, [record.termId]: true }));
+  const handlePaymentSubmit = async () => {
+    if (!student || !paymentFile || !paymentTerm) return;
+    setBusyAction('payment');
     try {
-      const termName = settings?.schoolCalendars?.find((c: any) => c.id === record.termId)?.termName || record.termId;
-      await printGrade0Report(student, record, termName, new Date().getFullYear().toString(), teacher?.name || 'Class Teacher');
+      const imageBase64 = await fileToDataUrl(paymentFile);
+      await submitPaymentProof({
+        studentId: student.id,
+        studentName: student.name,
+        parentName: student.parentName || user?.name || 'Parent',
+        studentClass: student.assignedClass || student.grade || student.level || '',
+        academicYear,
+        termId: paymentTerm,
+        amountClaimed: paymentAmount,
+        imageBase64,
+        fileName: paymentFile.name,
+        mimeType: paymentFile.type,
+      });
+      setPaymentFile(null);
+      setPaymentAmount('');
+      setPaymentTerm(currentTerm?.id || paymentTerm);
+      if (paymentFileRef.current) paymentFileRef.current.value = '';
+      await refreshData();
+      setActiveTab('receipts');
     } finally {
-      setReportLoading(p => ({ ...p, [record.termId]: false }));
+      setBusyAction(null);
     }
   };
 
-  const card: React.CSSProperties = {
-    background: 'white', borderRadius: 16,
-    boxShadow: '0 1px 4px rgba(0,0,0,.05), 0 6px 20px rgba(0,0,0,.04)',
-    overflow: 'hidden',
+  const handleHomeworkSubmit = async () => {
+    if (!student || !homeworkFile) return;
+    setBusyAction('homework');
+    try {
+      const imageBase64 = await fileToDataUrl(homeworkFile);
+      await submitHomeworkSubmission({
+        assignmentId: selectedAssignmentId || undefined,
+        studentId: student.id,
+        studentName: student.name,
+        parentName: student.parentName || user?.name || 'Parent',
+        className: student.assignedClass || student.grade || student.level || '',
+        imageBase64,
+        fileName: homeworkFile.name,
+        mimeType: homeworkFile.type,
+      });
+      setHomeworkFile(null);
+      setSelectedAssignmentId('');
+      if (homeworkFileRef.current) homeworkFileRef.current.value = '';
+      await refreshData();
+    } finally {
+      setBusyAction(null);
+    }
   };
 
-  return (
-    <div style={{ fontFamily: "'DM Sans','Segoe UI',sans-serif",
-      background: '#f8fafc', color: '#1e293b', minHeight: '100vh' }}>
+  const uploadDocument = async (documentType: UploadedDocument['documentType'], file: File | null, title: string, reset: () => void) => {
+    if (!student || !file) return;
+    setBusyAction(documentType);
+    try {
+      const fileBase64 = await fileToDataUrl(file);
+      await uploadStudentDocument({
+        studentId: student.id,
+        studentName: student.name,
+        parentName: student.parentName || user?.name || 'Parent',
+        documentType,
+        title,
+        fileName: file.name,
+        mimeType: file.type,
+        fileBase64,
+      });
+      reset();
+      await refreshData();
+    } finally {
+      setBusyAction(null);
+    }
+  };
 
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,800;9..40,900&display=swap');
-        .pdg{display:grid;grid-template-columns:1fr 290px;gap:20px}
-        .pcg{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-        .prg{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-        @media(max-width:1080px){.pdg{grid-template-columns:1fr}}
-        @media(max-width:800px){.pcg{grid-template-columns:1fr 1fr}.prg{grid-template-columns:1fr 1fr}}
-        @media(max-width:520px){.pcg{grid-template-columns:1fr}.prg{grid-template-columns:1fr}}
-        .phi:hover{background:#f8fafc}
-        .phi{transition:background .14s}
-        .pbp{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:10px;
-          font-weight:900;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
-          cursor:pointer;border:none;transition:filter .15s,transform .12s;color:white}
-        .pbp:hover{filter:brightness(.9);transform:translateY(-1px)}
-        .pbo{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;
-          font-weight:900;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
-          cursor:pointer;background:white;border:1.5px solid #e2e8f0;color:#334155;
-          transition:border-color .15s,transform .12s}
-        .pbo:hover{border-color:#6366f1;color:#6366f1;transform:translateY(-1px)}
-        .pai{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f8fafc}
-        .pai:last-child{border-bottom:none}
-        .fadeup{animation:pfu .4s ease both}
-        @keyframes pfu{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-        .d1{animation-delay:.06s}.d2{animation-delay:.12s}.d3{animation-delay:.18s}
-        .spin{animation:pspin 1s linear infinite}
-        @keyframes pspin{to{transform:rotate(360deg)}}
-      `}</style>
+  const downloadReceipt = async (receipt: Receipt) => {
+    if (!student) return;
+    await printSchoolReceipt(student, receipt, {
+      paid: financials.paid,
+      balance: financials.balance,
+    });
+  };
 
-      {/* ══ HEADER ══ */}
-      <div style={{ padding: '24px 24px 0', display: 'flex', justifyContent: 'space-between',
-        alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-        <div>
-          <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.18em',
-            textTransform: 'uppercase', color: '#94a3b8', margin: '0 0 4px' }}>
-            Academic Year 2025–2026
-          </p>
-          <h1 style={{ fontSize: 26, fontWeight: 900, letterSpacing: -1.5,
-            color: '#0f172a', lineHeight: 1, margin: '0 0 4px' }}>
-            Welcome back, {student.parentName?.split(' ')[0] || 'Parent'}
-          </h1>
-          <p style={{ fontSize: 12, color: '#64748b', fontWeight: 600, margin: 0 }}>
-            Parent Portal · <span style={{ color: '#6366f1', fontWeight: 800 }}>{student.name}</span>
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button style={{ background: 'white', border: '1.5px solid #e2e8f0', borderRadius: 10,
-            width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', position: 'relative' }}>
-            <Bell size={16} color="#64748b" />
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'white',
-            border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '6px 14px 6px 8px' }}>
-            <Av name={student.name} size={30} />
-            <div>
-              <p style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.1 }}>
-                {student.name}
-              </p>
-              <p style={{ fontSize: 10, margin: 0, fontWeight: 600,
-                color: isEnrolled ? '#10b981' : isWaitingPayment ? '#f43f5e' : '#f59e0b' }}>
-                ● {student.studentStatus.replace('_', ' ')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+  useEffect(() => {
+    if (!paymentTerm && currentTerm?.id) {
+      setPaymentTerm(currentTerm.id);
+    }
+  }, [currentTerm?.id, paymentTerm]);
 
-      {/* ══ BODY ══ */}
-      <div style={{ padding: '0 24px 48px' }}>
+  if (loading) return <Loader />;
+  if (!student) return <div className="p-6 text-sm text-slate-500">Student not found.</div>;
 
-        {/* ── ACTION BANNER — waiting payment ── */}
-        {isWaitingPayment && (
-          <div style={{ background: 'linear-gradient(135deg,#fef2f2,#fff5f5)',
-            border: '1.5px solid #fecaca', borderRadius: 16, padding: '20px 24px',
-            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
-            gap: 16, marginBottom: 18,
-            boxShadow: '0 4px 24px rgba(244,63,94,.12)' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-              <div style={{ background: '#fecaca', padding: 12, borderRadius: 12, flexShrink: 0 }}>
-                <AlertTriangle size={22} color="#f43f5e" />
-              </div>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 900, color: '#be123c',
-                  textTransform: 'uppercase', letterSpacing: '.06em', margin: '0 0 4px' }}>
-                  Action Required
-                </p>
-                <p style={{ fontSize: 13, color: '#9f1239', fontWeight: 600, margin: 0 }}>
-                  Your application is conditionally approved. Pay the <strong>N$300</strong> registration
-                  fee to secure your child's place.
-                </p>
-              </div>
-            </div>
-            <button className="pbp" style={{ background: '#f43f5e', whiteSpace: 'nowrap' }}
-              onClick={() => navigate('/parent/assessment-form')}>
-              Enter Receipt <ArrowRight size={14} />
+  const renderHome = () => (
+    <div>
+      <section className="py-4 border-b border-slate-200">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-[1.65rem] leading-none font-black tracking-[-0.05em] text-slate-950">
+              {student.parentName || user?.name || 'Parent'}
+            </h1>
+            <p className="text-sm text-slate-600 mt-2">Parent for <span className="font-bold text-slate-900">{student.name}</span></p>
+            <button onClick={() => setActiveTab('details')} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-coha-700">
+              Student details <ChevronRight size={16} />
             </button>
           </div>
-        )}
-
-        {/* ── ASSESSMENT COMPLETE BANNER ── */}
-        {isEnrolled && student.assessment?.isComplete && (
-          <div style={{ background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)',
-            border: '1.5px solid #bbf7d0', borderRadius: 16, padding: '18px 24px',
-            display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18,
-            flexWrap: 'wrap', boxShadow: '0 4px 20px rgba(16,185,129,.1)' }}>
-            <div style={{ background: '#bbf7d0', padding: 10, borderRadius: 12, flexShrink: 0 }}>
-              <CheckCircle size={22} color="#10b981" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 900, color: '#065f46',
-                textTransform: 'uppercase', letterSpacing: '.06em', margin: '0 0 2px' }}>
-                Assessment Complete!
-              </p>
-              <p style={{ fontSize: 12, color: '#047857', fontWeight: 600, margin: 0 }}>
-                {student.name} has been placed in{' '}
-                <span style={{ fontWeight: 900, color: '#065f46' }}>{student.assignedClass}</span>.
-              </p>
-            </div>
-            <span style={{ background: '#10b981', color: 'white', fontSize: 11,
-              fontWeight: 900, padding: '4px 14px', borderRadius: 20,
-              textTransform: 'uppercase', letterSpacing: '.08em' }}>
-              {student.assignedClass}
-            </span>
-          </div>
-        )}
-
-        <div className="pdg">
-
-          {/* ════ LEFT ════ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-
-            {/* INFO CARDS */}
-            <div className="pcg">
-
-              {/* Class card */}
-              <div style={{ ...card, padding: 22 }} className="fadeup">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <div style={{ background: '#eef2ff', padding: 10, borderRadius: 10, color: '#6366f1' }}>
-                    <GraduationCap size={18} />
-                  </div>
-                  <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.14em',
-                    textTransform: 'uppercase', color: '#94a3b8', margin: 0 }}>Class Details</p>
-                </div>
-                <p style={{ fontSize: 28, fontWeight: 900, letterSpacing: -1.2,
-                  color: '#0f172a', lineHeight: 1, margin: '0 0 14px' }}>
-                  {student.assignedClass || '—'}
-                </p>
-                {[
-                  { l: 'Division', v: student.division || '—' },
-                  { l: 'Academic Term', v: 'Term 1, 2026' },
-                  { l: 'Grade', v: student.grade || '—' },
-                ].map(x => (
-                  <div key={x.l} style={{ display: 'flex', justifyContent: 'space-between',
-                    padding: '7px 0', borderBottom: '1px solid #f8fafc' }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                      letterSpacing: '.1em', color: '#94a3b8' }}>{x.l}</span>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>{x.v}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Teacher card */}
-              <div style={{ ...card, padding: 22 }} className="fadeup d1">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <div style={{ background: '#fdf4ff', padding: 10, borderRadius: 10, color: '#a855f7' }}>
-                    <User size={18} />
-                  </div>
-                  <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.14em',
-                    textTransform: 'uppercase', color: '#94a3b8', margin: 0 }}>Class Teacher</p>
-                </div>
-                {teacher ? (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                      <Av name={teacher.name} size={42} />
-                      <div>
-                        <p style={{ fontSize: 16, fontWeight: 900, color: '#0f172a',
-                          margin: '0 0 3px', letterSpacing: -.3 }}>{teacher.name}</p>
-                        <p style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, margin: 0,
-                          textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                          {student.assignedClass} Teacher
-                        </p>
-                      </div>
-                    </div>
-                    {teacher.email && (
-                      <p style={{ fontSize: 11, color: '#64748b', fontWeight: 600,
-                        margin: '0 0 14px', wordBreak: 'break-all' }}>{teacher.email}</p>
-                    )}
-                    <button className="pbo" style={{ width: '100%', justifyContent: 'center' }}>
-                      <MessageCircle size={13} /> Message Teacher
-                    </button>
-                  </>
-                ) : (
-                  <div style={{ padding: '20px 0', textAlign: 'center' }}>
-                    <Clock size={28} color="#e2e8f0" style={{ margin: '0 auto 8px' }} />
-                    <p style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, margin: 0 }}>
-                      Teacher assigned after assessment.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Finance card */}
-              <div style={{ ...card, padding: 22 }} className="fadeup d2">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <div style={{ background: '#f0fdf4', padding: 10, borderRadius: 10, color: '#10b981' }}>
-                    <Banknote size={18} />
-                  </div>
-                  <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.14em',
-                    textTransform: 'uppercase', color: '#94a3b8', margin: 0 }}>Fees Summary</p>
-                </div>
-
-                {/* Ring + percentage */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                  <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <Ring pct={collectionPct} color={collectionPct >= 100 ? '#10b981' : '#f59e0b'} size={60} />
-                    <span style={{ position: 'absolute', inset: 0, display: 'flex',
-                      alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 900,
-                      color: collectionPct >= 100 ? '#10b981' : '#f59e0b' }}>
-                      {collectionPct}%
-                    </span>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', margin: '0 0 2px',
-                      textTransform: 'uppercase', letterSpacing: '.06em' }}>Paid</p>
-                    <p style={{ fontSize: 20, fontWeight: 900, color: '#10b981',
-                      letterSpacing: -1, margin: 0 }}>
-                      N$ {financials.paid.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-
-                {[
-                  { l: 'Annual Total', v: `N$ ${financials.totalFees.toLocaleString()}`, c: '#334155' },
-                  { l: 'Balance Due', v: `N$ ${Math.max(0,financials.balance).toLocaleString()}`,
-                    c: financials.balance > 0 ? '#f43f5e' : '#10b981' },
-                ].map(x => (
-                  <div key={x.l} style={{ display: 'flex', justifyContent: 'space-between',
-                    padding: '6px 0', borderBottom: '1px solid #f8fafc' }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                      letterSpacing: '.1em', color: '#94a3b8' }}>{x.l}</span>
-                    <span style={{ fontSize: 13, fontWeight: 900, color: x.c }}>{x.v}</span>
-                  </div>
-                ))}
-
-                <button className="pbp" style={{ background: '#0f172a', width: '100%',
-                  marginTop: 14, justifyContent: 'center' }}>
-                  <DollarSign size={13} /> View Receipts
-                </button>
-              </div>
-            </div>
-
-            {/* ASSESSMENT REPORTS */}
-            {student.grade === 'Grade 0' && assessmentRecords.length > 0 && (
-              <div style={{ ...card, padding: 22 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between',
-                  alignItems: 'center', marginBottom: 20 }}>
-                  <div>
-                    <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em',
-                      textTransform: 'uppercase', color: '#94a3b8', margin: '0 0 4px' }}>
-                      Progress Reports
-                    </p>
-                    <p style={{ fontSize: 18, fontWeight: 900, letterSpacing: -1,
-                      color: '#0f172a', margin: 0 }}>Term Assessment Records</p>
-                  </div>
-                  <span style={{ background: '#eef2ff', color: '#6366f1', fontSize: 10,
-                    fontWeight: 800, padding: '4px 12px', borderRadius: 20 }}>
-                    {assessmentRecords.length} term{assessmentRecords.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-
-                <div className="prg">
-                  {assessmentRecords.map(record => {
-                    const isLoading = reportLoading[record.termId];
-                    return (
-                      <div key={record.termId}
-                        style={{ border: '1.5px solid #e2e8f0', borderRadius: 14, padding: 18,
-                          display: 'flex', flexDirection: 'column', gap: 14,
-                          transition: 'border-color .15s, box-shadow .15s' }}>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div>
-                            <p style={{ fontSize: 15, fontWeight: 900, color: '#0f172a',
-                              letterSpacing: -.4, margin: '0 0 3px' }}>{record.termId}</p>
-                            <p style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8',
-                              textTransform: 'uppercase', letterSpacing: '.1em', margin: 0 }}>
-                              {new Date(record.updatedAt).toLocaleDateString('en-GB', {
-                                day: '2-digit', month: 'short', year: 'numeric'
-                              })}
-                            </p>
-                          </div>
-                          <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: 9,
-                            fontWeight: 900, padding: '3px 10px', borderRadius: 20,
-                            textTransform: 'uppercase', letterSpacing: '.08em',
-                            display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <CheckCircle size={10} /> Complete
-                          </span>
-                        </div>
-
-                        {/* Area progress bars */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {PRE_PRIMARY_AREAS.map(area => {
-                            const ratings = area.components.map(c => record.ratings[c.id]).filter(Boolean);
-                            let score = 0;
-                            ratings.forEach((r: string) => { if(r==='FM') score+=2; else if(r==='AM') score+=1; });
-                            const max = ratings.length * 2;
-                            const pct = max === 0 ? 0 : Math.round((score/max)*100);
-                            const col = pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#f43f5e';
-                            return (
-                              <div key={area.id}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between',
-                                  marginBottom: 3 }}>
-                                  <span style={{ fontSize: 9, fontWeight: 800, color: '#64748b',
-                                    textTransform: 'uppercase', letterSpacing: '.08em',
-                                    whiteSpace: 'nowrap', overflow: 'hidden',
-                                    textOverflow: 'ellipsis', maxWidth: '75%' }}>
-                                    {area.name}
-                                  </span>
-                                  <span style={{ fontSize: 9, fontWeight: 900, color: col }}>
-                                    {pct}%
-                                  </span>
-                                </div>
-                                <div style={{ height: 5, background: '#f1f5f9',
-                                  borderRadius: 3, overflow: 'hidden' }}>
-                                  <div style={{ width: `${pct}%`, height: '100%',
-                                    background: col, borderRadius: 3,
-                                    transition: 'width 1s ease' }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Download button */}
-                        <button
-                          onClick={() => handleReport(record)}
-                          disabled={isLoading}
-                          className="pbp"
-                          style={{ background: isLoading ? '#94a3b8' : '#6366f1',
-                            width: '100%', justifyContent: 'center',
-                            opacity: isLoading ? 0.8 : 1 }}>
-                          {isLoading ? (
-                            <>
-                              <svg className="spin" width="14" height="14" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" strokeWidth="3">
-                                <circle cx="12" cy="12" r="10" strokeOpacity=".25"/>
-                                <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
-                              </svg>
-                              Generating…
-                            </>
-                          ) : (
-                            <><Download size={13}/> Download Report</>
-                          )}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* No reports placeholder for Grade 0 with no completed records */}
-            {student.grade === 'Grade 0' && assessmentRecords.length === 0 && (
-              <div style={{ ...card, padding: 32, textAlign: 'center' }}>
-                <FileText size={32} color="#e2e8f0" style={{ margin: '0 auto 12px' }} />
-                <p style={{ fontSize: 13, fontWeight: 800, color: '#94a3b8',
-                  textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 6px' }}>
-                  No Reports Yet
-                </p>
-                <p style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600, margin: 0 }}>
-                  Term assessment reports will appear here once completed.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* ════ RIGHT SIDEBAR ════ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-
-            {/* Student profile card */}
-            <div style={{ ...card, padding: 22,
-              background: 'linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)' }}>
-              <div style={{ display: 'flex', flexDirection: 'column',
-                alignItems: 'center', textAlign: 'center', gap: 10 }}>
-                <Av name={student.name} size={56} />
-                <div>
-                  <p style={{ fontSize: 17, fontWeight: 900, color: 'white',
-                    letterSpacing: -.5, margin: '0 0 3px' }}>{student.name}</p>
-                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,.45)', fontWeight: 600, margin: 0,
-                    textTransform: 'uppercase', letterSpacing: '.1em' }}>
-                    {student.grade}
-                  </p>
-                </div>
-                <span style={{ background: isEnrolled ? '#10b981' : isWaitingPayment ? '#f43f5e' : '#f59e0b',
-                  color: 'white', fontSize: 9, fontWeight: 900, padding: '4px 14px',
-                  borderRadius: 20, textTransform: 'uppercase', letterSpacing: '.1em' }}>
-                  {student.studentStatus.replace('_', ' ')}
-                </span>
-              </div>
-
-              <div style={{ marginTop: 18, borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 16 }}>
-                {[
-                  { l: 'Student ID', v: student.id },
-                  { l: 'Date of Birth', v: student.dob || '—' },
-                  { l: 'Division', v: student.division || '—' },
-                  { l: 'Stage', v: student.stage ? `Stage ${student.stage}` : '—' },
-                ].map(x => (
-                  <div key={x.l} style={{ display: 'flex', justifyContent: 'space-between',
-                    padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-                    <span style={{ fontSize: 10, fontWeight: 700,
-                      color: 'rgba(255,255,255,.35)', textTransform: 'uppercase',
-                      letterSpacing: '.08em' }}>{x.l}</span>
-                    <span style={{ fontSize: 11, fontWeight: 800,
-                      color: 'rgba(255,255,255,.7)' }}>{x.v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Observation progress (if in assessment and not Mainstream) */}
-            {isAssessment && student.division !== 'Mainstream' && (
-              <div style={{ ...card, padding: 22,
-                background: 'linear-gradient(135deg,#fefce8,#fef9c3)',
-                border: '1.5px solid #fde68a' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                  <div style={{ background: '#fde68a', padding: 8, borderRadius: 10 }}>
-                    <Clock size={16} color="#b45309" />
-                  </div>
-                  <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em',
-                    textTransform: 'uppercase', color: '#b45309', margin: 0 }}>Under Observation</p>
-                </div>
-                {(() => {
-                  const days = student.assessment?.teacherAssessments
-                    ? Object.values(student.assessment.teacherAssessments).filter((d: any) => d.completed).length
-                    : 0;
-                  const pct = Math.round((days / 14) * 100);
-                  return (
-                    <>
-                      <p style={{ fontSize: 30, fontWeight: 900, color: '#92400e',
-                        letterSpacing: -1.5, margin: '0 0 4px', lineHeight: 1 }}>
-                        Day {days}<span style={{ fontSize: 16, color: '#d97706' }}>/14</span>
-                      </p>
-                      <p style={{ fontSize: 11, color: '#b45309', fontWeight: 600, margin: '0 0 12px' }}>
-                        14-day observation period
-                      </p>
-                      <div style={{ height: 8, background: '#fde68a', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ width: `${pct}%`, height: '100%',
-                          background: 'linear-gradient(90deg,#f59e0b,#d97706)',
-                          borderRadius: 4, transition: 'width 1s ease' }} />
-                      </div>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#b45309',
-                        margin: '6px 0 0', textAlign: 'right' }}>{pct}% complete</p>
-                    </>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* Quick links */}
-            <div style={{ ...card, padding: 22 }}>
-              <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em',
-                textTransform: 'uppercase', color: '#94a3b8', margin: '0 0 14px' }}>
-                Quick Actions
-              </p>
-              {[
-                { icon: <DollarSign size={15}/>, label: 'View Fee Receipts', color: '#10b981', bg: '#f0fdf4', path: '#' },
-                { icon: <FileText size={15}/>, label: 'Progress Reports', color: '#6366f1', bg: '#eef2ff', path: '/parent/assessment' },
-                { icon: <MessageCircle size={15}/>, label: 'Contact Teacher', color: '#a855f7', bg: '#fdf4ff', path: '#' },
-                { icon: <Calendar size={15}/>, label: 'School Calendar', color: '#f59e0b', bg: '#fefce8', path: '/parent/register' },
-              ].map((x, i) => (
-                <div key={i} className="pai" style={{ cursor: 'pointer' }} onClick={() => x.path !== '#' && navigate(x.path)}>
-                  <div style={{ background: x.bg, color: x.color, padding: 8, borderRadius: 9 }}>
-                    {x.icon}
-                  </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#334155',
-                    flex: 1, alignSelf: 'center' }}>{x.label}</span>
-                  <ChevronRight size={14} color="#cbd5e1" style={{ alignSelf: 'center' }} />
-                </div>
-              ))}
-            </div>
-
-            {/* School info */}
-            <div style={{ ...card, padding: 22 }}>
-              <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em',
-                textTransform: 'uppercase', color: '#94a3b8', margin: '0 0 14px' }}>
-                School Info
-              </p>
-              {[
-                { l: 'School', v: 'Circle of Hope Private Academy' },
-                { l: 'Contact', v: '+264 81 666 4074' },
-                { l: 'Email', v: 'circleofhopeacademy@yahoo.com' },
-                { l: 'Reg No.', v: '7826' },
-              ].map(x => (
-                <div key={x.l} style={{ padding: '7px 0', borderBottom: '1px solid #f8fafc' }}>
-                  <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase',
-                    letterSpacing: '.1em', color: '#94a3b8', margin: '0 0 1px' }}>{x.l}</p>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', margin: 0 }}>{x.v}</p>
-                </div>
-              ))}
-            </div>
-
+          <div className="text-right shrink-0">
+            <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400">Class</p>
+            <p className="text-sm font-bold text-slate-900">{student.assignedClass || student.grade || student.level || '-'}</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mt-3">Academic Year</p>
+            <p className="text-sm font-bold text-slate-900">{academicYear}</p>
+            <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mt-3">Term</p>
+            <p className="text-sm font-bold text-slate-900">{currentTerm?.termName || 'Current Term'}</p>
           </div>
         </div>
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400">Fees Summary</p>
+          <p className={`text-xs font-bold ${financials.balance <= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+            {financials.balance <= 0 ? 'Up to date' : 'Balance due'}
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <p className="text-slate-400 text-[11px] uppercase tracking-[0.16em] font-bold">Total</p>
+            <p className="font-bold text-slate-900 mt-1">{fmtMoney(financials.total)}</p>
+          </div>
+          <div>
+            <p className="text-slate-400 text-[11px] uppercase tracking-[0.16em] font-bold">Paid</p>
+            <p className="font-bold text-emerald-700 mt-1">{fmtMoney(financials.paid)}</p>
+          </div>
+          <div>
+            <p className="text-slate-400 text-[11px] uppercase tracking-[0.16em] font-bold">Balance</p>
+            <p className="font-bold text-slate-900 mt-1">{fmtMoney(financials.balance)}</p>
+          </div>
+        </div>
+        <div className="mt-4 flex gap-2">
+          <button onClick={() => setActiveTab('receipts')} className="flex-1 h-11 text-sm font-semibold border border-slate-300 text-slate-800">
+            View receipts
+          </button>
+          <button onClick={() => setActiveTab('receipts')} className="flex-1 h-11 text-sm font-semibold bg-coha-900 text-white">
+            Send proof of payment
+          </button>
+        </div>
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Quick Actions</p>
+        <div className="flex gap-2">
+          <button onClick={() => setActiveTab('homework')} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800">
+            Submit homework
+          </button>
+          <button onClick={() => setActiveTab('documents')} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800">
+            Upload documents
+          </button>
+        </div>
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Overview</p>
+        <Row label="Portal status" value={student.studentStatus.replace(/_/g, ' ')} emphasis />
+        <Row label="Class teacher" value={teacher?.name || 'Not assigned'} />
+        <Row label="Latest payment proof" value={paymentProofs[0] ? `${paymentProofs[0].status} · ${fmtDate(paymentProofs[0].submittedAt)}` : 'No proof sent yet'} />
+        <Row label="Latest homework upload" value={homeworkSubmissions[0] ? `${fmtDate(homeworkSubmissions[0].submittedAt)} · ${homeworkSubmissions[0].status}` : 'No homework uploaded yet'} />
+      </section>
+    </div>
+  );
+
+  const renderDetails = () => (
+    <div>
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-1">Student Details</p>
+        <Row label="Student name" value={student.name} emphasis />
+        <Row label="Student ID" value={student.id} />
+        <Row label="Date of birth" value={student.dob} />
+        <Row label="Gender" value={student.gender} />
+        <Row label="Division" value={student.division} />
+        <Row label="Class" value={student.assignedClass || student.grade || student.level} />
+        <Row label="Academic year" value={academicYear} />
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-1">Parent Details</p>
+        <Row label="Parent / guardian" value={student.parentName || '-'} emphasis />
+        <Row label="Father name" value={student.fatherName} />
+        <Row label="Father phone" value={student.fatherPhone} />
+        <Row label="Mother name" value={student.motherName} />
+        <Row label="Mother phone" value={student.motherPhone} />
+        <Row label="Address" value={student.address} />
+      </section>
+    </div>
+  );
+
+  const renderReceipts = () => (
+    <div>
+      <section className="py-4 border-b border-slate-200">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400">Send Proof Of Payment</p>
+          <span className="text-xs text-slate-500">{currentTerm?.termName || 'Current term'}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <select value={paymentTerm} onChange={(e) => setPaymentTerm(e.target.value)} className="h-11 border border-slate-300 bg-white px-3 text-sm">
+            {(settings?.schoolCalendars || []).map((term) => (
+              <option key={term.id} value={term.id}>{term.termName}</option>
+            ))}
+          </select>
+          <input value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Amount paid" className="h-11 border border-slate-300 px-3 text-sm" />
+        </div>
+        <div className="mt-2 flex gap-2">
+          <button onClick={() => paymentFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
+            <FileImage size={16} /> {paymentFile ? 'Change image' : 'Take / choose receipt'}
+          </button>
+          <button disabled={!paymentFile || !paymentTerm || busyAction === 'payment'} onClick={handlePaymentSubmit} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2">
+            {busyAction === 'payment' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+            Send proof
+          </button>
+        </div>
+        <input ref={paymentFileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => setPaymentFile(e.target.files?.[0] || null)} />
+        {paymentFile && <p className="mt-2 text-xs text-slate-500">{paymentFile.name}</p>}
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Submitted Proofs</p>
+        <div className="space-y-3">
+          {paymentProofs.length === 0 && <p className="text-sm text-slate-500">No payment proofs submitted yet.</p>}
+          {paymentProofs.map((proof) => (
+            <div key={proof.id} className="border-b border-slate-200 pb-3 last:border-b-0">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{proof.termId}</p>
+                  <p className="text-xs text-slate-500">{fmtDate(proof.submittedAt)}</p>
+                </div>
+                <span className={`text-[11px] font-bold ${proof.status === 'APPROVED' ? 'text-emerald-600' : proof.status === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'}`}>
+                  {proof.status}
+                </span>
+              </div>
+              {proof.amountClaimed && <p className="text-sm text-slate-600 mt-1">Claimed amount: {proof.amountClaimed}</p>}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Official Receipts</p>
+        <div className="space-y-3">
+          {receipts.length === 0 && <p className="text-sm text-slate-500">No approved school receipts yet.</p>}
+          {receipts.map((receipt) => (
+            <div key={receipt.id} className="border-b border-slate-200 pb-3 last:border-b-0">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{receipt.number}</p>
+                  <p className="text-xs text-slate-500">{fmtDate(receipt.generatedAt || receipt.createdAt || receipt.date)}</p>
+                </div>
+                <button onClick={() => downloadReceipt(receipt)} className="inline-flex items-center gap-1 text-sm font-semibold text-coha-700">
+                  <Download size={15} /> PDF
+                </button>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-sm">
+                <span className="text-slate-600">{receipt.termId || 'School fee payment'}</span>
+                <span className="font-bold text-slate-900">{fmtMoney(parseFloat(receipt.amount || '0'))}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+
+  const renderHomework = () => (
+    <div>
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Submit Homework</p>
+        <select value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)} className="w-full h-11 border border-slate-300 bg-white px-3 text-sm mb-2">
+          <option value="">Select homework task</option>
+          {assignments.map((assignment) => (
+            <option key={assignment.id} value={assignment.id}>{assignment.title}</option>
+          ))}
+        </select>
+        <div className="flex gap-2">
+          <button onClick={() => homeworkFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
+            <FileImage size={16} /> {homeworkFile ? 'Change photo' : 'Take homework photo'}
+          </button>
+          <button disabled={!homeworkFile || busyAction === 'homework'} onClick={handleHomeworkSubmit} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2">
+            {busyAction === 'homework' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+            Send homework
+          </button>
+        </div>
+        <input ref={homeworkFileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => setHomeworkFile(e.target.files?.[0] || null)} />
+        {homeworkFile && <p className="mt-2 text-xs text-slate-500">{homeworkFile.name}</p>}
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Teacher Homework</p>
+        <div className="space-y-3">
+          {assignments.length === 0 && <p className="text-sm text-slate-500">No homework posted for this class yet.</p>}
+          {assignments.map((assignment) => (
+            <div key={assignment.id} className="border-b border-slate-200 pb-3 last:border-b-0">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{assignment.title}</p>
+                  <p className="text-xs text-slate-500 mt-1">{assignment.description}</p>
+                </div>
+                {assignment.dueDate && <span className="text-xs font-semibold text-slate-600">Due {fmtDate(assignment.dueDate)}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">My Uploads</p>
+        <div className="space-y-3">
+          {homeworkSubmissions.length === 0 && <p className="text-sm text-slate-500">No homework images sent yet.</p>}
+          {homeworkSubmissions.map((submission) => (
+            <div key={submission.id} className="border-b border-slate-200 pb-3 last:border-b-0">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{fmtDate(submission.submittedAt)}</p>
+                  <p className="text-xs text-slate-500">{submission.assignmentId ? 'Linked to assignment' : 'General homework upload'}</p>
+                </div>
+                <span className={`text-[11px] font-bold ${submission.status === 'REVIEWED' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {submission.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+
+  const renderDocuments = () => (
+    <div>
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Birth Certificate</p>
+        <div className="flex gap-2">
+          <button onClick={() => birthFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
+            <FilePlus2 size={16} /> {birthFile ? 'Change file' : 'Upload PDF or image'}
+          </button>
+          <button disabled={!birthFile || busyAction === 'BIRTH_CERTIFICATE'} onClick={() => uploadDocument('BIRTH_CERTIFICATE', birthFile, 'Birth Certificate', () => { setBirthFile(null); if (birthFileRef.current) birthFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
+            Save
+          </button>
+        </div>
+        <input ref={birthFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setBirthFile(e.target.files?.[0] || null)} />
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Medical Documents</p>
+        <div className="flex gap-2">
+          <button onClick={() => medicalFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
+            <ShieldCheck size={16} /> {medicalFile ? 'Change file' : 'Upload PDF or image'}
+          </button>
+          <button disabled={!medicalFile || busyAction === 'MEDICAL_DOCUMENT'} onClick={() => uploadDocument('MEDICAL_DOCUMENT', medicalFile, 'Medical Document', () => { setMedicalFile(null); if (medicalFileRef.current) medicalFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
+            Save
+          </button>
+        </div>
+        <input ref={medicalFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setMedicalFile(e.target.files?.[0] || null)} />
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Other Documents</p>
+        <input value={otherTitle} onChange={(e) => setOtherTitle(e.target.value)} placeholder="Document title" className="w-full h-11 border border-slate-300 px-3 text-sm mb-2" />
+        <div className="flex gap-2">
+          <button onClick={() => otherFileRef.current?.click()} className="flex-1 h-11 border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center justify-center gap-2">
+            <FilePlus2 size={16} /> {otherFile ? 'Change file' : 'Upload PDF or image'}
+          </button>
+          <button disabled={!otherFile || !otherTitle || busyAction === 'OTHER_DOCUMENT'} onClick={() => uploadDocument('OTHER_DOCUMENT', otherFile, otherTitle, () => { setOtherFile(null); setOtherTitle(''); if (otherFileRef.current) otherFileRef.current.value = ''; })} className="flex-1 h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50">
+            Save
+          </button>
+        </div>
+        <input ref={otherFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setOtherFile(e.target.files?.[0] || null)} />
+      </section>
+
+      <section className="py-4 border-b border-slate-200">
+        <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-slate-400 mb-3">Uploaded Documents</p>
+        <div className="space-y-3">
+          {documents.length === 0 && <p className="text-sm text-slate-500">No documents uploaded yet.</p>}
+          {documents.map((item) => (
+            <div key={item.id} className="border-b border-slate-200 pb-3 last:border-b-0">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                  <p className="text-xs text-slate-500">{item.documentType.replace(/_/g, ' ')} · {fmtDate(item.uploadedAt)}</p>
+                </div>
+                <a href={item.fileBase64} download={item.fileName} className="inline-flex items-center gap-1 text-sm font-semibold text-coha-700">
+                  <Download size={15} /> Open
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+
+  return (
+    <div className="-m-5 min-h-[calc(100vh-64px)] bg-[#f7f8fa] text-slate-900">
+      <div className="max-w-4xl mx-auto px-3 sm:px-5 pb-24">
+        <div className="pt-3 sticky top-0 z-10 bg-[#f7f8fa] border-b border-slate-200">
+          <div className="flex gap-2 overflow-x-auto pb-3">
+            {TABS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`h-9 px-3 whitespace-nowrap text-sm font-semibold border ${tab === item.id ? 'bg-coha-900 border-coha-900 text-white' : 'bg-white border-slate-300 text-slate-700'}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {tab === 'home' && renderHome()}
+        {tab === 'details' && renderDetails()}
+        {tab === 'receipts' && renderReceipts()}
+        {tab === 'homework' && renderHomework()}
+        {tab === 'documents' && renderDocuments()}
       </div>
+
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white/98 backdrop-blur">
+        <div className="grid grid-cols-5">
+          {TABS.map((item) => (
+            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`h-16 flex flex-col items-center justify-center gap-1 text-[11px] font-semibold ${tab === item.id ? 'text-coha-900' : 'text-slate-500'}`}>
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 };

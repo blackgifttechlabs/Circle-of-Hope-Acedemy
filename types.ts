@@ -420,6 +420,7 @@ export interface Student extends Partial<Application> {
   receiptNumber?: string;
   receiptSubmissionDate?: any;
   paymentRejected?: boolean;
+  academicYear?: string;
   
   assessment?: AssessmentData;
 }
@@ -432,6 +433,77 @@ export interface Receipt {
   isUsed: boolean;
   usedByStudentId?: string;
   createdAt?: any;
+  type?: 'BANK_REFERENCE' | 'SCHOOL_RECEIPT';
+  termId?: string;
+  academicYear?: string;
+  studentName?: string;
+  studentClass?: string;
+  paymentProofId?: string;
+  generatedAt?: any;
+  generatedBy?: string;
+  balanceAfterPayment?: number;
+  notes?: string;
+}
+
+export interface PaymentProof {
+  id?: string;
+  studentId: string;
+  studentName: string;
+  parentName: string;
+  studentClass?: string;
+  academicYear: string;
+  termId: string;
+  amountClaimed?: string;
+  imageBase64: string;
+  fileName: string;
+  mimeType: string;
+  submittedAt: any;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewedAt?: any;
+  reviewedBy?: string;
+  reviewedReceiptId?: string;
+  reviewNotes?: string;
+}
+
+export interface HomeworkAssignment {
+  id?: string;
+  title: string;
+  description: string;
+  teacherId: string;
+  teacherName: string;
+  className: string;
+  dueDate?: string;
+  subject?: string;
+  createdAt: any;
+}
+
+export interface HomeworkSubmission {
+  id?: string;
+  assignmentId?: string;
+  studentId: string;
+  studentName: string;
+  parentName: string;
+  className?: string;
+  imageBase64: string;
+  fileName: string;
+  mimeType: string;
+  submittedAt: any;
+  status: 'SUBMITTED' | 'REVIEWED';
+  teacherId?: string;
+  notes?: string;
+}
+
+export interface UploadedDocument {
+  id?: string;
+  studentId: string;
+  studentName: string;
+  parentName: string;
+  documentType: 'BIRTH_CERTIFICATE' | 'MEDICAL_DOCUMENT' | 'OTHER_DOCUMENT';
+  title: string;
+  fileName: string;
+  mimeType: string;
+  fileBase64: string;
+  uploadedAt: any;
 }
 
 export interface VtcApplication {
