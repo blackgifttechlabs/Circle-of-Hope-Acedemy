@@ -3,6 +3,7 @@ import { getStudentDailyRegister, getStudentById } from '../../services/dataServ
 import { StudentDailyRegister, Student } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ParentBottomNav } from '../../components/ParentBottomNav';
 
 export const ParentDailyRegister: React.FC<{ user: any }> = ({ user }) => {
   const [student, setStudent] = useState<Student | null>(null);
@@ -50,7 +51,8 @@ export const ParentDailyRegister: React.FC<{ user: any }> = ({ user }) => {
   }
 
   return (
-    <div className="w-full pb-10">
+    <div className="-m-5 min-h-screen bg-[#f7f8fa] text-slate-900">
+      <div className="max-w-4xl mx-auto px-3 sm:px-5 pb-24 pt-3">
       <div className="bg-white p-6 shadow-sm border-l-8 border-coha-900 mb-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -137,6 +139,8 @@ export const ParentDailyRegister: React.FC<{ user: any }> = ({ user }) => {
           </div>
         </div>
       </div>
+      </div>
+      <ParentBottomNav />
     </div>
   );
 };

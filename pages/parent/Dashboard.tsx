@@ -35,21 +35,14 @@ import {
 import { HomeworkAssignment, HomeworkSubmission, PaymentProof, Receipt, Student, SystemSettings, Teacher, UploadedDocument } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { printSchoolReceipt } from '../../utils/printSchoolReceipt';
+import { ParentBottomNav, ParentPrimaryTab } from '../../components/ParentBottomNav';
 
 interface ParentDashboardProps {
   user: any;
   onLogout?: () => void;
 }
 
-type ParentTab = 'home' | 'details' | 'receipts' | 'homework' | 'settings';
-
-const TABS: { id: ParentTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'home', label: 'Home', icon: <Home size={18} /> },
-  { id: 'details', label: 'Details', icon: <User size={18} /> },
-  { id: 'receipts', label: 'Receipts', icon: <CreditCard size={18} /> },
-  { id: 'homework', label: 'Homework', icon: <BookOpen size={18} /> },
-  { id: 'settings', label: 'Settings', icon: <FileText size={18} /> },
-];
+type ParentTab = ParentPrimaryTab;
 
 const fmtMoney = (value: number) => `N$ ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -88,6 +81,27 @@ const MiniLabel: React.FC<{ icon: React.ReactNode; children: React.ReactNode; cl
   </div>
 );
 
+const DetailTable: React.FC<{ rows: Array<{ label: string; value: React.ReactNode }> }> = ({ rows }) => (
+  <div className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white">
+    <table className="w-full text-sm">
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.label} className="border-b border-slate-200 last:border-b-0">
+            <td className="w-[42%] px-4 py-3 text-[11px] uppercase tracking-[0.18em] font-black text-slate-700 bg-slate-50 align-top">
+              {row.label}
+            </td>
+            <td className="px-4 py-3 font-semibold text-slate-900 align-top">
+              {row.value || '-'}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
+const getInitialLetter = (name?: string) => (name?.trim()?.charAt(0) || 'S').toUpperCase();
+
 export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -119,13 +133,16 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   const [newPinInput, setNewPinInput] = useState('');
   const [confirmPinInput, setConfirmPinInput] = useState('');
   const [settingsMessage, setSettingsMessage] = useState('');
+  const [profileMessage, setProfileMessage] = useState('');
   const [changedPinValue, setChangedPinValue] = useState('');
+  const [profileFile, setProfileFile] = useState<File | null>(null);
 
   const paymentFileRef = useRef<HTMLInputElement>(null);
   const homeworkFileRef = useRef<HTMLInputElement>(null);
   const birthFileRef = useRef<HTMLInputElement>(null);
   const medicalFileRef = useRef<HTMLInputElement>(null);
   const otherFileRef = useRef<HTMLInputElement>(null);
+  const profileFileRef = useRef<HTMLInputElement>(null);
 
   const currentTerm = useMemo(() => {
     const activeTerm = settings?.schoolCalendars?.find((term) => term.id === settings?.activeTermId);
@@ -133,6 +150,10 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   }, [settings]);
 
   const academicYear = student?.academicYear || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`;
+  const schoolName = settings?.schoolName || 'Circle of Hope Academy';
+  const portalTitle = `${schoolName} Parent Portal`;
+  const studentProfileImage = student?.profileImageBase64 || '';
+  const studentInitial = getInitialLetter(student?.name);
 
   const financials = useMemo(() => {
     let total = 0;
@@ -285,66 +306,117 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
 
   const renderHome = () => (
     <div>
-      <section className="py-4 border-b border-slate-200">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-[1.65rem] leading-none font-black tracking-[-0.05em] text-slate-950">
-              {student.parentName || user?.name || 'Parent'}
-            </h1>
-            <p className="text-sm text-slate-600 mt-2">Parent for <span className="font-bold text-slate-900">{student.name}</span></p>
-            <button onClick={() => setActiveTab('details')} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-coha-700">
-              Student details <ChevronRight size={16} />
+      <section className="pt-2">
+        <div className="rounded-[2rem] bg-coha-900 px-4 pb-5 pt-4 text-white shadow-[0_24px_50px_rgba(43,43,94,0.28)]">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[1.1rem] font-black tracking-[-0.03em] truncate">{portalTitle}</p>
+              <p className="text-xs font-semibold text-white/70 mt-1">Family dashboard</p>
+            </div>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className="h-10 w-10 rounded-full border border-white/15 bg-white/10 inline-flex items-center justify-center shrink-0"
+            >
+              <FileText size={18} className="text-white" />
             </button>
           </div>
-          <div className="text-right shrink-0">
-            <MiniLabel icon={<GraduationCap size={13} />} className="justify-end">Class</MiniLabel>
-            <p className="text-sm font-bold text-slate-900">{student.assignedClass || student.grade || student.level || '-'}</p>
-            <MiniLabel icon={<Calendar size={13} />} className="justify-end mt-3">Academic Year</MiniLabel>
-            <p className="text-sm font-bold text-slate-900">{academicYear}</p>
-            <MiniLabel icon={<Calendar size={13} />} className="justify-end mt-3">Term</MiniLabel>
-            <p className="text-sm font-bold text-slate-900">{currentTerm?.termName || 'Current Term'}</p>
+
+          <div className="mt-4 rounded-[1.9rem] bg-white p-4 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+            <div className="flex items-center gap-4">
+              {studentProfileImage ? (
+                <img
+                  src={studentProfileImage}
+                  alt={student.name}
+                  className="h-[72px] w-[72px] rounded-[1.4rem] object-cover border border-slate-200 shrink-0"
+                />
+              ) : (
+                <div className="h-[72px] w-[72px] rounded-[1.4rem] bg-gradient-to-br from-slate-300 to-slate-500 text-white flex items-center justify-center text-3xl font-black shrink-0">
+                  {studentInitial}
+                </div>
+              )}
+              <div className="min-w-0">
+                <h1 className="text-[1.9rem] leading-none font-black tracking-[-0.05em] text-slate-950">
+                  {student.parentName || user?.name || 'Parent'}
+                </h1>
+                <p className="text-base text-slate-600 mt-2">
+                  Parent for <span className="font-black text-slate-900">{student.name}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2 rounded-full bg-[#e9ecf4] p-1">
+              <button
+                onClick={() => setActiveTab('details')}
+                className="h-11 rounded-full bg-white text-[0.95rem] font-bold text-slate-800 shadow-sm"
+              >
+                Profile Info
+              </button>
+              <div className="h-11 rounded-full text-[0.95rem] font-bold text-slate-700 flex items-center justify-center px-3 truncate">
+                Student: {student.firstName || student.name.split(' ')[0] || student.name}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="py-4 border-b border-slate-200">
-        <div className="flex items-center justify-between mb-3">
+      <section className="pt-4">
+        <div className="rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm">
+          <SectionLabel icon={<User size={14} />}>Student Profile</SectionLabel>
+          <div className="grid grid-cols-3 gap-3 mt-1">
+            <div>
+              <MiniLabel icon={<GraduationCap size={12} />}>Grade</MiniLabel>
+              <p className="mt-2 text-[1.05rem] font-black text-slate-950">{student.assignedClass || student.grade || student.level || '-'}</p>
+            </div>
+            <div>
+              <MiniLabel icon={<Calendar size={12} />}>Academic Year</MiniLabel>
+              <p className="mt-2 text-[1.05rem] font-black text-slate-950">{academicYear}</p>
+            </div>
+            <div>
+              <MiniLabel icon={<Calendar size={12} />}>Term</MiniLabel>
+              <p className="mt-2 text-[1.05rem] font-black text-slate-950">{currentTerm?.termName || 'Term 1'}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="pt-4">
+        <div className="flex items-center justify-between mb-3 px-1">
           <SectionLabel icon={<CreditCard size={14} />}>Fees Summary</SectionLabel>
-          <p className={`text-xs font-bold ${financials.balance <= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+          <p className={`text-sm font-black ${financials.balance <= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
             {financials.balance <= 0 ? 'Up to date' : 'Balance due'}
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-3 text-sm">
-          <div>
+        <div className="grid grid-cols-3 gap-3 rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm text-sm">
+          <div className="min-w-0">
             <MiniLabel icon={<CreditCard size={12} />}>Total</MiniLabel>
-            <p className="font-bold text-slate-900 mt-1">{fmtMoney(financials.total)}</p>
+            <p className="font-black text-slate-900 mt-2 text-[1.05rem] leading-tight">{fmtMoney(financials.total)}</p>
           </div>
-          <div>
+          <div className="min-w-0">
             <MiniLabel icon={<CreditCard size={12} />}>Paid</MiniLabel>
-            <p className="font-bold text-emerald-700 mt-1">{fmtMoney(financials.paid)}</p>
+            <p className="font-black text-emerald-600 mt-2 text-[1.05rem] leading-tight">{fmtMoney(financials.paid)}</p>
           </div>
-          <div>
+          <div className="min-w-0">
             <MiniLabel icon={<CreditCard size={12} />}>Balance</MiniLabel>
-            <p className="font-bold text-slate-900 mt-1">{fmtMoney(financials.balance)}</p>
+            <p className="font-black text-slate-900 mt-2 text-[1.05rem] leading-tight">{fmtMoney(financials.balance)}</p>
           </div>
         </div>
-        <div className="mt-4 flex gap-2">
-          <button onClick={() => setActiveTab('receipts')} className="flex-1 h-11 text-sm font-semibold border border-slate-300 text-slate-800">
+        <div className="mt-3 flex gap-2">
+          <button onClick={() => setActiveTab('receipts')} className="flex-1 h-12 text-sm font-bold border-2 border-coha-900 text-coha-900 rounded-[1rem] bg-white">
             View receipts
           </button>
-          <button onClick={() => setActiveTab('receipts')} className="flex-1 h-11 text-sm font-semibold bg-coha-900 text-white">
+          <button onClick={() => setActiveTab('receipts')} className="flex-1 h-12 text-sm font-bold bg-coha-900 text-white rounded-[1rem]">
             Send proof of payment
           </button>
         </div>
       </section>
 
-      <section className="py-4 border-b border-slate-200">
+      <section className="py-5">
         <SectionLabel icon={<Home size={14} />}>Quick Actions</SectionLabel>
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => navigate('/parent/assessment')}
-            className="min-h-[104px] rounded-[1.5rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.32), transparent 32%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%)' }}
+            className="min-h-[132px] rounded-[1.7rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.3), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.18), transparent 34%), linear-gradient(135deg, #14206f 0%, #13a0d8 100%)' }}
           >
             <div className="relative z-10">
               <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
@@ -357,8 +429,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
           </button>
           <button
             onClick={() => navigate('/parent/register')}
-            className="min-h-[104px] rounded-[1.5rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.28), transparent 32%), linear-gradient(135deg, #14532d 0%, #10b981 100%)' }}
+            className="min-h-[132px] rounded-[1.7rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.26), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #00a37a 0%, #34d399 100%)' }}
           >
             <div className="relative z-10">
               <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
@@ -371,8 +443,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
           </button>
           <button
             onClick={() => setActiveTab('homework')}
-            className="min-h-[104px] rounded-[1.5rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.28), transparent 32%), linear-gradient(135deg, #7c2d12 0%, #f97316 100%)' }}
+            className="min-h-[132px] rounded-[1.7rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.26), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #c2410c 0%, #fb7185 100%)' }}
           >
             <div className="relative z-10">
               <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
@@ -385,8 +457,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
           </button>
           <button
             onClick={() => setActiveTab('settings')}
-            className="min-h-[104px] rounded-[1.5rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.28), transparent 32%), linear-gradient(135deg, #4c1d95 0%, #a855f7 100%)' }}
+            className="min-h-[132px] rounded-[1.7rem] px-4 py-4 text-left text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.28), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #7e22ce 0%, #d946ef 100%)' }}
           >
             <div className="relative z-10">
               <div className="w-11 h-11 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-4">
@@ -400,7 +472,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
         </div>
       </section>
 
-      <section className="py-4 border-b border-slate-200">
+      <section className="pb-1">
         <SectionLabel icon={<User size={14} />}>Overview</SectionLabel>
         <div
           className="rounded-[1.75rem] p-4 sm:p-5 border border-slate-200 overflow-hidden relative"
@@ -435,23 +507,49 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
     <div>
       <section className="py-4 border-b border-slate-200">
         <SectionLabel icon={<User size={14} />}>Student Details</SectionLabel>
-        <Row label="Student name" value={student.name} emphasis />
-        <Row label="Student ID" value={student.id} />
-        <Row label="Date of birth" value={student.dob} />
-        <Row label="Gender" value={student.gender} />
-        <Row label="Division" value={student.division} />
-        <Row label="Class" value={student.assignedClass || student.grade || student.level} />
-        <Row label="Academic year" value={academicYear} />
+        <div className="space-y-4">
+          <div>
+            <MiniLabel icon={<User size={12} />}>Basic Details</MiniLabel>
+            <div className="mt-2">
+              <DetailTable
+                rows={[
+                  { label: 'Student Name', value: student.name },
+                  { label: 'Student ID', value: student.id },
+                  { label: 'Date Of Birth', value: student.dob || '-' },
+                  { label: 'Gender', value: student.gender || '-' },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div>
+            <MiniLabel icon={<GraduationCap size={12} />}>Academic Details</MiniLabel>
+            <div className="mt-2">
+              <DetailTable
+                rows={[
+                  { label: 'Division', value: student.division || '-' },
+                  { label: 'Class', value: student.assignedClass || student.grade || student.level || '-' },
+                  { label: 'Academic Year', value: academicYear },
+                  { label: 'Current Term', value: currentTerm?.termName || '-' },
+                ]}
+              />
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="py-4 border-b border-slate-200">
         <SectionLabel icon={<User size={14} />}>Parent Details</SectionLabel>
-        <Row label="Parent / guardian" value={student.parentName || '-'} emphasis />
-        <Row label="Father name" value={student.fatherName} />
-        <Row label="Father phone" value={student.fatherPhone} />
-        <Row label="Mother name" value={student.motherName} />
-        <Row label="Mother phone" value={student.motherPhone} />
-        <Row label="Address" value={student.address} />
+        <DetailTable
+          rows={[
+            { label: 'Parent / Guardian', value: student.parentName || '-' },
+            { label: 'Father Name', value: student.fatherName || '-' },
+            { label: 'Father Phone', value: student.fatherPhone || '-' },
+            { label: 'Mother Name', value: student.motherName || '-' },
+            { label: 'Mother Phone', value: student.motherPhone || '-' },
+            { label: 'Address', value: student.address || '-' },
+          ]}
+        />
       </section>
 
       <section className="py-4 border-b border-slate-200">
@@ -684,6 +782,22 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
     }
   };
 
+  const handleProfileImageSave = async () => {
+    if (!student || !profileFile) return;
+    setBusyAction('PROFILE_IMAGE');
+    setProfileMessage('');
+    try {
+      const imageBase64 = await fileToDataUrl(profileFile);
+      await updateStudent(student.id, { profileImageBase64: imageBase64 });
+      setProfileFile(null);
+      if (profileFileRef.current) profileFileRef.current.value = '';
+      setProfileMessage('Profile photo updated.');
+      await refreshData();
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   const renderSettings = () => (
     <div>
       <section className="py-4 border-b border-slate-200">
@@ -693,6 +807,49 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
             <MiniLabel icon={<User size={12} />}>Parent Account</MiniLabel>
             <p className="mt-2 text-base font-black text-slate-950">{student.parentName || user?.name || 'Parent'}</p>
             <p className="text-sm text-slate-600">Linked to {student.name}</p>
+          </div>
+
+          <div>
+            <MiniLabel icon={<FileImage size={12} />}>Profile Photo</MiniLabel>
+            <div className="mt-3 flex items-center gap-4">
+              {studentProfileImage ? (
+                <img
+                  src={studentProfileImage}
+                  alt={student.name}
+                  className="h-20 w-20 rounded-[1.35rem] object-cover border border-slate-200"
+                />
+              ) : (
+                <div className="h-20 w-20 rounded-[1.35rem] bg-gradient-to-br from-slate-300 to-slate-500 text-white flex items-center justify-center text-3xl font-black">
+                  {studentInitial}
+                </div>
+              )}
+              <div className="flex-1">
+                <button
+                  onClick={() => profileFileRef.current?.click()}
+                  className="w-full h-11 border border-slate-300 text-sm font-semibold text-slate-800 rounded-[0.9rem] inline-flex items-center justify-center gap-2"
+                >
+                  <Upload size={16} /> {profileFile ? 'Change photo' : 'Upload profile photo'}
+                </button>
+                <input
+                  ref={profileFileRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => setProfileFile(e.target.files?.[0] || null)}
+                />
+                {profileFile && <p className="mt-2 text-xs text-slate-500">{profileFile.name}</p>}
+              </div>
+            </div>
+            {profileMessage && <p className="mt-2 text-sm font-semibold text-slate-700">{profileMessage}</p>}
+            <button
+              disabled={!profileFile || busyAction === 'PROFILE_IMAGE'}
+              onClick={handleProfileImageSave}
+              className="mt-3 w-full h-11 bg-coha-900 text-white text-sm font-semibold disabled:opacity-50 rounded-[0.9rem] inline-flex items-center justify-center gap-2"
+            >
+              {busyAction === 'PROFILE_IMAGE' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+              Save profile photo
+            </button>
           </div>
 
           <div>
@@ -743,16 +900,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
         {tab === 'settings' && renderSettings()}
       </div>
 
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white/98 backdrop-blur">
-        <div className="grid grid-cols-5">
-          {TABS.map((item) => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`h-16 flex flex-col items-center justify-center gap-1 text-[11px] font-semibold ${tab === item.id ? 'text-coha-900' : 'text-slate-500'}`}>
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </nav>
+      <ParentBottomNav activeTab={tab} />
     </div>
   );
 };

@@ -411,6 +411,7 @@ export interface Student extends Partial<Application> {
   level?: string;
   stage?: 1 | 2 | 3;
   assignedClass?: string;
+  profileImageBase64?: string;
   
   parentPin: string;
   parentName: string;

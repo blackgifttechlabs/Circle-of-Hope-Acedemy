@@ -4,6 +4,7 @@ import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from
 import { Loader } from '../../components/ui/Loader';
 import { Calendar, Activity, Brain, CheckCircle, ClipboardList, Clock, FileText, Download } from 'lucide-react';
 import { printGrade0Report } from '../../utils/printGrade0Report';
+import { ParentBottomNav } from '../../components/ParentBottomNav';
 
 interface ParentAssessmentProgressProps {
   user: any;
@@ -54,7 +55,8 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
 
   if (student.division === 'Mainstream') {
       return (
-        <div className="w-full pb-10">
+        <div className="-m-5 min-h-screen bg-[#f7f8fa] text-slate-900">
+            <div className="max-w-7xl mx-auto px-3 sm:px-5 pb-24 pt-3">
             <div className="bg-white p-6 shadow-sm border-l-8 border-coha-900 mb-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -145,6 +147,8 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
                     </div>
                 )}
             </div>
+            </div>
+            <ParentBottomNav />
         </div>
       );
   }
@@ -155,7 +159,8 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
   const progressPercent = Math.round((completedDays / totalDays) * 100);
 
   return (
-    <div className="w-full pb-10">
+    <div className="-m-5 min-h-screen bg-[#f7f8fa] text-slate-900">
+      <div className="max-w-7xl mx-auto px-3 sm:px-5 pb-24 pt-3">
       
       {/* Header Summary */}
       <div className="bg-white p-6 shadow-sm border-l-8 border-coha-900 mb-8">
@@ -309,6 +314,8 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
               )}
           </div>
       </div>
+      </div>
+      <ParentBottomNav />
     </div>
   );
 };
