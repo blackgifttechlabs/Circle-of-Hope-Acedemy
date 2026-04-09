@@ -5,6 +5,7 @@ import { submitVtcApplication } from '../services/dataService';
 import { CustomSelect } from '../components/ui/CustomSelect';
 import { Button } from '../components/ui/Button';
 import { ChevronRight, ArrowLeft, CheckCircle2, AlertCircle, Check, ArrowRight } from 'lucide-react';
+import { ApplicationFileAttachment } from '../types';
 
 const STEPS = [
   "Applicant",
@@ -77,8 +78,19 @@ export const VtcApplyPage: React.FC = () => {
     idDocumentUrl: '',
     resultsUrl: '',
     photoUrl: '',
-    proofOfPaymentUrl: ''
+    proofOfPaymentUrl: '',
+    birthCertificate: null as ApplicationFileAttachment | null,
+    medicalDocuments: [] as ApplicationFileAttachment[],
+    otherDocuments: [] as ApplicationFileAttachment[],
   });
+
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -189,6 +201,31 @@ export const VtcApplyPage: React.FC = () => {
     }
   };
 
+  const handleBirthCertificateSelect = async (file?: File | null) => {
+    if (!file) return;
+    const fileBase64 = await fileToDataUrl(file);
+    setFormData(prev => ({
+      ...prev,
+      birthCertificate: {
+        title: 'Birth Certificate',
+        fileName: file.name,
+        mimeType: file.type,
+        fileBase64,
+      }
+    }));
+  };
+
+  const appendApplicationFiles = async (files: FileList | null, bucket: 'medicalDocuments' | 'otherDocuments') => {
+    if (!files?.length) return;
+    const next = await Promise.all(Array.from(files).map(async (file, index) => ({
+      title: bucket === 'medicalDocuments' ? `Medical Document ${Date.now()}-${index + 1}` : file.name.replace(/\.[^.]+$/, '') || `Other Document ${Date.now()}-${index + 1}`,
+      fileName: file.name,
+      mimeType: file.type,
+      fileBase64: await fileToDataUrl(file),
+    })));
+    setFormData(prev => ({ ...prev, [bucket]: [...prev[bucket], ...next] }));
+  };
+
   if (step === 'success') {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 animate-fade-in">
@@ -281,14 +318,11 @@ export const VtcApplyPage: React.FC = () => {
                     <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold flex-shrink-0">3</div>
                     <div>
                       <p className="text-gray-700 font-medium">Prepare your documents for upload.</p>
-                      <p className="text-gray-500 text-sm mt-1 mb-2">
-                        <span className="text-blue-600 font-bold">Note: Document uploads are temporarily disabled.</span> You will be able to submit your application without them for now, but please prepare:
-                      </p>
+                      <p className="text-gray-500 text-sm mt-1 mb-2">You can upload them in the final step. Medical and other documents support multiple files.</p>
                       <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
-                        <li>Certified copy of ID or Birth Certificate</li>
-                        <li>Latest school results</li>
-                        <li>Recent passport photo</li>
-                        <li>Proof of payment (N$50.00)</li>
+                        <li>Birth certificate</li>
+                        <li>Optional medical documents</li>
+                        <li>Optional other documents</li>
                       </ul>
                     </div>
                   </div>
@@ -452,33 +486,52 @@ export const VtcApplyPage: React.FC = () => {
 
             {/* Step 4: Documents */}
             {currentFormStep === 3 && (
-              <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="md:col-span-2 bg-blue-50 p-4 rounded-lg border border-blue-200 mb-2">
-                  <p className="text-sm text-blue-800 font-medium flex items-center gap-2">
-                    <AlertCircle size={18} />
-                    Document uploads are temporarily disabled. You may submit your application without them for now.
-                  </p>
+              <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-6">Birth Certificate</h3>
+                  <label className="block cursor-pointer rounded-xl border-2 border-dashed border-coha-300 bg-coha-50/40 p-5 text-center">
+                    <span className="block text-sm font-bold text-coha-900">Tap to upload birth certificate</span>
+                    <span className="mt-2 block text-xs text-gray-500">PDF or image</span>
+                    <input type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => handleBirthCertificateSelect(e.target.files?.[0] || null)} />
+                  </label>
+                  {formData.birthCertificate && (
+                    <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+                      <p className="text-sm font-bold text-gray-900">{formData.birthCertificate.fileName}</p>
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-6">Required Documents</h3>
-                  <div className="w-full mb-6 opacity-60 cursor-not-allowed">
-                    <label className="block text-gray-800 text-sm font-medium mb-2">ID / Birth Certificate</label>
-                    <input type="file" disabled className="w-full p-3 border-b-2 border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500" />
+                  <div className="flex items-center justify-between gap-3 mb-6">
+                    <h3 className="text-lg font-bold text-gray-900">Medical Documents</h3>
+                    <label className="text-sm font-bold text-coha-700 cursor-pointer">
+                      Add more
+                      <input type="file" multiple accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => appendApplicationFiles(e.target.files, 'medicalDocuments')} />
+                    </label>
                   </div>
-                  <div className="w-full mb-6 opacity-60 cursor-not-allowed">
-                    <label className="block text-gray-800 text-sm font-medium mb-2">Latest Results</label>
-                    <input type="file" disabled className="w-full p-3 border-b-2 border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500" />
+                  <div className="space-y-3">
+                    {formData.medicalDocuments.length === 0 && <p className="text-sm text-gray-500">Optional.</p>}
+                    {formData.medicalDocuments.map((item, index) => (
+                      <div key={`${item.fileName}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3">
+                        <p className="text-sm font-bold text-gray-900">{item.fileName}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-6 lg:mt-0 mt-8">Additional Documents</h3>
-                  <div className="w-full mb-6 opacity-60 cursor-not-allowed">
-                    <label className="block text-gray-800 text-sm font-medium mb-2">Passport Photo</label>
-                    <input type="file" disabled className="w-full p-3 border-b-2 border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500" />
+                  <div className="flex items-center justify-between gap-3 mb-6">
+                    <h3 className="text-lg font-bold text-gray-900">Other Documents</h3>
+                    <label className="text-sm font-bold text-coha-700 cursor-pointer">
+                      Add more
+                      <input type="file" multiple accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => appendApplicationFiles(e.target.files, 'otherDocuments')} />
+                    </label>
                   </div>
-                  <div className="w-full mb-6 opacity-60 cursor-not-allowed">
-                    <label className="block text-gray-800 text-sm font-medium mb-2">Proof of Payment (N$50.00)</label>
-                    <input type="file" disabled className="w-full p-3 border-b-2 border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500" />
+                  <div className="space-y-3">
+                    {formData.otherDocuments.length === 0 && <p className="text-sm text-gray-500">Optional.</p>}
+                    {formData.otherDocuments.map((item, index) => (
+                      <div key={`${item.fileName}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3">
+                        <p className="text-sm font-bold text-gray-900">{item.fileName}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -525,4 +578,3 @@ export const VtcApplyPage: React.FC = () => {
     </div>
   );
 };
-

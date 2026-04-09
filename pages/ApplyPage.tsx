@@ -4,12 +4,14 @@ import { submitApplication, getSystemSettings, determineSpecialNeedsLevel } from
 import { ArrowLeft, CheckCircle, ArrowRight, Check, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { CustomSelect } from '../components/ui/CustomSelect';
+import { ApplicationFileAttachment } from '../types';
 
 const STEPS = [
   "Learner",
   "Parents", 
   "History",
   "Medical",
+  "Documents",
   "Consent"
 ];
 
@@ -61,8 +63,19 @@ export const ApplyPage: React.FC = () => {
     hasMedicalAid: false,
     medicalAidName: '', medicalAidMemberName: '', medicalAidMemberID: '', medicalAidOption: '',
     medicalConsent: false,
-    agreed: false
+    agreed: false,
+    birthCertificate: null as ApplicationFileAttachment | null,
+    medicalDocuments: [] as ApplicationFileAttachment[],
+    otherDocuments: [] as ApplicationFileAttachment[],
   });
+
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
   useEffect(() => {
     const fetchGrades = async () => {
@@ -138,7 +151,7 @@ export const ApplyPage: React.FC = () => {
             if (!formData.medicalAidName?.trim()) newErrors.medicalAidName = "Medical aid name is required";
             if (!formData.medicalAidMemberID?.trim()) newErrors.medicalAidMemberID = "Member ID is required";
         }
-    } else if (step === 4) {
+    } else if (step === 5) {
         if (!formData.medicalConsent) newErrors.medicalConsent = "You must provide medical consent";
         if (!formData.agreed) newErrors.agreed = "You must agree to the terms";
     }
@@ -191,6 +204,31 @@ export const ApplyPage: React.FC = () => {
         setStepError("System failed to submit application. Please try again or contact support.");
     }
     setLoading(false);
+  };
+
+  const handleBirthCertificateSelect = async (file?: File | null) => {
+    if (!file) return;
+    const fileBase64 = await fileToDataUrl(file);
+    setFormData(prev => ({
+      ...prev,
+      birthCertificate: {
+        title: 'Birth Certificate',
+        fileName: file.name,
+        mimeType: file.type,
+        fileBase64,
+      }
+    }));
+  };
+
+  const appendApplicationFiles = async (files: FileList | null, bucket: 'medicalDocuments' | 'otherDocuments') => {
+    if (!files?.length) return;
+    const next = await Promise.all(Array.from(files).map(async (file, index) => ({
+      title: bucket === 'medicalDocuments' ? `Medical Document ${Date.now()}-${index + 1}` : file.name.replace(/\.[^.]+$/, '') || `Other Document ${Date.now()}-${index + 1}`,
+      fileName: file.name,
+      mimeType: file.type,
+      fileBase64: await fileToDataUrl(file),
+    })));
+    setFormData(prev => ({ ...prev, [bucket]: [...prev[bucket], ...next] }));
   };
 
   if (submitted) {
@@ -475,6 +513,59 @@ export const ApplyPage: React.FC = () => {
 
         {/* Step 5: Consent */}
         {currentStep === 4 && (
+          <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-3 gap-8">
+             <div>
+                 <h3 className="text-lg font-bold text-gray-900 mb-6">Birth Certificate</h3>
+                 <label className="block cursor-pointer rounded-xl border-2 border-dashed border-coha-300 bg-coha-50/40 p-5 text-center">
+                    <span className="block text-sm font-bold text-coha-900">Tap to upload birth certificate</span>
+                    <span className="mt-2 block text-xs text-gray-500">PDF or image</span>
+                    <input type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => handleBirthCertificateSelect(e.target.files?.[0] || null)} />
+                 </label>
+                 {formData.birthCertificate && (
+                    <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+                      <p className="text-sm font-bold text-gray-900">{formData.birthCertificate.fileName}</p>
+                    </div>
+                 )}
+             </div>
+             <div>
+                 <div className="flex items-center justify-between gap-3 mb-6">
+                    <h3 className="text-lg font-bold text-gray-900">Medical Documents</h3>
+                    <label className="text-sm font-bold text-coha-700 cursor-pointer">
+                      Add more
+                      <input type="file" multiple accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => appendApplicationFiles(e.target.files, 'medicalDocuments')} />
+                    </label>
+                 </div>
+                 <div className="space-y-3">
+                    {formData.medicalDocuments.length === 0 && <p className="text-sm text-gray-500">Optional.</p>}
+                    {formData.medicalDocuments.map((item, index) => (
+                      <div key={`${item.fileName}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3">
+                        <p className="text-sm font-bold text-gray-900">{item.fileName}</p>
+                      </div>
+                    ))}
+                 </div>
+             </div>
+             <div>
+                 <div className="flex items-center justify-between gap-3 mb-6">
+                    <h3 className="text-lg font-bold text-gray-900">Other Documents</h3>
+                    <label className="text-sm font-bold text-coha-700 cursor-pointer">
+                      Add more
+                      <input type="file" multiple accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => appendApplicationFiles(e.target.files, 'otherDocuments')} />
+                    </label>
+                 </div>
+                 <div className="space-y-3">
+                    {formData.otherDocuments.length === 0 && <p className="text-sm text-gray-500">Optional.</p>}
+                    {formData.otherDocuments.map((item, index) => (
+                      <div key={`${item.fileName}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3">
+                        <p className="text-sm font-bold text-gray-900">{item.fileName}</p>
+                      </div>
+                    ))}
+                 </div>
+             </div>
+          </div>
+        )}
+
+        {/* Step 6: Consent */}
+        {currentStep === 5 && (
           <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-8">
              <div>
                  <h3 className="text-lg font-bold text-gray-900 mb-6">Consent & Declaration</h3>

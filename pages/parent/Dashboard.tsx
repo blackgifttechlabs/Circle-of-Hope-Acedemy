@@ -172,6 +172,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
     const paid = receipts.reduce((sum, receipt) => sum + (parseFloat(receipt.amount) || 0), 0);
     return { total, paid, balance: total - paid };
   }, [settings, receipts]);
+  const paidPercent = financials.total > 0 ? Math.min(100, Math.round((financials.paid / financials.total) * 100)) : 0;
+  const balancePercent = financials.total > 0 ? Math.min(100, Math.round((Math.max(financials.balance, 0) / financials.total) * 100)) : 0;
 
   const refreshData = async () => {
     if (!user?.id) return;
@@ -317,7 +319,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
             <p className="text-[1.2rem] font-black tracking-[0.14em] uppercase truncate">COHA</p>
             <p className="text-sm font-bold text-white/85 mt-1">Parent Portal</p>
             <p className="text-xs font-semibold text-white/70 mt-1">
-              Grade {student.assignedClass || student.grade || student.level || '-'} Term {currentTerm?.termName || '-'}
+              Grade: {student.assignedClass || student.grade || student.level || '-'} | Term: {currentTerm?.termName || '-'} | Academic Year: {academicYear}
             </p>
           </div>
           <button
@@ -352,24 +354,38 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
           </div>
 
           <div className="pt-4">
-            <div className="flex items-center justify-between mb-3 px-1">
+            <div className="mb-1 px-1">
               <SectionLabel icon={<CreditCard size={14} />}>Fees Summary</SectionLabel>
-              <p className={`text-sm font-black ${financials.balance <= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {financials.balance <= 0 ? 'Up to date' : 'Balance due'}
-              </p>
             </div>
-            <div className="grid grid-cols-3 gap-3 rounded-[1.7rem] border border-slate-200 bg-white p-4 shadow-sm text-sm">
-              <div className="min-w-0">
-                <MiniLabel icon={<CreditCard size={12} />}>Total</MiniLabel>
-                <p className="font-black text-slate-900 mt-2 text-[1rem] leading-tight">{fmtMoney(financials.total)}</p>
+            <div className="rounded-[10px] border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Balance Due:</p>
+              <p className="mt-1 text-[1.55rem] font-black tracking-[-0.04em] text-red-600">{fmtMoney(financials.balance)}</p>
+
+              <div className="mt-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Total Fees</p>
+                <p className="mt-1 text-base font-black text-slate-950">{fmtMoney(financials.total)}</p>
+                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-emerald-100">
+                  <div className="h-full w-full rounded-full bg-emerald-500" />
+                </div>
+                <p className="mt-1 text-right text-[11px] font-black text-emerald-600">100%</p>
               </div>
-              <div className="min-w-0">
-                <MiniLabel icon={<CreditCard size={12} />}>Paid</MiniLabel>
-                <p className="font-black text-emerald-600 mt-2 text-[1rem] leading-tight">{fmtMoney(financials.paid)}</p>
+
+              <div className="mt-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Fees Paid:</p>
+                <p className="mt-1 text-base font-black text-amber-600">{fmtMoney(financials.paid)}</p>
+                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-amber-100">
+                  <div className="h-full rounded-full bg-amber-500" style={{ width: `${paidPercent}%` }} />
+                </div>
+                <p className="mt-1 text-right text-[11px] font-black text-amber-600">{paidPercent}%</p>
               </div>
-              <div className="min-w-0">
-                <MiniLabel icon={<CreditCard size={12} />}>Balance</MiniLabel>
-                <p className="font-black text-slate-900 mt-2 text-[1rem] leading-tight">{fmtMoney(financials.balance)}</p>
+
+              <div className="mt-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Balance</p>
+                <p className="mt-1 text-base font-black text-rose-600">{fmtMoney(financials.balance)}</p>
+                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-rose-100">
+                  <div className="h-full rounded-full bg-rose-500" style={{ width: `${balancePercent}%` }} />
+                </div>
+                <p className="mt-1 text-right text-[11px] font-black text-rose-600">{balancePercent}%</p>
               </div>
             </div>
             <div className="mt-3 flex gap-2">
@@ -444,19 +460,6 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
             </div>
           </div>
 
-          <div className="pb-1">
-            <SectionLabel icon={<User size={14} />}>Overview</SectionLabel>
-            <div className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm">
-              <DetailTable
-                rows={[
-                  { label: 'Portal Status', value: student.studentStatus.replace(/_/g, ' ') },
-                  { label: 'Class Teacher', value: teacher?.name || 'Not assigned' },
-                  { label: 'Latest Payment', value: paymentProofs[0] ? `${paymentProofs[0].status} · ${fmtDate(paymentProofs[0].submittedAt)}` : 'Waiting for upload' },
-                  { label: 'Latest Homework', value: homeworkSubmissions[0] ? `${homeworkSubmissions[0].status} · ${fmtDate(homeworkSubmissions[0].submittedAt)}` : 'Waiting for upload' },
-                ]}
-              />
-            </div>
-          </div>
         </div>
       </section>
     </div>
@@ -554,11 +557,11 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
             <input ref={otherFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => setOtherFile(e.target.files?.[0] || null)} />
           </div>
 
-          <div className="space-y-3 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             {documents.length === 0 && <p className="text-sm text-slate-500">No documents uploaded yet.</p>}
             {documents.map((item) => (
-              <div key={item.id} className="border-b border-slate-200 pb-3 last:border-b-0">
-                <div className="flex items-center justify-between gap-3">
+              <div key={item.id} className="rounded-[1.2rem] border border-slate-200 bg-white overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                     <p className="text-xs text-slate-500">{item.documentType.replace(/_/g, ' ')} · {fmtDate(item.uploadedAt)}</p>
@@ -566,6 +569,15 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                   <a href={item.fileBase64} download={item.fileName} className="inline-flex items-center gap-1 text-sm font-semibold text-coha-700">
                     <Download size={15} /> Open
                   </a>
+                </div>
+                <div className="p-4">
+                  {item.mimeType.startsWith('image/') ? (
+                    <img src={item.fileBase64} alt={item.title} className="w-full h-48 object-contain bg-slate-50 border border-slate-200 rounded-xl" />
+                  ) : (
+                    <div className="h-48 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-xl text-slate-500 font-bold">
+                      PDF document ready to open
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

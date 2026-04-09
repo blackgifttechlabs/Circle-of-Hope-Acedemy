@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getVtcApplicationById, updateVtcApplication } from '../../services/dataService';
 import { VtcApplication } from '../../types';
-import { ArrowLeft, Check, X, FileText, User, Phone, MapPin, GraduationCap, AlertCircle, Mail, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Check, X, FileText, User, Phone, MapPin, GraduationCap, AlertCircle, Mail, MessageCircle, Download } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Toast } from '../../components/ui/Toast';
 
@@ -277,6 +277,13 @@ COHA VTC Administration`;
               </h3>
               
               <div className="space-y-4">
+                <DocumentPreviewCard label="Birth Certificate" item={application.birthCertificate} />
+                {(application.medicalDocuments || []).map((item, index) => (
+                  <DocumentPreviewCard key={`medical-${index}`} label={`Medical Document ${index + 1}`} item={item} />
+                ))}
+                {(application.otherDocuments || []).map((item, index) => (
+                  <DocumentPreviewCard key={`other-${index}`} label={`Other Document ${index + 1}`} item={item} />
+                ))}
                 <DocumentLink label="ID / Birth Certificate" url={application.idDocumentUrl} />
                 <DocumentLink label="Latest Results" url={application.resultsUrl} />
                 <DocumentLink label="Passport Photo" url={application.photoUrl} />
@@ -312,6 +319,28 @@ const DocumentLink = ({ label, url }: { label: string, url?: string }) => (
       </a>
     ) : (
       <p className="text-sm text-gray-400 italic">Not provided</p>
+    )}
+  </div>
+);
+
+const DocumentPreviewCard = ({ label, item }: { label: string, item?: any | null }) => (
+  <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+    <div className="flex items-center justify-between gap-3 mb-3">
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</p>
+      {item?.fileBase64 && (
+        <a href={item.fileBase64} download={item.fileName} className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1">
+          <Download size={14} /> Open
+        </a>
+      )}
+    </div>
+    {!item ? (
+      <p className="text-sm text-gray-400 italic">Not provided</p>
+    ) : item.mimeType?.startsWith('image/') ? (
+      <img src={item.fileBase64} alt={label} className="w-full h-40 object-contain bg-gray-50 border border-gray-200 rounded-xl" />
+    ) : (
+      <div className="h-40 flex items-center justify-center bg-gray-50 border border-gray-200 rounded-xl text-gray-500 font-bold">
+        PDF document ready to open
+      </div>
     )}
   </div>
 );

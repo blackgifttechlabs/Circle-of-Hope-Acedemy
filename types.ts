@@ -379,6 +379,11 @@ export interface Application {
   // Consents
   medicalConsent: boolean;
   agreed: boolean;
+
+  // Uploaded Documents
+  birthCertificate?: ApplicationFileAttachment | null;
+  medicalDocuments?: ApplicationFileAttachment[];
+  otherDocuments?: ApplicationFileAttachment[];
   
   // Office Use
   officeReviewDate?: string;
@@ -507,6 +512,13 @@ export interface UploadedDocument {
   uploadedAt: any;
 }
 
+export interface ApplicationFileAttachment {
+  title: string;
+  fileName: string;
+  mimeType: string;
+  fileBase64: string;
+}
+
 export interface VtcApplication {
   id?: string;
   title: 'Mr' | 'Miss' | 'Mrs';
@@ -542,5 +554,8 @@ export interface VtcApplication {
   resultsUrl?: string;
   photoUrl?: string;
   proofOfPaymentUrl?: string;
+  birthCertificate?: ApplicationFileAttachment | null;
+  medicalDocuments?: ApplicationFileAttachment[];
+  otherDocuments?: ApplicationFileAttachment[];
   pin?: string;
 }

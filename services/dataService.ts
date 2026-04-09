@@ -227,6 +227,48 @@ export const approveApplicationInitial = async (app: Application): Promise<{pin:
         ...dataToSave,
         id: customId 
     });
+
+    const uploadedDocs = [
+      app.birthCertificate
+        ? [{
+            studentId: customId,
+            studentName: `${app.firstName} ${app.surname}`,
+            parentName: app.fatherName || app.motherName || 'Parent',
+            documentType: 'BIRTH_CERTIFICATE' as const,
+            title: app.birthCertificate.title || 'Birth Certificate',
+            fileName: app.birthCertificate.fileName,
+            mimeType: app.birthCertificate.mimeType,
+            fileBase64: app.birthCertificate.fileBase64,
+            uploadedAt: Timestamp.now(),
+          }]
+        : [],
+      ...(app.medicalDocuments || []).map((item) => ({
+        studentId: customId,
+        studentName: `${app.firstName} ${app.surname}`,
+        parentName: app.fatherName || app.motherName || 'Parent',
+        documentType: 'MEDICAL_DOCUMENT' as const,
+        title: item.title || 'Medical Document',
+        fileName: item.fileName,
+        mimeType: item.mimeType,
+        fileBase64: item.fileBase64,
+        uploadedAt: Timestamp.now(),
+      })),
+      ...(app.otherDocuments || []).map((item) => ({
+        studentId: customId,
+        studentName: `${app.firstName} ${app.surname}`,
+        parentName: app.fatherName || app.motherName || 'Parent',
+        documentType: 'OTHER_DOCUMENT' as const,
+        title: item.title || 'Other Document',
+        fileName: item.fileName,
+        mimeType: item.mimeType,
+        fileBase64: item.fileBase64,
+        uploadedAt: Timestamp.now(),
+      })),
+    ].flat();
+
+    for (const item of uploadedDocs) {
+      await addDoc(collection(db, STUDENT_DOCUMENTS_COLLECTION), JSON.parse(JSON.stringify(item)));
+    }
     
     return { pin, studentId: customId };
   } catch (error) {

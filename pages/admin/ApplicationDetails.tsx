@@ -5,7 +5,7 @@ import { Application, SystemSettings } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Loader } from '../../components/ui/Loader';
 import { Input } from '../../components/ui/Input';
-import { ArrowLeft, Check, X, Printer, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Check, X, Printer, AlertTriangle, Download } from 'lucide-react';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 
 export const ApplicationDetailsPage: React.FC = () => {
@@ -172,6 +172,31 @@ Circle of Hope Academy (COHA)
     </div>
   );
 
+  const DocumentCard: React.FC<{ title: string; item?: any | null }> = ({ title, item }) => (
+    <div className="border border-gray-200 rounded-2xl overflow-hidden bg-gray-50">
+      <div className="p-5 border-b border-gray-200 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-lg font-black text-gray-900">{title}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mt-1">{item?.fileName || 'Not provided'}</p>
+        </div>
+        {item?.fileBase64 && (
+          <a href={item.fileBase64} download={item.fileName} className="text-sm font-bold text-coha-700 inline-flex items-center gap-1">
+            <Download size={14} /> Open
+          </a>
+        )}
+      </div>
+      <div className="p-5">
+        {!item ? (
+          <div className="h-52 flex items-center justify-center bg-white border border-gray-200 rounded-xl text-gray-400 font-bold">Not uploaded</div>
+        ) : item.mimeType?.startsWith('image/') ? (
+          <img src={item.fileBase64} alt={title} className="w-full h-52 object-contain bg-white border border-gray-200 rounded-xl" />
+        ) : (
+          <div className="h-52 flex items-center justify-center bg-white border border-gray-200 rounded-xl text-gray-500 font-bold">PDF document ready to open</div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="-m-5 pb-20 font-sans text-black bg-gray-50 min-h-[calc(100vh-64px)]">
         <ConfirmModal 
@@ -267,6 +292,25 @@ Circle of Hope Academy (COHA)
                             <InfoRow label="Member ID" value={app.medicalAidMemberID} />
                          </>
                      )}
+                </Section>
+                <Section title="Application Documents" className="md:col-span-2">
+                    <div className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <DocumentCard title="Birth Certificate" item={app.birthCertificate} />
+                        {(app.medicalDocuments || []).length > 0 ? (
+                            (app.medicalDocuments || []).map((item, index) => (
+                                <DocumentCard key={`medical-${index}`} title={`Medical Document ${index + 1}`} item={item} />
+                            ))
+                        ) : (
+                            <DocumentCard title="Medical Documents" item={null} />
+                        )}
+                        {(app.otherDocuments || []).length > 0 ? (
+                            (app.otherDocuments || []).map((item, index) => (
+                                <DocumentCard key={`other-${index}`} title={`Other Document ${index + 1}`} item={item} />
+                            ))
+                        ) : (
+                            <DocumentCard title="Other Documents" item={null} />
+                        )}
+                    </div>
                 </Section>
                  <Section title="Declarations">
                     <InfoRow label="Medical Consent Given" value={app.medicalConsent ? 'Yes' : 'No'} />
