@@ -154,13 +154,32 @@ export const updateTeacher = async (id: string, data: Partial<Teacher>) => {
         ? uniqueNonEmpty([data.assignedClass])
         : undefined;
 
-    await updateDoc(docRef, {
+    const payload: Record<string, any> = {
       ...data,
-      assignedClass: nextAssignedClasses ? nextAssignedClasses[0] || '' : (data.assignedClass ? normalizeClassLabel(data.assignedClass) : data.assignedClass),
+      assignedClass: nextAssignedClasses
+        ? nextAssignedClasses[0] || ''
+        : (data.assignedClass ? normalizeClassLabel(data.assignedClass) : data.assignedClass),
       assignedClasses: nextAssignedClasses || data.assignedClasses,
-      activeTeachingClass: data.activeTeachingClass ? normalizeClassLabel(data.activeTeachingClass) : data.activeTeachingClass,
-      assignedStudentIds: data.assignedStudentIds ? Array.from(new Set(data.assignedStudentIds.filter(Boolean))) : data.assignedStudentIds,
-    } as any);
+      assignedStudentIds: data.assignedStudentIds
+        ? Array.from(new Set(data.assignedStudentIds.filter(Boolean)))
+        : data.assignedStudentIds,
+    };
+
+    const normalizedActiveTeachingClass = data.activeTeachingClass
+      ? normalizeClassLabel(data.activeTeachingClass)
+      : (nextAssignedClasses && nextAssignedClasses.length > 0 ? nextAssignedClasses[0] : undefined);
+
+    if (normalizedActiveTeachingClass !== undefined) {
+      payload.activeTeachingClass = normalizedActiveTeachingClass;
+    }
+
+    Object.keys(payload).forEach((key) => {
+      if (payload[key] === undefined) {
+        delete payload[key];
+      }
+    });
+
+    await updateDoc(docRef, payload as any);
     return true;
   } catch (error) {
     console.error("Error updating teacher:", error);

@@ -27,6 +27,7 @@ export const TeachersPage: React.FC = () => {
   const [studentSearch, setStudentSearch] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [loading, setLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [name, setName] = useState('');
@@ -157,7 +158,7 @@ export const TeachersPage: React.FC = () => {
     e.preventDefault();
     if (!name.trim() || !subject.trim() || assignedClasses.length === 0) return;
 
-    setLoading(true);
+    setFormLoading(true);
 
     let teacherId = editingId;
     let success = false;
@@ -168,6 +169,7 @@ export const TeachersPage: React.FC = () => {
         subject: subject.trim(),
         assignedClasses,
         assignedClass: assignedClasses[0] || '',
+        activeTeachingClass: assignedClasses[0] || '',
       });
     } else {
       teacherId = await addTeacher(name.trim(), subject.trim(), assignedClasses[0] || '', {
@@ -187,7 +189,7 @@ export const TeachersPage: React.FC = () => {
       await fetchData();
     }
 
-    setLoading(false);
+    setFormLoading(false);
   };
 
   const confirmDelete = (teacher: Teacher) => {
@@ -349,8 +351,12 @@ export const TeachersPage: React.FC = () => {
 
             <div className="md:col-span-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={handleFormClose}>Cancel</Button>
-              <Button type="submit" disabled={loading || !name.trim() || !subject.trim() || assignedClasses.length === 0}>
-                {loading ? 'Saving...' : (editingId ? 'Update Teacher' : 'Save Teacher')}
+              <Button
+                type="submit"
+                loading={formLoading}
+                disabled={formLoading || !name.trim() || !subject.trim() || assignedClasses.length === 0}
+              >
+                {editingId ? 'Update Teacher' : 'Save Teacher'}
               </Button>
             </div>
           </form>
