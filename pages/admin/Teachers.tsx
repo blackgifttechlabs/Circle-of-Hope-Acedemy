@@ -1,6 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Trash2, Edit2, BarChart2, FileText, Users, CheckSquare } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Trash2,
+  Edit2,
+  BarChart2,
+  FileText,
+  Users,
+  CheckSquare,
+  GraduationCap,
+  BookOpen,
+  Sparkles,
+  Shapes,
+  PencilRuler,
+  HeartHandshake,
+} from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { CustomSelect } from '../../components/ui/CustomSelect';
@@ -17,6 +32,15 @@ import {
 import { Student, SystemSettings, Teacher } from '../../types';
 import { getTeacherAssignedClasses } from '../../utils/teacherClassSelection';
 
+const CLASS_BUTTON_THEMES = [
+  { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', active: 'bg-blue-600 text-white border-blue-600', icon: GraduationCap },
+  { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', active: 'bg-emerald-600 text-white border-emerald-600', icon: BookOpen },
+  { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', active: 'bg-amber-500 text-white border-amber-500', icon: PencilRuler },
+  { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', active: 'bg-purple-600 text-white border-purple-600', icon: Sparkles },
+  { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', active: 'bg-rose-600 text-white border-rose-600', icon: Shapes },
+  { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200', active: 'bg-cyan-600 text-white border-cyan-600', icon: HeartHandshake },
+];
+
 export const TeachersPage: React.FC = () => {
   const navigate = useNavigate();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -24,7 +48,6 @@ export const TeachersPage: React.FC = () => {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [studentSearch, setStudentSearch] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [loading, setLoading] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
@@ -34,6 +57,7 @@ export const TeachersPage: React.FC = () => {
   const [subject, setSubject] = useState('');
   const [assignedClasses, setAssignedClasses] = useState<string[]>([]);
   const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>([]);
+  const [classSearchMap, setClassSearchMap] = useState<Record<string, string>>({});
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
@@ -106,25 +130,14 @@ export const TeachersPage: React.FC = () => {
 
   const studentClass = (student: Student) => student.assignedClass || student.grade || student.level || '';
 
-  const availableStudents = useMemo(() => {
-    return students
-      .filter((student) => {
-        const matchesClass = assignedClasses.length > 0 ? assignedClasses.includes(studentClass(student)) : true;
-        const matchesSearch = studentSearch
-          ? `${student.name} ${student.id} ${student.assignedTeacherName || ''}`.toLowerCase().includes(studentSearch.toLowerCase())
-          : true;
-        return matchesClass && matchesSearch;
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [assignedClasses, studentSearch, students]);
-
   const handleEdit = (teacher: Teacher) => {
+    const teacherClasses = getTeacherAssignedClasses(teacher);
     setName(teacher.name);
     setSubject(teacher.subject || '');
-    setAssignedClasses(getTeacherAssignedClasses(teacher));
+    setAssignedClasses(teacherClasses);
     setAssignedStudentIds(teacher.assignedStudentIds || []);
     setEditingId(teacher.id);
-    setStudentSearch('');
+    setClassSearchMap(Object.fromEntries(teacherClasses.map((className) => [className, ''])));
     setShowForm(true);
   };
 
@@ -134,16 +147,28 @@ export const TeachersPage: React.FC = () => {
     setSubject('');
     setAssignedClasses([]);
     setAssignedStudentIds([]);
-    setStudentSearch('');
+    setClassSearchMap({});
     setEditingId(null);
   };
 
   const toggleClass = (className: string) => {
-    setAssignedClasses((prev) => (
-      prev.includes(className)
+    setAssignedClasses((prev) => {
+      const nextClasses = prev.includes(className)
         ? prev.filter((item) => item !== className)
-        : [...prev, className]
-    ));
+        : [...prev, className];
+
+      setClassSearchMap((current) => {
+        const nextMap = { ...current };
+        if (!prev.includes(className)) {
+          nextMap[className] = '';
+        } else {
+          delete nextMap[className];
+        }
+        return nextMap;
+      });
+
+      return nextClasses;
+    });
   };
 
   const toggleStudent = (studentId: string) => {
@@ -217,14 +242,38 @@ export const TeachersPage: React.FC = () => {
     return matchesSearch && matchesClass;
   });
 
-  const allVisibleStudentsSelected = availableStudents.length > 0 && availableStudents.every((student) => assignedStudentIds.includes(student.id));
+  const getStudentsForClass = (className: string) => {
+    const searchValue = classSearchMap[className] || '';
+    return students
+      .filter((student) => studentClass(student) === className)
+      .filter((student) => {
+        if (!searchValue) return true;
+        return `${student.name} ${student.id} ${student.assignedTeacherName || ''}`.toLowerCase().includes(searchValue.toLowerCase());
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  const setClassSearch = (className: string, value: string) => {
+    setClassSearchMap((prev) => ({ ...prev, [className]: value }));
+  };
+
+  const toggleAllStudentsForClass = (className: string) => {
+    const visibleStudentIds = getStudentsForClass(className).map((student) => student.id);
+    const allSelected = visibleStudentIds.length > 0 && visibleStudentIds.every((id) => assignedStudentIds.includes(id));
+
+    setAssignedStudentIds((prev) => (
+      allSelected
+        ? prev.filter((id) => !visibleStudentIds.includes(id))
+        : Array.from(new Set([...prev, ...visibleStudentIds]))
+    ));
+  };
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-coha-900">Teachers</h2>
-          <p className="text-gray-600">Assign teachers to multiple classes and individual learners.</p>
+          <p className="text-gray-600">Manage teaching allocations across mainstream and special-needs programmes, with clear class and learner assignment for every educator.</p>
         </div>
         <Button onClick={() => (showForm ? handleFormClose() : setShowForm(true))}>
           <Plus size={20} /> {editingId ? 'Edit Teacher' : 'Add Teacher'}
@@ -244,7 +293,7 @@ export const TeachersPage: React.FC = () => {
         <div className="bg-white p-6 mb-8 border-t-4 border-coha-500 shadow-lg animate-fade-in space-y-6">
           <div>
             <h3 className="text-lg font-bold">{editingId ? 'Edit Teacher Details' : 'Add New Teacher'}</h3>
-            <p className="text-sm text-gray-500 mt-1">Teachers can teach several mainstream grades and special-needs levels at the same time.</p>
+            <p className="text-sm text-gray-500 mt-1">Configure each teacher's workload professionally by assigning the classes they cover and the learners they are directly responsible for.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -267,20 +316,23 @@ export const TeachersPage: React.FC = () => {
 
             <div>
               <p className="text-sm font-bold text-coha-900 mb-3">Classes This Teacher Handles</p>
-              <div className="flex flex-wrap gap-2">
-                {classOptions.map((option) => {
+              <div className="flex flex-wrap gap-3">
+                {classOptions.map((option, index) => {
                   const selected = assignedClasses.includes(option.value);
+                  const theme = CLASS_BUTTON_THEMES[index % CLASS_BUTTON_THEMES.length];
+                  const Icon = theme.icon;
                   return (
                     <button
                       key={option.value}
                       type="button"
                       onClick={() => toggleClass(option.value)}
-                      className={`px-3 py-2 text-sm font-bold border transition-colors ${
+                      className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold border transition-colors ${
                         selected
-                          ? 'bg-coha-900 text-white border-coha-900'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-coha-500'
+                          ? theme.active
+                          : `${theme.bg} ${theme.text} ${theme.border} hover:brightness-95`
                       }`}
                     >
+                      <Icon size={16} />
                       {option.label}
                     </button>
                   );
@@ -295,55 +347,80 @@ export const TeachersPage: React.FC = () => {
               <div className="p-4 border-b border-gray-200 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
                 <div>
                   <p className="text-sm font-bold text-coha-900">Assign Students</p>
-                  <p className="text-xs text-gray-500 mt-1">Only learners from the selected classes are shown below.</p>
-                </div>
-                <div className="flex gap-2 flex-col sm:flex-row">
-                  <div className="relative min-w-[220px]">
-                    <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <input
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 focus:border-coha-500 outline-none rounded-none"
-                      placeholder="Search students..."
-                      value={studentSearch}
-                      onChange={(e) => setStudentSearch(e.target.value)}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setAssignedStudentIds((prev) => (
-                        allVisibleStudentsSelected
-                          ? prev.filter((id) => !availableStudents.some((student) => student.id === id))
-                          : Array.from(new Set([...prev, ...availableStudents.map((student) => student.id)]))
-                      ));
-                    }}
-                  >
-                    <CheckSquare size={16} /> {allVisibleStudentsSelected ? 'Clear Visible' : 'Select Visible'}
-                  </Button>
+                  <p className="text-xs text-gray-500 mt-1">Each selected class opens its own learner assignment panel. Up to three class panels are shown per row.</p>
                 </div>
               </div>
 
-              <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-                {availableStudents.map((student) => {
-                  const checked = assignedStudentIds.includes(student.id);
-                  return (
-                    <label key={student.id} className={`flex items-center gap-3 px-4 py-3 cursor-pointer ${checked ? 'bg-blue-50' : 'bg-white hover:bg-gray-50'}`}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleStudent(student.id)}
-                        className="h-4 w-4"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-coha-900 truncate">{student.name}</p>
-                        <p className="text-xs text-gray-500">{student.id} · {studentClass(student)}{student.assignedTeacherName ? ` · ${student.assignedTeacherName}` : ''}</p>
-                      </div>
-                    </label>
-                  );
-                })}
-                {availableStudents.length === 0 && (
-                  <div className="px-4 py-8 text-center text-sm text-gray-500">
-                    Select one or more classes to load students.
+              <div className="p-4 bg-gray-50/70">
+                {assignedClasses.length > 0 ? (
+                  <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                    {assignedClasses.map((className, index) => {
+                      const classStudents = getStudentsForClass(className);
+                      const allListedStudentsSelected = classStudents.length > 0 && classStudents.every((student) => assignedStudentIds.includes(student.id));
+                      const theme = CLASS_BUTTON_THEMES[index % CLASS_BUTTON_THEMES.length];
+                      const Icon = theme.icon;
+
+                      return (
+                        <div key={className} className="border border-gray-200 bg-white shadow-sm min-w-0">
+                          <div className={`px-4 py-3 border-b ${theme.border} ${theme.bg}`}>
+                            <div className="flex items-center gap-2">
+                              <Icon size={16} className={theme.text} />
+                              <p className={`font-bold ${theme.text}`}>{className}</p>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">{classStudents.length} listed student{classStudents.length !== 1 ? 's' : ''}</p>
+                          </div>
+
+                          <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-2">
+                            <div className="relative flex-1">
+                              <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                              <input
+                                className="w-full h-11 pl-10 pr-4 border border-gray-300 focus:border-coha-500 outline-none"
+                                placeholder={`Search ${className} students...`}
+                                value={classSearchMap[className] || ''}
+                                onChange={(e) => setClassSearch(className, e.target.value)}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleAllStudentsForClass(className)}
+                              className="h-11 px-4 border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:border-coha-500 inline-flex items-center justify-center gap-2 whitespace-nowrap"
+                            >
+                              <CheckSquare size={16} />
+                              {allListedStudentsSelected ? 'Clear Listed Students' : 'Select All Listed Students'}
+                            </button>
+                          </div>
+
+                          <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                            {classStudents.map((student) => {
+                              const checked = assignedStudentIds.includes(student.id);
+                              return (
+                                <label key={student.id} className={`flex items-center gap-3 px-4 py-3 cursor-pointer ${checked ? 'bg-blue-50' : 'bg-white hover:bg-gray-50'}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleStudent(student.id)}
+                                    className="h-4 w-4"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-coha-900 truncate">{student.name}</p>
+                                    <p className="text-xs text-gray-500">{student.id}{student.assignedTeacherName ? ` · ${student.assignedTeacherName}` : ''}</p>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                            {classStudents.length === 0 && (
+                              <div className="px-4 py-8 text-center text-sm text-gray-500">
+                                No students found for this class.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="px-4 py-8 text-center text-sm text-gray-500 bg-white border border-dashed border-gray-300">
+                    Select one or more classes to open learner assignment panels.
                   </div>
                 )}
               </div>
@@ -405,12 +482,12 @@ export const TeachersPage: React.FC = () => {
           <table className="w-full text-left">
             <thead className="bg-gray-50 text-gray-600 uppercase text-xs font-bold">
               <tr>
-                <th className="px-6 py-4">Name</th>
-                <th className="px-6 py-4">Subject</th>
-                <th className="px-6 py-4">Assigned Classes</th>
-                <th className="px-6 py-4">Students</th>
-                <th className="px-6 py-4">PIN</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-6 py-4 bg-white">Name</th>
+                <th className="px-6 py-4 bg-gray-50">Subject</th>
+                <th className="px-6 py-4 bg-white">Assigned Classes</th>
+                <th className="px-6 py-4 bg-gray-50">Students</th>
+                <th className="px-6 py-4 bg-white">PIN</th>
+                <th className="px-6 py-4 text-right bg-gray-50">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -418,9 +495,9 @@ export const TeachersPage: React.FC = () => {
                 const teacherClasses = getTeacherAssignedClasses(teacher);
                 return (
                   <tr key={teacher.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-bold text-coha-900">{teacher.name}</td>
-                    <td className="px-6 py-4">{teacher.subject}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 font-bold text-coha-900 bg-white">{teacher.name}</td>
+                    <td className="px-6 py-4 bg-gray-50">{teacher.subject}</td>
+                    <td className="px-6 py-4 bg-white">
                       {teacherClasses.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {teacherClasses.map((className) => (
@@ -433,16 +510,16 @@ export const TeachersPage: React.FC = () => {
                         <span className="text-gray-400 italic">Unassigned</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 bg-gray-50">
                       <div className="inline-flex items-center gap-2 text-sm font-bold text-gray-700">
                         <Users size={14} className="text-gray-400" />
                         {teacher.assignedStudentIds?.length || 0}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 bg-white">
                       <span className="font-mono font-black text-coha-900 tracking-[0.2em]">{teacher.pin}</span>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right bg-gray-50">
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => navigate(`/admin/teachers/${teacher.id}/progress`)}
