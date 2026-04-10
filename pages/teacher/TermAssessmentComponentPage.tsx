@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getStudentsByAssignedClass, getSystemSettings, saveAssessmentRecord, getAssessmentRecord, getTeacherById } from '../../services/dataService';
 import { Student, SystemSettings, PRE_PRIMARY_AREAS, TermAssessmentRecord, AssessmentRating } from '../../types';
 import { Loader } from '../../components/ui/Loader';
@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { ArrowLeft, CheckCircle, ChevronRight } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
 import { getAssessmentRecordKey } from '../../utils/assessmentWorkflow';
+import { getSelectedTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
 
 const TAB_COLORS = [
   { active: 'border-blue-600 text-blue-800 bg-white', inactive: 'text-gray-500 hover:text-blue-600 hover:bg-blue-50', headerBg: 'bg-blue-50', headerText: 'text-blue-900', border: 'border-blue-200' },
@@ -19,6 +20,8 @@ const TAB_COLORS = [
 
 export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const className = getSelectedTeachingClass(user, location.search);
   const [students, setStudents] = useState<Student[]>([]);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,8 +58,8 @@ export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) =
 
   useEffect(() => {
     const fetchData = async () => {
-      if (user?.assignedClass) {
-        const classStudents = await getStudentsByAssignedClass(user.assignedClass);
+      if (className) {
+        const classStudents = await getStudentsByAssignedClass(className);
         const enrolledStudents = classStudents.filter(st => st.studentStatus === 'ENROLLED');
         setStudents(enrolledStudents);
         
@@ -83,12 +86,12 @@ export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) =
       setLoading(false);
     };
     fetchData();
-  }, [user]);
+  }, [className, user]);
 
   const handleTermChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const termId = e.target.value;
     setSelectedTerm(termId);
-    if (user?.assignedClass) {
+    if (className) {
       setLoading(true);
       await loadRecords(termId, students);
       setLoading(false);
@@ -123,7 +126,7 @@ export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) =
     <div className="font-sans text-black w-full px-4 sm:px-6 lg:px-8 pb-20">
       <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({show:false, msg:''})} variant="success" />
       
-      <button onClick={() => navigate('/teacher/classes')} className="mb-6 p-2 hover:bg-gray-100 transition-all flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest border border-gray-200 w-fit">
+      <button onClick={() => navigate(withTeachingClass('/teacher/classes', className))} className="mb-6 p-2 hover:bg-gray-100 transition-all flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest border border-gray-200 w-fit">
           <ArrowLeft size={16} /> Back to Class List
       </button>
 

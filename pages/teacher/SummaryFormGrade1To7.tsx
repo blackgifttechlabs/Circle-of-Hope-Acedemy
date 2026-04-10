@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { getCustomTopicEntries, getStudentsByAssignedClass, getTopicAssessments, getSystemSettings, getTeacherById, getTopicOverrides } from '../../services/dataService';
 import { Student, TopicAssessmentRecord, SystemSettings } from '../../types';
@@ -12,6 +12,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Loader } from '../../components/ui/Loader';
 import { ActionMenu } from '../../components/ui/ActionMenu';
+import { getSelectedTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
 
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
 
@@ -52,6 +53,8 @@ const getSymbolColorClass = (symbol: string) => {
 
 export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedClass = getSelectedTeachingClass(user, location.search);
   const [students, setStudents] = useState<Student[]>([]);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [selectedTerm, setSelectedTerm] = useState<string>('');
@@ -61,15 +64,15 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   const [assessments, setAssessments] = useState<Record<string, TopicAssessmentRecord[]>>({});
   const [subjectTopicCounts, setSubjectTopicCounts] = useState<Record<string, number>>({});
 
-  const promotionalSubjects = getPromotionalSubjects(user?.assignedClass || '');
-  const nonPromotionalSubjects = getNonPromotionalSubjects(user?.assignedClass || '');
+  const promotionalSubjects = getPromotionalSubjects(selectedClass || '');
+  const nonPromotionalSubjects = getNonPromotionalSubjects(selectedClass || '');
   const allSubjects = [...promotionalSubjects, ...nonPromotionalSubjects];
 
   useEffect(() => {
     const fetchData = async () => {
-      if (user?.assignedClass) {
+      if (selectedClass) {
         const [studentsData, settingsData] = await Promise.all([
-          getStudentsByAssignedClass(user.assignedClass),
+          getStudentsByAssignedClass(selectedClass),
           getSystemSettings()
         ]);
         
@@ -90,13 +93,13 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
           if (!validTermIds.includes(termId)) termId = 'term-1';
           
           setSelectedTerm(termId);
-          await loadAssessments(termId, user.assignedClass);
+          await loadAssessments(termId, selectedClass);
         }
       }
       setLoading(false);
     };
     fetchData();
-  }, [user]);
+  }, [selectedClass, user]);
 
   const fetchAssessmentSnapshot = async (termId: string, grade: string) => {
     const newAssessments: Record<string, TopicAssessmentRecord[]> = {};
@@ -110,7 +113,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
         ]);
         newAssessments[subject] = records;
 
-        const baseTopics = getTopicsForSubjectAndGrade(subject, user?.assignedClass || '');
+        const baseTopics = getTopicsForSubjectAndGrade(subject, selectedClass || '');
         const adjustedTopics = baseTopics.reduce<string[]>((acc, topic) => {
           const override = overrides.find((item) => item.originalTopic === topic);
           if (override?.deleted) return acc;
@@ -140,9 +143,9 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
   const handleTermChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const termId = e.target.value;
     setSelectedTerm(termId);
-    if (user?.assignedClass) {
+    if (selectedClass) {
       setLoading(true);
-      await loadAssessments(termId, user.assignedClass);
+      await loadAssessments(termId, selectedClass);
       setLoading(false);
     }
   };
@@ -262,7 +265,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
       const termName = settings?.schoolCalendars?.find(t => t.id === termId)?.termName || 'Term 1';
       const snapshot = termId === selectedTerm
         ? { newAssessments: assessments, newTopicCounts: subjectTopicCounts }
-        : await fetchAssessmentSnapshot(termId, user.assignedClass);
+        : await fetchAssessmentSnapshot(termId, selectedClass);
 
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.4);
@@ -275,7 +278,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.text(`Teacher: ${user?.name || ''}`, marginL, 40);
-      doc.text(`Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`, marginL, 45);
+      doc.text(`Grade: ${getGradeDisplayValue(selectedClass || '') || ''}`, marginL, 45);
 
       const noW = 7;
       const nameW = 45;
@@ -427,8 +430,8 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
       window.open(doc.output('bloburl'), '_blank');
     } else {
       doc.save(termIds.length === 1
-        ? `Summary_Sheet_${user?.assignedClass}_${settings?.schoolCalendars?.find(t => t.id === termIds[0])?.termName || 'Term_1'}.pdf`
-        : `Summary_Sheet_${user?.assignedClass}_All_Terms.pdf`);
+        ? `Summary_Sheet_${selectedClass}_${settings?.schoolCalendars?.find(t => t.id === termIds[0])?.termName || 'Term_1'}.pdf`
+        : `Summary_Sheet_${selectedClass}_All_Terms.pdf`);
     }
   };
 
@@ -438,7 +441,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
       const termName = settings?.schoolCalendars?.find(t => t.id === termId)?.termName || 'Term 1';
       const snapshot = termId === selectedTerm
         ? { newAssessments: assessments, newTopicCounts: subjectTopicCounts }
-        : await fetchAssessmentSnapshot(termId, user.assignedClass);
+        : await fetchAssessmentSnapshot(termId, selectedClass);
       const sheet = workbook.addWorksheet(termName, {
         pageSetup: { orientation: 'landscape', fitToPage: true }
       });
@@ -450,7 +453,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
       sheet.mergeCells('A3:C3');
       sheet.getCell('A3').value = `Teacher: ${user?.name || ''}`;
       sheet.mergeCells('A4:C4');
-      sheet.getCell('A4').value = `Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`;
+      sheet.getCell('A4').value = `Grade: ${getGradeDisplayValue(selectedClass || '') || ''}`;
 
       const headerRow1 = sheet.getRow(6);
       const headerRow2 = sheet.getRow(7);
@@ -508,8 +511,8 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, termIds.length === 1
-      ? `Summary_Sheet_${user?.assignedClass}_${settings?.schoolCalendars?.find(t => t.id === termIds[0])?.termName || 'Term_1'}.xlsx`
-      : `Summary_Sheet_${user?.assignedClass}_All_Terms.xlsx`);
+      ? `Summary_Sheet_${selectedClass}_${settings?.schoolCalendars?.find(t => t.id === termIds[0])?.termName || 'Term_1'}.xlsx`
+      : `Summary_Sheet_${selectedClass}_All_Terms.xlsx`);
   };
 
   if (loading) return <Loader />;
@@ -521,7 +524,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <button 
-            onClick={() => navigate('/teacher/classes')}
+            onClick={() => navigate(withTeachingClass('/teacher/classes', selectedClass))}
             className="flex items-center text-gray-500 hover:text-blue-900 transition-colors mb-2 text-sm font-bold uppercase tracking-widest"
           >
             <ArrowLeft size={16} className="mr-2" /> Back to My Class

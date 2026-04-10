@@ -1,15 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
-import { getStudents, getSystemSettings, getStudentsByStatus, calculateFinalStage } from '../../services/dataService';
-import { Student, SystemSettings, Division } from '../../types';
-import { Plus, Search, Eye, Download, CheckSquare, Activity, Filter, Key } from 'lucide-react';
+import {
+  calculateFinalStage,
+  getStudents,
+  getStudentsByStatus,
+  getSystemSettings,
+  getTeachers,
+  transferStudentToTeacherAndClass,
+} from '../../services/dataService';
+import { Student, SystemSettings, Division, Teacher } from '../../types';
+import { Search, Eye, Download, Filter, Key, Repeat } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
 import { printStudentList } from '../../utils/printStudentList';
+import { getTeacherAssignedClasses } from '../../utils/teacherClassSelection';
 
 export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
   const [viewMode, setViewMode] = useState<'ENROLLED' | 'ASSESSMENT'>('ENROLLED');
   const [students, setStudents] = useState<Student[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -20,6 +29,9 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
   const [gradeFilter, setGradeFilter] = useState('ALL');
   const [levelFilter, setLevelFilter] = useState('ALL');
   const [stageFilter, setStageFilter] = useState('ALL');
+  const [transferStudent, setTransferStudent] = useState<Student | null>(null);
+  const [transferClass, setTransferClass] = useState('');
+  const [transferTeacherId, setTransferTeacherId] = useState('');
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -30,9 +42,13 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
     } else {
          data = await getStudentsByStatus('ASSESSMENT');
     }
+    const [settingsData, teachersData] = await Promise.all([
+      getSystemSettings(),
+      getTeachers(),
+    ]);
     setStudents(data);
-    const settingsData = await getSystemSettings();
     setSettings(settingsData);
+    setTeachers(teachersData);
     setLoading(false);
   };
 
@@ -146,6 +162,34 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
     return matchesSearch && matchesDivision && matchesGrade && matchesLevel && matchesStage;
   });
 
+  const classOptions = settings ? [...settings.grades, ...settings.specialNeedsLevels] : [];
+  const teacherOptions = teachers.filter((teacher) => (
+    transferClass ? getTeacherAssignedClasses(teacher).includes(transferClass) : true
+  ));
+
+  const openTransferModal = (student: Student) => {
+    setTransferStudent(student);
+    setTransferClass(student.assignedClass || student.grade || student.level || '');
+    setTransferTeacherId(student.assignedTeacherId || '');
+  };
+
+  const handleTransfer = async () => {
+    if (!transferStudent || !transferClass || !transferTeacherId) return;
+    setLoading(true);
+    const success = await transferStudentToTeacherAndClass(transferStudent.id, transferClass, transferTeacherId);
+    setLoading(false);
+
+    if (success) {
+      setToast({ show: true, msg: `${transferStudent.name} was moved to ${transferClass}.` });
+      setTransferStudent(null);
+      setTransferClass('');
+      setTransferTeacherId('');
+      fetchStudents();
+    } else {
+      setToast({ show: true, msg: 'Could not transfer student.' });
+    }
+  };
+
   return (
     <div>
       <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({show:false, msg:''})} variant="success" />
@@ -245,6 +289,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                 {user?.adminRole !== 'sub_admin' && <th className="px-6 py-4">Login PIN</th>}
                 <th className="px-6 py-4">Division</th>
                 <th className="px-6 py-4">Current Grade</th>
+                {user?.adminRole !== 'sub_admin' && <th className="px-6 py-4">Teacher</th>}
                 {user?.adminRole !== 'sub_admin' && <th className="px-6 py-4">Actions</th>}
               </tr>
             </thead>
@@ -281,8 +326,13 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                       {student.assignedClass || student.grade || student.level}
                   </td>
                   {user?.adminRole !== 'sub_admin' && (
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {student.assignedTeacherName || <span className="text-gray-400 italic">Unassigned</span>}
+                    </td>
+                  )}
+                  {user?.adminRole !== 'sub_admin' && (
                     <td className="px-6 py-4">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                           {viewMode === 'ASSESSMENT' ? (
                               <>
                                   <button onClick={() => navigate(`/admin/assessment/${student.id}`)} className="p-2 border border-gray-200 hover:bg-coha-900 hover:text-white transition-all">
@@ -293,12 +343,20 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                                   </Button>
                               </>
                           ) : (
-                              <button 
-                                onClick={() => navigate(`/admin/students/${student.id}`)}
-                                className="text-coha-500 hover:underline font-bold text-sm flex items-center gap-1"
-                              >
-                                <Eye size={16} /> Profile
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => navigate(`/admin/students/${student.id}`)}
+                                  className="text-coha-500 hover:underline font-bold text-sm flex items-center gap-1"
+                                >
+                                  <Eye size={16} /> Profile
+                                </button>
+                                <button
+                                  onClick={() => openTransferModal(student)}
+                                  className="text-orange-600 hover:underline font-bold text-sm flex items-center gap-1"
+                                >
+                                  <Repeat size={16} /> Transfer
+                                </button>
+                              </>
                           )}
                       </div>
                     </td>
@@ -307,13 +365,76 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
               ))}
                {filteredStudents.length === 0 && (
                 <tr>
-                  <td colSpan={user?.adminRole === 'sub_admin' ? 4 : 6} className="px-6 py-8 text-center text-gray-500 italic">No student records found matching filters.</td>
+                  <td colSpan={user?.adminRole === 'sub_admin' ? 4 : 7} className="px-6 py-8 text-center text-gray-500 italic">No student records found matching filters.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {transferStudent && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-xl shadow-xl">
+            <div className="p-5 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-coha-900">Transfer Student</h3>
+              <p className="text-sm text-gray-500 mt-1">{transferStudent.name} can be moved to a new class and teacher here.</p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Target Class</label>
+                <select
+                  value={transferClass}
+                  onChange={(e) => {
+                    setTransferClass(e.target.value);
+                    setTransferTeacherId('');
+                  }}
+                  className="w-full p-3 border border-gray-300 bg-white outline-none"
+                >
+                  <option value="">Select class</option>
+                  {classOptions.map((className) => (
+                    <option key={className} value={className}>{className}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Assign Teacher</label>
+                <select
+                  value={transferTeacherId}
+                  onChange={(e) => setTransferTeacherId(e.target.value)}
+                  className="w-full p-3 border border-gray-300 bg-white outline-none"
+                >
+                  <option value="">Select teacher</option>
+                  {teacherOptions.map((teacher) => (
+                    <option key={teacher.id} value={teacher.id}>
+                      {teacher.name} · {getTeacherAssignedClasses(teacher).join(', ')}
+                    </option>
+                  ))}
+                </select>
+                {transferClass && teacherOptions.length === 0 && (
+                  <p className="text-xs text-red-500 mt-2">No teacher is currently assigned to {transferClass}.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-gray-200 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setTransferStudent(null)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleTransfer}
+                disabled={loading || !transferClass || !transferTeacherId}
+                className="!bg-orange-500 hover:!bg-orange-600"
+              >
+                {loading ? 'Saving...' : 'Transfer Student'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

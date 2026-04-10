@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { getStudentsByAssignedClass, getTopicAssessments } from '../../../services/dataService';
 import { Student, TopicAssessmentRecord } from '../../../types';
@@ -7,6 +7,7 @@ import { getTopicsForSubjectAndGrade } from '../../../utils/assessmentTopics';
 import { getGradeDisplayValue } from '../../../utils/assessmentWorkflow';
 import { getTopicHeaderHeight, getTopicHeaderLines, getTopicLabelParts } from '../../../utils/topicLabelFormat';
 import { navigateBackOr } from '../../../utils/navigation';
+import { getSelectedTeachingClass, withTeachingClass } from '../../../utils/teacherClassSelection';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
@@ -45,31 +46,33 @@ const MAX_TOPIC_CHARS = 22;
 export default function TermReview({ user }: { user: any }) {
   const { subject, term } = useParams<{ subject: string, term: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const className = getSelectedTeachingClass(user, location.search);
   const [students, setStudents] = useState<Student[]>([]);
   const [assessments, setAssessments] = useState<TopicAssessmentRecord[]>([]);
 
   const sheetRef = useRef<HTMLDivElement>(null);
 
-  let topics = getTopicsForSubjectAndGrade(subject || '', user?.assignedClass || '');
+  let topics = getTopicsForSubjectAndGrade(subject || '', className || '');
   if (topics.length === 0) {
     const uniqueTopics = new Set(assessments.map(a => a.topic));
     topics = Array.from(uniqueTopics);
   }
 
   useEffect(() => {
-    if (user?.assignedClass && subject && term) {
+    if (className && subject && term) {
       const termId = term.toLowerCase().replace(' ', '-');
       
       Promise.all([
-        getStudentsByAssignedClass(user.assignedClass),
-        getTopicAssessments(user.assignedClass, termId, subject)
+        getStudentsByAssignedClass(className),
+        getTopicAssessments(className, termId, subject)
       ]).then(([studentsData, assessmentsData]) => {
         const sorted = studentsData.sort((a: Student, b: Student) => a.name.localeCompare(b.name));
         setStudents(sorted);
         setAssessments(assessmentsData);
       });
     }
-  }, [user, subject, term]);
+  }, [className, subject, term]);
 
   const getStudentMark = (studentId: string, topic: string) => {
     const record = assessments.find(a => a.studentId === studentId && a.topic === topic);
@@ -136,7 +139,7 @@ export default function TermReview({ user }: { user: any }) {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.text(`Teacher: ${user?.name || ''}`, marginL, 40);
-    doc.text(`Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`, marginL, 45);
+    doc.text(`Grade: ${getGradeDisplayValue(className || '') || ''}`, marginL, 45);
     doc.text(`Subject: ${subject}`, marginL, 50);
     doc.text(`Term: ${term}`, marginL, 55);
 
@@ -404,7 +407,7 @@ export default function TermReview({ user }: { user: any }) {
 
     const infoRows: [string, string][] = [
       ['A9:D9', `Teacher: ${user?.name || ''}`],
-      ['A10:D10', `Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`],
+      ['A10:D10', `Grade: ${getGradeDisplayValue(className || '') || ''}`],
       ['A11:D11', `Subject: ${subject}`],
       ['A12:D12', `Term: ${term}`],
     ];
@@ -604,7 +607,7 @@ export default function TermReview({ user }: { user: any }) {
       <div className="mb-6 flex justify-between items-center print:hidden">
         <div>
           <button 
-            onClick={() => navigateBackOr(navigate as any, `/teacher/assess/${encodeURIComponent(subject || '')}`)}
+            onClick={() => navigateBackOr(navigate as any, withTeachingClass(`/teacher/assess/${encodeURIComponent(subject || '')}`, className))}
             className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
           >
             <ArrowLeft size={20} className="text-slate-600" />
@@ -639,7 +642,7 @@ export default function TermReview({ user }: { user: any }) {
       {topics.length === 0 ? (
         <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl print:hidden">
           <h2 className="text-xl font-bold text-slate-700 mb-2">Topics Coming Soon</h2>
-          <p className="text-slate-500">Topics for {subject} in {user?.assignedClass} are not yet available. They will be added in the future.</p>
+          <p className="text-slate-500">Topics for {subject} in {className} are not yet available. They will be added in the future.</p>
         </div>
       ) : (
         (() => {
@@ -663,7 +666,7 @@ export default function TermReview({ user }: { user: any }) {
             <h2 className="text-lg font-bold text-center mb-2">END OF TERM SUMMARY</h2>
             <div className="text-sm">
               <p><strong>Teacher:</strong> {user?.name || ''}</p>
-              <p><strong>Grade:</strong> {getGradeDisplayValue(user?.assignedClass || '') || ''}</p>
+              <p><strong>Grade:</strong> {getGradeDisplayValue(className || '') || ''}</p>
               <p><strong>Subject:</strong> {subject}</p>
               <p><strong>Term:</strong> {term}</p>
             </div>

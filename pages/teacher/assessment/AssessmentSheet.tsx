@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { getCustomTopicEntries, getStudentsByAssignedClass, getTopicAssessments, getTopicOverrides } from '../../../services/dataService';
 import { CustomTopicEntry, Student, TopicAssessmentRecord, TopicOverride } from '../../../types';
@@ -17,6 +17,7 @@ import {
 } from '../../../utils/assessmentWorkflow';
 import { getTopicHeaderHeight, getTopicHeaderLines, getTopicLabelParts } from '../../../utils/topicLabelFormat';
 import { navigateBackOr } from '../../../utils/navigation';
+import { getSelectedTeachingClass, withTeachingClass } from '../../../utils/teacherClassSelection';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
@@ -84,6 +85,7 @@ export default function AssessmentSheet({
 }) {
   const { subject } = useParams<{ subject: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [students, setStudents] = useState<Student[]>([]);
   const [assessmentsT1, setAssessmentsT1] = useState<TopicAssessmentRecord[]>([]);
   const [assessmentsT2, setAssessmentsT2] = useState<TopicAssessmentRecord[]>([]);
@@ -95,9 +97,10 @@ export default function AssessmentSheet({
   const [overridesT2, setOverridesT2] = useState<TopicOverride[]>([]);
   const [overridesT3, setOverridesT3] = useState<TopicOverride[]>([]);
   const [loading, setLoading] = useState(true);
-  const className = user?.assignedClass || '';
+  const className = getSelectedTeachingClass(user, location.search);
   const standardWorkflow = isGrade1To7Class(className);
   const subjectLabel = getSubjectLabel(subject || '', className);
+  const resolvedBackPath = withTeachingClass(backPath, className);
 
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -141,19 +144,19 @@ export default function AssessmentSheet({
 
   // ── Data fetching ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (user?.assignedClass && subject) {
+    if (className && subject) {
       setLoading(true);
       Promise.all([
-        getStudentsByAssignedClass(user.assignedClass),
-        getTopicAssessments(user.assignedClass, 'term-1', subject),
-        getTopicAssessments(user.assignedClass, 'term-2', subject),
-        getTopicAssessments(user.assignedClass, 'term-3', subject),
-        getCustomTopicEntries(user.assignedClass, 'term-1', subject),
-        getCustomTopicEntries(user.assignedClass, 'term-2', subject),
-        getCustomTopicEntries(user.assignedClass, 'term-3', subject),
-        getTopicOverrides(user.assignedClass, 'term-1', subject),
-        getTopicOverrides(user.assignedClass, 'term-2', subject),
-        getTopicOverrides(user.assignedClass, 'term-3', subject),
+        getStudentsByAssignedClass(className),
+        getTopicAssessments(className, 'term-1', subject),
+        getTopicAssessments(className, 'term-2', subject),
+        getTopicAssessments(className, 'term-3', subject),
+        getCustomTopicEntries(className, 'term-1', subject),
+        getCustomTopicEntries(className, 'term-2', subject),
+        getCustomTopicEntries(className, 'term-3', subject),
+        getTopicOverrides(className, 'term-1', subject),
+        getTopicOverrides(className, 'term-2', subject),
+        getTopicOverrides(className, 'term-3', subject),
       ])
         .then(([studentsData, t1, t2, t3, custom1, custom2, custom3, overrides1, overrides2, overrides3]) => {
           const sorted = [...studentsData].sort((a: Student, b: Student) =>
@@ -176,7 +179,7 @@ export default function AssessmentSheet({
           setLoading(false);
         });
     }
-  }, [user, subject]);
+  }, [className, subject]);
 
   // ── Mark helpers ─────────────────────────────────────────────────────────
   const getStudentMark = (
@@ -803,7 +806,7 @@ export default function AssessmentSheet({
       <div className="mb-6 flex justify-between items-center print:hidden">
         <div>
           <button
-            onClick={() => navigateBackOr(navigate as any, backPath)}
+            onClick={() => navigateBackOr(navigate as any, resolvedBackPath)}
             className="mb-3 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
           >
             <ArrowLeft size={20} className="text-slate-600" />

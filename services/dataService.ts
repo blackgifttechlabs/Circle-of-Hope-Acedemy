@@ -33,12 +33,61 @@ const calculateAge = (dobString: string): number => {
   return age;
 };
 
+const normalizeSpecialNeedsLabel = (value?: string): string => {
+  const trimmed = value?.trim() || '';
+  if (!trimmed) return '';
+  if (trimmed === 'Level 1A' || trimmed === 'Level 1B') return 'Level 1';
+  if (trimmed.startsWith('Level 1A - Stage')) return trimmed.replace('Level 1A', 'Level 1');
+  if (trimmed.startsWith('Level 1B - Stage')) return trimmed.replace('Level 1B', 'Level 1');
+  return trimmed;
+};
+
+const normalizeClassLabel = (value?: string): string => normalizeSpecialNeedsLabel(value);
+
+const uniqueNonEmpty = (values: Array<string | undefined | null>) => (
+  Array.from(new Set(values.map((value) => normalizeClassLabel(value || '')).filter(Boolean)))
+);
+
+const normalizeTeacherRecord = (teacher: Teacher): Teacher => {
+  const assignedClasses = uniqueNonEmpty([...(teacher.assignedClasses || []), teacher.assignedClass]);
+  return {
+    ...teacher,
+    assignedClasses,
+    assignedClass: assignedClasses[0] || '',
+    assignedStudentIds: Array.from(new Set((teacher.assignedStudentIds || []).filter(Boolean))),
+    activeTeachingClass: normalizeClassLabel(teacher.activeTeachingClass) || teacher.activeTeachingClass || assignedClasses[0] || '',
+  };
+};
+
+const normalizeStudentRecord = (student: Student): Student => ({
+  ...student,
+  level: normalizeClassLabel(student.level) || student.level,
+  assignedClass: normalizeClassLabel(student.assignedClass) || student.assignedClass,
+});
+
+const normalizeSpecialNeedsLevels = (levels?: string[]): string[] => {
+  const normalized = uniqueNonEmpty(levels || []);
+  return normalized.length ? normalized : ['Level 1', 'Level 2', 'Level 3'];
+};
+
+const parseStudentTargetClass = (targetClass: string) => {
+  const normalizedClass = normalizeClassLabel(targetClass);
+  const isSpecialNeeds = normalizedClass.startsWith('Level ');
+  return {
+    normalizedClass,
+    division: isSpecialNeeds ? Division.SPECIAL_NEEDS : Division.MAINSTREAM,
+    grade: isSpecialNeeds ? '' : normalizedClass,
+    level: isSpecialNeeds ? normalizedClass : '',
+  };
+};
+
+const getStudentDisplayClass = (student: Student) => normalizeClassLabel(student.assignedClass || student.grade || student.level || '');
+
 export const determineSpecialNeedsLevel = (dob: string): string => {
   const age = calculateAge(dob);
   if (age >= 11) return 'Level 3'; 
   if (age >= 9) return 'Level 2';  
-  if (age >= 7) return 'Level 1B'; 
-  return 'Level 1A'; 
+  return 'Level 1'; 
 };
 
 export const seedAdminUser = async () => {
@@ -53,7 +102,7 @@ export const seedAdminUser = async () => {
         termStartDate: '2026-01-14',
         termStartTime: '07:30',
         grades: ['Grade 0', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'],
-        specialNeedsLevels: ['Level 1A', 'Level 1B', 'Level 2', 'Level 3'],
+        specialNeedsLevels: ['Level 1', 'Level 2', 'Level 3'],
         fees: [
           { id: '1', category: 'Tuition (Special Classes)', amount: '2300', frequency: 'Monthly', notes: 'Due by 5th' },
           { id: '2', category: 'Tuition (Termly)', amount: '7100', frequency: 'Termly', notes: 'Discounted rate' },
@@ -70,27 +119,48 @@ export const seedAdminUser = async () => {
   }
 };
 
-export const addTeacher = async (name: string, subject: string, assignedClass: string) => {
+export const addTeacher = async (
+  name: string,
+  subject: string,
+  assignedClass: string,
+  extras?: Partial<Teacher>
+) => {
   try {
-    await addDoc(collection(db, TEACHERS_COLLECTION), {
+    const normalizedClasses = uniqueNonEmpty([assignedClass, ...(extras?.assignedClasses || [])]);
+    const docRef = await addDoc(collection(db, TEACHERS_COLLECTION), {
       name,
       subject,
-      assignedClass,
+      assignedClass: normalizedClasses[0] || '',
+      assignedClasses: normalizedClasses,
+      assignedStudentIds: extras?.assignedStudentIds || [],
       role: UserRole.TEACHER,
       pin: '1234',
+      activeTeachingClass: extras?.activeTeachingClass || normalizedClasses[0] || '',
       createdAt: new Date()
     });
-    return true;
+    return docRef.id;
   } catch (error) {
     console.error("Error adding teacher: ", error);
-    return false;
+    return null;
   }
 };
 
 export const updateTeacher = async (id: string, data: Partial<Teacher>) => {
   try {
     const docRef = doc(db, TEACHERS_COLLECTION, id);
-    await updateDoc(docRef, data as any);
+    const nextAssignedClasses = data.assignedClasses
+      ? uniqueNonEmpty(data.assignedClasses)
+      : data.assignedClass
+        ? uniqueNonEmpty([data.assignedClass])
+        : undefined;
+
+    await updateDoc(docRef, {
+      ...data,
+      assignedClass: nextAssignedClasses ? nextAssignedClasses[0] || '' : (data.assignedClass ? normalizeClassLabel(data.assignedClass) : data.assignedClass),
+      assignedClasses: nextAssignedClasses || data.assignedClasses,
+      activeTeachingClass: data.activeTeachingClass ? normalizeClassLabel(data.activeTeachingClass) : data.activeTeachingClass,
+      assignedStudentIds: data.assignedStudentIds ? Array.from(new Set(data.assignedStudentIds.filter(Boolean))) : data.assignedStudentIds,
+    } as any);
     return true;
   } catch (error) {
     console.error("Error updating teacher:", error);
@@ -150,24 +220,23 @@ export const deleteTeacher = async (id: string) => {
 export const getTeachers = async (): Promise<Teacher[]> => {
   const q = query(collection(db, TEACHERS_COLLECTION));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Teacher));
+  return querySnapshot.docs.map(doc => normalizeTeacherRecord({ id: doc.id, ...doc.data() } as Teacher));
 };
 
 export const getTeacherById = async (id: string): Promise<Teacher | null> => {
   const docRef = doc(db, TEACHERS_COLLECTION, id);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as Teacher;
+    return normalizeTeacherRecord({ id: docSnap.id, ...docSnap.data() } as Teacher);
   }
   return null;
 };
 
 export const getTeacherByClass = async (className: string): Promise<Teacher | null> => {
-    const q = query(collection(db, TEACHERS_COLLECTION), where("assignedClass", "==", className));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-        return { id: snap.docs[0].id, ...snap.docs[0].data() } as Teacher;
-    }
+    const normalizedClass = normalizeClassLabel(className);
+    const teachers = await getTeachers();
+    const match = teachers.find((teacher) => (teacher.assignedClasses || []).includes(normalizedClass));
+    if (match) return match;
     return null;
 };
 
@@ -175,6 +244,138 @@ export const searchTeachers = async (searchTerm: string): Promise<Teacher[]> => 
   if (!searchTerm) return [];
   const all = await getTeachers();
   return all.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
+};
+
+export const getStudentsForTeacher = async (teacherId: string): Promise<Student[]> => {
+  const [teacher, students] = await Promise.all([getTeacherById(teacherId), getStudents()]);
+  if (!teacher) return [];
+
+  const assignedStudentIds = new Set(teacher.assignedStudentIds || []);
+  const assignedClasses = new Set(teacher.assignedClasses || []);
+
+  return students.filter((student) => {
+    if (student.assignedTeacherId === teacherId) return true;
+    if (assignedStudentIds.has(student.id)) return true;
+    if (!assignedStudentIds.size && assignedClasses.size) {
+      return assignedClasses.has(getStudentDisplayClass(student));
+    }
+    return false;
+  });
+};
+
+export const getTeacherTeachingClasses = async (teacherId: string): Promise<string[]> => {
+  const [teacher, students] = await Promise.all([getTeacherById(teacherId), getStudentsForTeacher(teacherId)]);
+  return uniqueNonEmpty([
+    ...((teacher?.assignedClasses || []) as string[]),
+    ...(students.map((student) => getStudentDisplayClass(student))),
+  ]);
+};
+
+export const syncTeacherAssignments = async (
+  teacherId: string,
+  assignedClasses: string[],
+  assignedStudentIds: string[]
+) => {
+  try {
+    const teacher = await getTeacherById(teacherId);
+    if (!teacher) return false;
+
+    const normalizedClasses = uniqueNonEmpty(assignedClasses);
+    const normalizedStudentIds = Array.from(new Set(assignedStudentIds.filter(Boolean)));
+    const allStudents = await getStudents();
+    const previouslyAssignedIds = new Set([
+      ...(teacher.assignedStudentIds || []),
+      ...allStudents.filter((student) => student.assignedTeacherId === teacherId).map((student) => student.id),
+    ]);
+
+    const batch = writeBatch(db);
+    const teacherRef = doc(db, TEACHERS_COLLECTION, teacherId);
+    batch.update(teacherRef, {
+      assignedClasses: normalizedClasses,
+      assignedClass: normalizedClasses[0] || '',
+      assignedStudentIds: normalizedStudentIds,
+      activeTeachingClass: normalizeClassLabel(teacher.activeTeachingClass) || normalizedClasses[0] || '',
+    });
+
+    previouslyAssignedIds.forEach((studentId) => {
+      if (normalizedStudentIds.includes(studentId)) return;
+      const studentRef = doc(db, STUDENTS_COLLECTION, studentId);
+      batch.update(studentRef, {
+        assignedTeacherId: '',
+        assignedTeacherName: '',
+      });
+    });
+
+    normalizedStudentIds.forEach((studentId) => {
+      const student = allStudents.find((item) => item.id === studentId);
+      if (!student) return;
+      const studentClass = getStudentDisplayClass(student);
+      const studentRef = doc(db, STUDENTS_COLLECTION, studentId);
+      batch.update(studentRef, {
+        assignedTeacherId: teacherId,
+        assignedTeacherName: teacher.name,
+        assignedClass: studentClass || student.assignedClass || '',
+      });
+    });
+
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error('Error syncing teacher assignments:', error);
+    return false;
+  }
+};
+
+export const transferStudentToTeacherAndClass = async (
+  studentId: string,
+  targetClass: string,
+  teacherId: string
+) => {
+  try {
+    const [student, teacher, teachers] = await Promise.all([
+      getStudentById(studentId),
+      getTeacherById(teacherId),
+      getTeachers(),
+    ]);
+    if (!student || !teacher) return false;
+
+    const previousTeacherId = student.assignedTeacherId;
+    const target = parseStudentTargetClass(targetClass);
+    const batch = writeBatch(db);
+
+    batch.update(doc(db, STUDENTS_COLLECTION, studentId), {
+      assignedClass: target.normalizedClass,
+      division: target.division,
+      grade: target.grade,
+      level: target.level,
+      assignedTeacherId: teacherId,
+      assignedTeacherName: teacher.name,
+    });
+
+    const nextTeacherStudentIds = Array.from(new Set([...(teacher.assignedStudentIds || []), studentId]));
+    const nextTeacherClasses = uniqueNonEmpty([...(teacher.assignedClasses || []), target.normalizedClass]);
+    batch.update(doc(db, TEACHERS_COLLECTION, teacherId), {
+      assignedStudentIds: nextTeacherStudentIds,
+      assignedClasses: nextTeacherClasses,
+      assignedClass: nextTeacherClasses[0] || '',
+      activeTeachingClass: normalizeClassLabel(teacher.activeTeachingClass) || target.normalizedClass,
+    });
+
+    if (previousTeacherId && previousTeacherId !== teacherId) {
+      const previousTeacher = teachers.find((item) => item.id === previousTeacherId);
+      if (previousTeacher) {
+        batch.update(doc(db, TEACHERS_COLLECTION, previousTeacherId), {
+          assignedStudentIds: (previousTeacher.assignedStudentIds || []).filter((id) => id !== studentId),
+        });
+      }
+    }
+
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error('Error transferring student:', error);
+    return false;
+  }
 };
 
 const generateStudentId = async (): Promise<string> => {
@@ -211,7 +412,7 @@ export const approveApplicationInitial = async (app: Application): Promise<{pin:
         division: app.division || (app.isSpecialNeeds ? Division.SPECIAL_NEEDS : Division.MAINSTREAM),
         level: app.level || (app.isSpecialNeeds ? determineSpecialNeedsLevel(app.dob) : ''),
         grade: app.grade || '',
-        assignedClass: app.isSpecialNeeds ? (app.level || '') : (app.grade || '') 
+        assignedClass: normalizeClassLabel(app.isSpecialNeeds ? (app.level || '') : (app.grade || ''))
     };
     
     if (studentData.division === Division.SPECIAL_NEEDS) {
@@ -280,7 +481,11 @@ export const approveApplicationInitial = async (app: Application): Promise<{pin:
 export const updateStudent = async (id: string, data: Partial<Student>) => {
   try {
     const docRef = doc(db, STUDENTS_COLLECTION, id);
-    await updateDoc(docRef, data as any);
+    await updateDoc(docRef, {
+      ...data,
+      assignedClass: data.assignedClass ? normalizeClassLabel(data.assignedClass) : data.assignedClass,
+      level: data.level ? normalizeClassLabel(data.level) : data.level,
+    } as any);
     return true;
   } catch (error) {
     console.error("Error updating student:", error);
@@ -301,13 +506,13 @@ export const deleteStudent = async (id: string) => {
 export const getStudents = async (): Promise<Student[]> => {
   const q = query(collection(db, STUDENTS_COLLECTION));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+  return querySnapshot.docs.map(doc => normalizeStudentRecord({ id: doc.id, ...doc.data() } as Student));
 };
 
 export const getStudentsByStatus = async (status: string): Promise<Student[]> => {
     const q = query(collection(db, STUDENTS_COLLECTION), where("studentStatus", "==", status));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+    return querySnapshot.docs.map(doc => normalizeStudentRecord({ id: doc.id, ...doc.data() } as Student));
 };
 
 /**
@@ -317,12 +522,14 @@ export const getStudentsByStatus = async (status: string): Promise<Student[]> =>
 export const getStudentsByAssignedClass = async (className: string): Promise<Student[]> => {
     const q = query(collection(db, STUDENTS_COLLECTION));
     const querySnapshot = await getDocs(q);
-    const all = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+    const all = querySnapshot.docs.map(doc => normalizeStudentRecord({ id: doc.id, ...doc.data() } as Student));
+    const normalizedClass = normalizeClassLabel(className);
     
     // Client side filtering for flexible partial matching (Base Level check)
     return all.filter(s => {
-        if (!s.assignedClass) return false;
-        return s.assignedClass === className || s.assignedClass.startsWith(`${className} - Stage`);
+        const assignedClass = normalizeClassLabel(s.assignedClass);
+        if (!assignedClass) return false;
+        return assignedClass === normalizedClass || assignedClass.startsWith(`${normalizedClass} - Stage`);
     });
 };
 
@@ -330,7 +537,7 @@ export const getStudentById = async (id: string): Promise<Student | null> => {
   const docRef = doc(db, STUDENTS_COLLECTION, id);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as Student;
+    return normalizeStudentRecord({ id: docSnap.id, ...docSnap.data() } as Student);
   }
   return null;
 };
@@ -1167,6 +1374,7 @@ export const getSystemSettings = async (): Promise<SystemSettings | null> => {
 
     data.schoolCalendars = ensureTerms(data.schoolCalendars, 'school');
     data.hostelCalendars = ensureTerms(data.hostelCalendars, 'hostel');
+    data.specialNeedsLevels = normalizeSpecialNeedsLevels(data.specialNeedsLevels);
 
     return data;
   }
@@ -1175,7 +1383,12 @@ export const getSystemSettings = async (): Promise<SystemSettings | null> => {
 
 export const saveSystemSettings = async (settings: Partial<SystemSettings>) => {
   try {
-    await setDoc(doc(db, SETTINGS_COLLECTION, 'general'), settings, { merge: true });
+    await setDoc(doc(db, SETTINGS_COLLECTION, 'general'), {
+      ...settings,
+      specialNeedsLevels: settings.specialNeedsLevels
+        ? normalizeSpecialNeedsLevels(settings.specialNeedsLevels)
+        : settings.specialNeedsLevels,
+    }, { merge: true });
     return true;
   } catch (error) {
     console.error("Error saving settings:", error);

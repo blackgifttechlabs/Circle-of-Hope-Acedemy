@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getStudentsByAssignedClass, getDailyRegister, markDailyRegister } from '../../services/dataService';
 import { Student, StudentDailyRegister } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { CheckCircle, XCircle, Search, Calendar as CalendarIcon, Users, ChevronRight, RotateCcw, TableIcon, ClipboardCheck } from 'lucide-react';
+import { getSelectedTeachingClass } from '../../utils/teacherClassSelection';
 
 export const DailyRegister: React.FC<{ user: any }> = ({ user }) => {
+  const location = useLocation();
+  const className = getSelectedTeachingClass(user, location.search);
   const [students, setStudents] = useState<Student[]>([]);
   const [registerData, setRegisterData] = useState<StudentDailyRegister[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,21 +19,21 @@ export const DailyRegister: React.FC<{ user: any }> = ({ user }) => {
   const [animating, setAnimating] = useState(false);
 
   useEffect(() => {
-    if (user?.assignedClass) fetchData();
-  }, [user]);
+    if (className) fetchData();
+  }, [className]);
 
   const fetchData = async () => {
     setLoading(true);
-    const classStudents = await getStudentsByAssignedClass(user.assignedClass);
+    const classStudents = await getStudentsByAssignedClass(className);
     setStudents(classStudents);
-    const data = await getDailyRegister(user.assignedClass);
+    const data = await getDailyRegister(className);
     setRegisterData(data);
     setLoading(false);
   };
 
   const handleMarkAttendance = async (studentId: string, studentName: string, status: 'present' | 'absent') => {
     try {
-      await markDailyRegister(user.assignedClass, studentId, studentName, selectedDate, status);
+      await markDailyRegister(className, studentId, studentName, selectedDate, status);
       setRegisterData(prev => {
         const existing = prev.find(r => r.id === studentId);
         const timestamp = new Date().toISOString();
@@ -96,7 +100,7 @@ export const DailyRegister: React.FC<{ user: any }> = ({ user }) => {
                 <span className="text-[11px] font-bold tracking-[2px] text-blue-300 uppercase">Daily Register</span>
               </div>
               <h1 className="text-3xl font-black text-white tracking-tight leading-none">
-                {user.assignedClass}
+                {className}
               </h1>
               <p className="text-white/50 text-sm mt-1.5 font-medium">
                 {new Date().toLocaleDateString('en-ZA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}

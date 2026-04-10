@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Teacher, Student, SystemSettings, TermAssessmentRecord, StudentDailyRegister, PRE_PRIMARY_AREAS } from '../../types';
-import { getTeacherById, getStudentsByAssignedClass, getSystemSettings, getAssessmentRecord, getStudentDailyRegister } from '../../services/dataService';
+import { getTeacherById, getStudentsForTeacher, getSystemSettings, getAssessmentRecord, getStudentDailyRegister } from '../../services/dataService';
 import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
 import { ArrowLeft, Printer, Download, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getAssessmentRecordKey } from '../../utils/assessmentWorkflow';
 
 interface TermPerformance {
   performance: number;
@@ -80,8 +81,8 @@ export const TeacherProgressPage: React.FC = () => {
         const activeTerm = t.activeTermId || setts?.activeTermId || 'term-1';
         setTermId(activeTerm);
 
-        if (t.assignedClass) {
-          const students = await getStudentsByAssignedClass(t.assignedClass);
+        if (t) {
+          const students = await getStudentsForTeacher(t.id);
           const enrolledStudents = students.filter(s => s.studentStatus === 'ENROLLED');
           
           const data: StudentProgressData[] = [];
@@ -92,7 +93,7 @@ export const TeacherProgressPage: React.FC = () => {
             
             for (const term of terms) {
               // Fetch assessment records for each term
-              const record = await getAssessmentRecord(student.grade || 'Grade 0', student.id, term);
+              const record = await getAssessmentRecord(getAssessmentRecordKey(student), student.id, term);
               
               let performance = 0;
               let recordsCount = 0;
@@ -123,7 +124,7 @@ export const TeacherProgressPage: React.FC = () => {
             }
             
             // Fetch attendance
-            const register = await getStudentDailyRegister(student.grade || 'Grade 0', student.id);
+            const register = await getStudentDailyRegister(getAssessmentRecordKey(student), student.id);
             let daysPresent = 0;
             let daysAbsent = 0;
             if (register && register.attendance) {
@@ -192,7 +193,7 @@ export const TeacherProgressPage: React.FC = () => {
             <div class="info-box">
               <p><strong>Teacher Name:</strong> ${teacher.name}</p>
               <p><strong>Subject/Role:</strong> ${teacher.subject || 'N/A'}</p>
-              <p><strong>Assigned Class:</strong> ${teacher.assignedClass || 'Unassigned'}</p>
+              <p><strong>Assigned Classes:</strong> ${(teacher.assignedClasses || [teacher.assignedClass || '']).filter(Boolean).join(', ') || 'Unassigned'}</p>
             </div>
             <div class="info-box">
               <p><strong>Total Students:</strong> ${progressData.length}</p>
@@ -280,7 +281,7 @@ export const TeacherProgressPage: React.FC = () => {
     doc.setFontSize(11);
     doc.setTextColor(50, 50, 50);
     doc.text(`Teacher: ${teacher.name}`, 14, 32);
-    doc.text(`Class: ${teacher.assignedClass || 'Unassigned'}`, 14, 38);
+    doc.text(`Classes: ${(teacher.assignedClasses || [teacher.assignedClass || '']).filter(Boolean).join(', ') || 'Unassigned'}`, 14, 38);
     doc.text(`Subject: ${teacher.subject || 'N/A'}`, 14, 44);
     
     // Add meta info
@@ -354,7 +355,7 @@ export const TeacherProgressPage: React.FC = () => {
           </button>
           <div>
             <h2 className="text-2xl font-black uppercase tracking-tight text-coha-900">{teacher.name}'s Progress</h2>
-            <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">{teacher.assignedClass || 'Unassigned'} | {termId}</p>
+            <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">{(teacher.assignedClasses || [teacher.assignedClass || '']).filter(Boolean).join(', ') || 'Unassigned'} | {termId}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-3">

@@ -86,7 +86,7 @@ export const ViewLessonPlans: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const teachersForClass = teachers.filter(t => t.assignedClass === activeClass);
+    const teachersForClass = teachers.filter(t => (t.assignedClasses || [t.assignedClass || '']).includes(activeClass));
     if (teachersForClass.length === 1) {
       setActiveTeacherId(teachersForClass[0].id);
     } else {
@@ -95,7 +95,7 @@ export const ViewLessonPlans: React.FC = () => {
   }, [activeClass, teachers]);
 
   const allClasses = settings ? [...settings.grades, ...settings.specialNeedsLevels] : [];
-  const teachersForClass = teachers.filter(t => t.assignedClass === activeClass);
+  const teachersForClass = teachers.filter(t => (t.assignedClasses || [t.assignedClass || '']).includes(activeClass));
   const activeTeacher = teachers.find(t => t.id === activeTeacherId);
   const filteredPlans = plans.filter(p => p.classLevel === activeClass && p.teacherId === activeTeacherId);
 

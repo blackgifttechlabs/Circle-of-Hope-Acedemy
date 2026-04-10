@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getStudentsByAssignedClass, getSystemSettings, getAssessmentRecord, getTeacherById } from '../../services/dataService';
 import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from '../../types';
 import { Loader } from '../../components/ui/Loader';
@@ -10,6 +10,7 @@ import { ActionMenu } from '../../components/ui/ActionMenu';
 
 import { generateSummaryReportPDF, generateSummaryReportPDFBundle } from '../../utils/pdfGenerator';
 import { getAssessmentRecordKey, getGradeDisplayValue } from '../../utils/assessmentWorkflow';
+import { getSelectedTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
 
 interface SummaryFormPageProps {
   user: any;
@@ -17,6 +18,8 @@ interface SummaryFormPageProps {
 
 export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedClass = getSelectedTeachingClass(user, location.search);
   const [students, setStudents] = useState<Student[]>([]);
   const [records, setRecords] = useState<Record<string, TermAssessmentRecord>>({});
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -25,9 +28,9 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (user?.assignedClass) {
+      if (selectedClass) {
         const [studentsData, settingsData] = await Promise.all([
-          getStudentsByAssignedClass(user.assignedClass),
+          getStudentsByAssignedClass(selectedClass),
           getSystemSettings()
         ]);
 
@@ -57,7 +60,7 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
       setLoading(false);
     };
     fetchData();
-  }, [user]);
+  }, [selectedClass, user]);
 
   const fetchRecordsSnapshot = async (termId: string, studentsList: Student[]) => {
     if (studentsList.length === 0) return {};
@@ -92,7 +95,7 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
   const handleTermChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const termId = e.target.value;
     setSelectedTerm(termId);
-    if (user?.assignedClass) {
+    if (selectedClass) {
       setLoading(true);
       await loadRecords(termId, students);
       setLoading(false);
@@ -118,7 +121,7 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
     sheet.mergeCells('A3:C3');
     sheet.getCell('A3').value = `Teacher: ${user?.name || ''}`;
     sheet.mergeCells('A4:C4');
-    sheet.getCell('A4').value = `Grade: ${getGradeDisplayValue(user?.assignedClass || '') || ''}`;
+    sheet.getCell('A4').value = `Grade: ${getGradeDisplayValue(selectedClass || '') || ''}`;
 
     let currentCol = 2;
     PRE_PRIMARY_AREAS.forEach((area) => {
@@ -194,7 +197,7 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
         bundle[0].termId,
         bundle[0].termName,
         user.name || 'Teacher',
-        user?.assignedClass || '',
+        selectedClass || '',
         'Circle of Hope Academy',
         mode
       );
@@ -205,7 +208,7 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
       students,
       bundle,
       user.name || 'Teacher',
-      user?.assignedClass || '',
+      selectedClass || '',
       'Circle of Hope Academy',
       mode
     );
@@ -218,13 +221,13 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <button 
-            onClick={() => navigate('/teacher/classes')}
+            onClick={() => navigate(withTeachingClass('/teacher/classes', selectedClass))}
             className="flex items-center text-gray-500 hover:text-coha-900 transition-colors mb-2 text-sm font-bold uppercase tracking-widest"
           >
             <ArrowLeft size={16} className="mr-2" /> Back to My Class
           </button>
           <h1 className="text-3xl font-black text-coha-900 tracking-tight">Summary Form</h1>
-          <p className="text-gray-500 mt-1">End of term summary for {getGradeDisplayValue(user?.assignedClass || '') || 'all learners'}</p>
+          <p className="text-gray-500 mt-1">End of term summary for {getGradeDisplayValue(selectedClass || '') || 'all learners'}</p>
         </div>
         
         <div className="flex items-center gap-4">

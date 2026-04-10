@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle, Calendar, Brain, Activity, ClipboardList, Plus,
 import { v4 as uuidv4 } from 'uuid';
 import { Toast } from '../../components/ui/Toast';
 import { CustomSelect } from '../../components/ui/CustomSelect';
+import { getTeacherAssignedClasses } from '../../utils/teacherClassSelection';
 
 const THINKING_TASKS = [
     { id: 'T1', desc: 'Pile objects on top of one another' },
@@ -218,19 +219,21 @@ export const AssessmentPage: React.FC<AssessmentPageProps> = ({ userRole, user }
             const result = await calculateFinalStage(id);
             
             if (result.success && result.assignedClass) {
+                const assignedClass = result.assignedClass;
                 const updatedStudent = await getStudentById(id);
                 setStudent(updatedStudent);
                 
                 // Logic: If the student's assigned class cohort matches the teacher's cohort
-                const isMyCohort = user && user.assignedClass && result.assignedClass.startsWith(user.assignedClass);
+                const teacherClasses = getTeacherAssignedClasses(user);
+                const isMyCohort = teacherClasses.some((className) => assignedClass.startsWith(className));
 
                 if (isMyCohort && userRole === UserRole.TEACHER) {
                     setFinalSuccessModalOpen(true);
                 } else if (!isMyCohort && userRole === UserRole.TEACHER) {
-                    setTransferClass(result.assignedClass);
+                    setTransferClass(assignedClass);
                     setTransferModalOpen(true);
                 } else {
-                    setToast({ show: true, msg: `Assessment Finalized! Student enrolled in ${result.assignedClass}`, type: 'success' });
+                    setToast({ show: true, msg: `Assessment Finalized! Student enrolled in ${assignedClass}`, type: 'success' });
                 }
             } else {
                 setToast({ show: true, msg: result.error || "Aggregation engine failed.", type: 'error' });

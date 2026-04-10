@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Activity,
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { getAssessmentSubjects, getSubjectLabel, isGrade1To7Class } from '../../../utils/assessmentWorkflow';
 import { navigateBackOr } from '../../../utils/navigation';
+import { getSelectedTeachingClass, withTeachingClass } from '../../../utils/teacherClassSelection';
 
 const SUBJECT_CONFIG: Record<string, { icon: React.ElementType; color: string; iconColor: string; hoverBg: string }> = {
   Mathematics: { icon: Calculator, color: 'border-blue-200 hover:border-blue-500', iconColor: 'bg-blue-50 text-blue-600', hoverBg: 'group-hover:bg-blue-500 group-hover:text-white' },
@@ -38,10 +39,12 @@ const SubjectCard = ({
   subjectId,
   label,
   navigate,
+  className,
 }: {
   subjectId: string;
   label: string;
   navigate: ReturnType<typeof useNavigate>;
+  className: string;
 }) => {
   const config = SUBJECT_CONFIG[subjectId] || SUBJECT_CONFIG[label] || SUBJECT_CONFIG.English;
   const Icon = config.icon;
@@ -49,7 +52,7 @@ const SubjectCard = ({
   return (
     <div className={`flex flex-col p-4 bg-white border rounded-xl transition-all text-left group ${config.color}`}>
       <button
-        onClick={() => navigate(`/teacher/assess/${encodeURIComponent(subjectId)}`)}
+        onClick={() => navigate(withTeachingClass(`/teacher/assess/${encodeURIComponent(subjectId)}`, className))}
         className="flex items-center gap-4 w-full text-left"
       >
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${config.iconColor} ${config.hoverBg}`}>
@@ -61,7 +64,7 @@ const SubjectCard = ({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            navigate(`/teacher/assessment-sheet/${encodeURIComponent(subjectId)}`);
+            navigate(withTeachingClass(`/teacher/assessment-sheet/${encodeURIComponent(subjectId)}`, className));
           }}
           className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
         >
@@ -74,7 +77,8 @@ const SubjectCard = ({
 
 export default function SubjectSelection({ user }: { user?: any }) {
   const navigate = useNavigate();
-  const className = user?.assignedClass || '';
+  const location = useLocation();
+  const className = getSelectedTeachingClass(user, location.search);
   const subjects = getAssessmentSubjects(className);
   const standardWorkflow = isGrade1To7Class(className);
   const promotionalSubjects = subjects.filter((subject) => subject.category === 'promotional');
@@ -84,13 +88,14 @@ export default function SubjectSelection({ user }: { user?: any }) {
     <div className="w-full px-5 py-6">
       <div className="mb-6">
         <button
-          onClick={() => navigateBackOr(navigate as any, '/teacher/classes')}
+          onClick={() => navigateBackOr(navigate as any, withTeachingClass('/teacher/classes', className))}
           className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
         >
           <ArrowLeft size={20} className="text-slate-600" />
         </button>
         <h1 className="text-2xl font-bold text-slate-900">Assess Students</h1>
         <p className="text-sm font-medium text-slate-500 mt-1">
+          {className ? `${className} · ` : ''}
           {standardWorkflow
             ? 'Select a subject to record marks'
             : 'Select a subject area, then switch between themes and topics at the top.'}
@@ -111,6 +116,7 @@ export default function SubjectSelection({ user }: { user?: any }) {
                     subjectId={subject.id}
                     label={subject.label}
                     navigate={navigate}
+                    className={className}
                   />
                 ))}
               </div>
@@ -125,6 +131,7 @@ export default function SubjectSelection({ user }: { user?: any }) {
                     subjectId={subject.id}
                     label={subject.label}
                     navigate={navigate}
+                    className={className}
                   />
                 ))}
               </div>
@@ -140,6 +147,7 @@ export default function SubjectSelection({ user }: { user?: any }) {
                   subjectId={subject.id}
                   label={getSubjectLabel(subject.id, className)}
                   navigate={navigate}
+                  className={className}
                 />
               ))}
             </div>

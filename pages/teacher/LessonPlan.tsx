@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, FileText, Download, Eye, ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon, ChevronDown } from 'lucide-react';
 import { Teacher, WeeklyLessonPlan, SystemSettings } from '../../types';
 import { uploadLessonPlan, getLessonPlans, getSystemSettings } from '../../services/dataService';
 import { CLASS_LIST_SKILLS } from '../../utils/classListSkills';
 import { CustomSelect } from '../../components/ui/CustomSelect';
+import { getSelectedTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
 
 interface LessonPlanProps {
   user: Teacher | null;
@@ -95,6 +96,8 @@ const getWeekDates = (startDateStr: string | undefined, weekNum: number) => {
 
 const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedClass = getSelectedTeachingClass(user, location.search);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [uploadedPlans, setUploadedPlans] = useState<WeeklyLessonPlan[]>([]);
@@ -119,7 +122,7 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
   const [selectedPlan, setSelectedPlan] = useState<WeeklyLessonPlan | null>(null);
 
   useEffect(() => {
-    if (!user || !user.assignedClass) return;
+    if (!user || !selectedClass) return;
 
     const fetchData = async () => {
       setLoading(true);
@@ -140,10 +143,10 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
           theme: themes[0] || '',
           weekNumber: weekNum,
           dates: dates,
-          grade: user.assignedClass || '0'
+          grade: selectedClass || '0'
         }));
 
-        const plans = await getLessonPlans(user.id, user.assignedClass!);
+        const plans = await getLessonPlans(user.id, selectedClass);
         setUploadedPlans(plans.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()));
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -153,7 +156,7 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
     };
 
     fetchData();
-  }, [user]);
+  }, [selectedClass, user]);
 
   const handleHeaderChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -183,13 +186,13 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
   };
 
   const handleSubmit = async () => {
-    if (!user || !user.assignedClass) return;
+    if (!user || !selectedClass) return;
 
     setIsSubmitting(true);
     try {
       const newPlan: Omit<WeeklyLessonPlan, 'id' | 'uploadedAt'> = {
         teacherId: user.id,
-        classLevel: user.assignedClass,
+        classLevel: selectedClass,
         termId: activeTermId,
         ...formData
       };
@@ -298,12 +301,12 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
         <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => navigate('/teacher')}
+              onClick={() => navigate(withTeachingClass('/teacher/classes', selectedClass))}
               className="p-2 hover:bg-gray-100 rounded-full transition-colors"
             >
               <ArrowLeft size={20} className="text-gray-600" />
             </button>
-            <h1 className="text-xl font-bold text-gray-900">Weekly Lesson Plan — Special Needs</h1>
+            <h1 className="text-xl font-bold text-gray-900">Weekly Lesson Plan — {selectedClass || 'Special Needs'}</h1>
           </div>
           
           <div className="flex items-center gap-3">
@@ -355,7 +358,7 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Grade / Level</label>
                   <div className="text-sm font-semibold text-gray-900 border-b border-transparent pb-1">
-                    {selectedPlan ? selectedPlan.grade : user?.assignedClass}
+                    {selectedPlan ? selectedPlan.grade : selectedClass}
                   </div>
                 </div>
               </div>

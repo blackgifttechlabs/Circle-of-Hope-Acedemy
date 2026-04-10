@@ -46,6 +46,8 @@ import { VtcDashboard } from './pages/vtc/Dashboard';
 import { UserRole } from './types';
 import { seedAdminUser, getAdminProfile } from './services/dataService';
 import { Toast } from './components/ui/Toast';
+import { isGrade1To7Class } from './utils/assessmentWorkflow';
+import { getSelectedTeachingClass } from './utils/teacherClassSelection';
 
 // Layout Component to wrap protected routes
 const AppLayout: React.FC<{ 
@@ -80,6 +82,22 @@ const AppLayout: React.FC<{
 import { TeacherSettings } from './pages/teacher/TeacherSettings';
 
 import { MyClass } from './pages/teacher/MyClass';
+
+const TeacherSummaryRoute: React.FC<{ user: any }> = ({ user }) => {
+  const location = useLocation();
+  const selectedClass = getSelectedTeachingClass(user, location.search);
+  return isGrade1To7Class(selectedClass)
+    ? <SummaryFormGrade1To7 user={user} />
+    : <SummaryFormPage user={user} />;
+};
+
+const TeacherLessonPlanRoute: React.FC<{ user: any }> = ({ user }) => {
+  const location = useLocation();
+  const selectedClass = getSelectedTeachingClass(user, location.search);
+  return isGrade1To7Class(selectedClass)
+    ? <LessonPlanGradePage user={user} />
+    : <LessonPlanPage user={user} />;
+};
 
 const ProtectedRoute: React.FC<{
   isAuthenticated: boolean;
@@ -208,22 +226,14 @@ const App: React.FC = () => {
                     <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.TEACHER} user={user} />} />
                     <Route path="term-assessment/:id" element={<TermAssessmentPage user={user} />} />
                     <Route path="term-assessment-component" element={<TermAssessmentComponentPage user={user} />} />
-                    <Route path="summary-form" element={
-                      user?.assignedClass?.match(/Grade [1-7]/i)
-                        ? <SummaryFormGrade1To7 user={user} />
-                        : <SummaryFormPage user={user} />
-                    } />
+                    <Route path="summary-form" element={<TeacherSummaryRoute user={user} />} />
                     <Route path="assess" element={<SubjectSelection user={user} />} />
                     <Route path="assess/:subject" element={<TopicSelection user={user} />} />
                     <Route path="assess/:subject/:term/:topic" element={<TopicAssessment user={user} />} />
                     <Route path="assess/:subject/:term/review" element={<TermReview user={user} />} />
                     <Route path="assessment-sheet/:subject" element={<AssessmentSheet user={user} />} />
                     <Route path="assess/student/:id" element={<StudentAssessment user={user} />} />
-                    <Route path="lesson-plan" element={
-                      user?.assignedClass?.toLowerCase().includes('grade') 
-                        ? <LessonPlanGradePage user={user} /> 
-                        : <LessonPlanPage user={user} />
-                    } />
+                    <Route path="lesson-plan" element={<TeacherLessonPlanRoute user={user} />} />
                     <Route path="settings" element={<TeacherSettings user={user} />} />
                     <Route path="*" element={<Navigate to="dashboard" />} />
                 </Routes>

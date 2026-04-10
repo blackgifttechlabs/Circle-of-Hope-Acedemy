@@ -19,6 +19,7 @@ import {
 } from '../../../utils/assessmentWorkflow';
 import { getTopicLabelParts } from '../../../utils/topicLabelFormat';
 import { navigateBackOr } from '../../../utils/navigation';
+import { getSelectedTeachingClass, withTeachingClass } from '../../../utils/teacherClassSelection';
 
 type TopicTab = {
   topic: string;
@@ -44,7 +45,7 @@ export default function TopicAssessment({ user }: { user: any }) {
   const location = useLocation();
   const query = new URLSearchParams(location.search);
   const initialTheme = query.get('theme') || undefined;
-  const className = user?.assignedClass || '';
+  const className = getSelectedTeachingClass(user, location.search);
   const gradeKey = getAssessmentRecordKey(className);
   const standardWorkflow = isGrade1To7Class(className);
   const maxMark = standardWorkflow ? 10 : 3;
@@ -62,11 +63,11 @@ export default function TopicAssessment({ user }: { user: any }) {
   const activeTheme = initialTheme;
 
   useEffect(() => {
-    if (!user?.assignedClass || !subject || !term) return;
+    if (!className || !subject || !term) return;
 
     const loadData = async () => {
       const [studentsData, assessmentsData, customTopics, overrides] = await Promise.all([
-        getStudentsByAssignedClass(user.assignedClass),
+        getStudentsByAssignedClass(className),
         getTopicAssessments(gradeKey, termId, subject),
         getCustomTopicEntries(gradeKey, termId, subject),
         getTopicOverrides(gradeKey, termId, subject),
@@ -139,7 +140,7 @@ export default function TopicAssessment({ user }: { user: any }) {
     };
 
     loadData();
-  }, [user, subject, term, topic, location.search]);
+  }, [className, gradeKey, initialTheme, location.search, subject, term, termId, topic, user]);
 
   const handleMarkChange = (studentId: string, value: string) => {
     if (value === '') {
@@ -189,7 +190,7 @@ export default function TopicAssessment({ user }: { user: any }) {
 
       setToast({ show: true, msg: 'Assessments saved successfully!' });
       setTimeout(() => {
-        navigate(`/teacher/assess/${encodeURIComponent(subject)}`);
+        navigate(withTeachingClass(`/teacher/assess/${encodeURIComponent(subject)}`, className));
       }, 1200);
     } catch (error) {
       console.error('Failed to save assessments', error);
@@ -204,7 +205,7 @@ export default function TopicAssessment({ user }: { user: any }) {
     if (item.topicId) params.set('topicId', item.topicId);
     if (item.originalTopic) params.set('originalTopic', item.originalTopic);
     const search = params.toString();
-    return `/teacher/assess/${encodeURIComponent(subject || '')}/${encodeURIComponent(term || 'Term 1')}/${encodeURIComponent(item.topic)}${search ? `?${search}` : ''}`;
+    return withTeachingClass(`/teacher/assess/${encodeURIComponent(subject || '')}/${encodeURIComponent(term || 'Term 1')}/${encodeURIComponent(item.topic)}${search ? `?${search}` : ''}`, className);
   };
 
   if (isReviewing) {
@@ -272,10 +273,10 @@ export default function TopicAssessment({ user }: { user: any }) {
       {toast.show && <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({ show: false, msg: '' })} />}
 
       <div className="mb-6">
-        <button
-          onClick={() => navigateBackOr(navigate as any, `/teacher/assess/${encodeURIComponent(subject || '')}`)}
-          className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
-        >
+          <button
+            onClick={() => navigateBackOr(navigate as any, withTeachingClass(`/teacher/assess/${encodeURIComponent(subject || '')}`, className))}
+            className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
+          >
           <ArrowLeft size={20} className="text-slate-600" />
         </button>
         <h1 className="text-2xl font-bold text-slate-900"><TopicLabel topic={topic || ''} /></h1>

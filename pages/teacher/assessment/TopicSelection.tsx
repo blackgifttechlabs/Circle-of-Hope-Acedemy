@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, Check, Edit2, Plus, Trash2, X } from 'lucide-react';
 import {
   addCustomTopic,
@@ -20,6 +20,7 @@ import {
 } from '../../../utils/assessmentWorkflow';
 import { getTopicLabelParts } from '../../../utils/topicLabelFormat';
 import { navigateBackOr } from '../../../utils/navigation';
+import { getSelectedTeachingClass, withTeachingClass } from '../../../utils/teacherClassSelection';
 
 const TERMS = ['Term 1', 'Term 2', 'Term 3'];
 
@@ -65,7 +66,8 @@ const SkeletonCard = () => (
 export default function TopicSelection({ user }: { user: any }) {
   const { subject } = useParams<{ subject: string }>();
   const navigate = useNavigate();
-  const className = user?.assignedClass || '';
+  const location = useLocation();
+  const className = getSelectedTeachingClass(user, location.search);
   const gradeKey = getAssessmentRecordKey(className);
   const standardWorkflow = isGrade1To7Class(className);
   const [activeTerm, setActiveTerm] = useState('Term 1');
@@ -85,12 +87,12 @@ export default function TopicSelection({ user }: { user: any }) {
   const activeThemeLabel = themes[Number(activeThemeId)]?.label;
 
   useEffect(() => {
-    if (user?.assignedClass) {
-      getStudentsByAssignedClass(user.assignedClass).then((data) => {
+    if (className) {
+      getStudentsByAssignedClass(className).then((data) => {
         setStudents(data.filter((student) => student.studentStatus === 'ENROLLED'));
       });
     }
-  }, [user]);
+  }, [className]);
 
   useEffect(() => {
     if (themes.length === 0) return;
@@ -216,13 +218,14 @@ export default function TopicSelection({ user }: { user: any }) {
     <div className="w-full px-5 py-6">
       <div className="mb-6">
         <button
-          onClick={() => navigateBackOr(navigate as any, '/teacher/classes')}
+          onClick={() => navigateBackOr(navigate as any, withTeachingClass('/teacher/classes', className))}
           className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
         >
           <ArrowLeft size={20} className="text-slate-600" />
         </button>
         <h1 className="text-2xl font-bold text-slate-900">{getSubjectLabel(subject || '', className)}</h1>
         <p className="text-sm font-medium text-slate-500 mt-1">
+          {className ? `${className} · ` : ''}
           {standardWorkflow ? 'Select a term and topic.' : 'Select a term, switch the theme tabs, then choose a topic.'}
         </p>
       </div>
@@ -393,7 +396,8 @@ export default function TopicSelection({ user }: { user: any }) {
                       if (topicCard.theme) params.set('theme', topicCard.theme);
                       if (topicCard.topicId) params.set('topicId', topicCard.topicId);
                       if (topicCard.originalTopic) params.set('originalTopic', topicCard.originalTopic);
-                      navigate(`/teacher/assess/${encodeURIComponent(subject || '')}/${encodeURIComponent(activeTerm)}/${encodeURIComponent(topicCard.topic)}?${params.toString()}`);
+                      const path = `/teacher/assess/${encodeURIComponent(subject || '')}/${encodeURIComponent(activeTerm)}/${encodeURIComponent(topicCard.topic)}${params.toString() ? `?${params.toString()}` : ''}`;
+                      navigate(withTeachingClass(path, className));
                     }}
                     className="text-lg font-bold text-slate-800 mb-4 group-hover:text-blue-700 cursor-pointer"
                   >

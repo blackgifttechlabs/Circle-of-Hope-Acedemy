@@ -49,7 +49,7 @@ export const ViewAssessmentProgress: React.FC = () => {
 
   const allClasses = settings ? [...settings.grades, ...settings.specialNeedsLevels] : [];
   const subjects = activeClass ? getAssessmentSubjects(activeClass) : [];
-  const teachersForClass = teachers.filter((teacher) => teacher.assignedClass === activeClass);
+  const teachersForClass = teachers.filter((teacher) => (teacher.assignedClasses || [teacher.assignedClass || '']).includes(activeClass));
   const teacherNames = teachersForClass.length > 0
     ? teachersForClass.map((teacher) => teacher.name).join(', ')
     : 'No teacher assigned';

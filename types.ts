@@ -23,7 +23,10 @@ export interface Teacher extends User {
   subject?: string;
   email?: string;
   assignedClass?: string;
+  assignedClasses?: string[];
+  assignedStudentIds?: string[];
   activeTermId?: string;
+  activeTeachingClass?: string;
 }
 
 export interface MenuItem {
@@ -412,10 +415,13 @@ export type StudentStatus = 'WAITING_PAYMENT' | 'PAYMENT_VERIFICATION' | 'ASSESS
 export interface Student extends Partial<Application> {
   id: string;
   name: string; 
+  role?: UserRole;
   grade: string;
   level?: string;
   stage?: 1 | 2 | 3;
   assignedClass?: string;
+  assignedTeacherId?: string;
+  assignedTeacherName?: string;
   profileImageBase64?: string;
   
   parentPin: string;

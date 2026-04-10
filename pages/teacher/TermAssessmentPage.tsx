@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { getStudentById, getSystemSettings, saveAssessmentRecord, getAssessmentRecord, getStudentsByAssignedClass, getTeacherById } from '../../services/dataService';
 import { Student, SystemSettings, PRE_PRIMARY_AREAS, TermAssessmentRecord, AssessmentRating } from '../../types';
 import { Loader } from '../../components/ui/Loader';
@@ -9,6 +9,7 @@ import { Toast } from '../../components/ui/Toast';
 import { printGrade0Report } from '../../utils/printGrade0Report';
 import { CLASS_LIST_SKILLS } from '../../utils/classListSkills';
 import { getAssessmentRecordKey } from '../../utils/assessmentWorkflow';
+import { getSelectedTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
 
 const TAB_COLORS = [
   { active: 'border-blue-600 text-blue-800 bg-white', inactive: 'text-gray-500 hover:text-blue-600 hover:bg-blue-50', headerBg: 'bg-blue-50', headerText: 'text-blue-900', border: 'border-blue-200' },
@@ -22,6 +23,8 @@ const TAB_COLORS = [
 export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const className = getSelectedTeachingClass(user, location.search);
   const [student, setStudent] = useState<Student | null>(null);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,8 +61,8 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
         setStudent(s);
         setSettings(setts);
         
-        if (user?.assignedClass) {
-          const classStudents = await getStudentsByAssignedClass(user.assignedClass);
+        if (className) {
+          const classStudents = await getStudentsByAssignedClass(className);
           setStudents(classStudents.filter(st => st.studentStatus === 'ENROLLED'));
         }
 
@@ -85,7 +88,7 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
       setLoading(false);
     };
     fetchData();
-  }, [id, user]);
+  }, [className, id, user]);
 
   const handleTermChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const termId = e.target.value;
@@ -205,9 +208,9 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
     if (!student || students.length === 0) return;
     const currentIndex = students.findIndex(s => s.id === student.id);
     if (currentIndex >= 0 && currentIndex < students.length - 1) {
-      navigate(`/teacher/term-assessment/${students[currentIndex + 1].id}`);
+      navigate(withTeachingClass(`/teacher/term-assessment/${students[currentIndex + 1].id}`, className));
     } else {
-      navigate('/teacher/classes');
+      navigate(withTeachingClass('/teacher/classes', className));
     }
   };
 
@@ -232,7 +235,7 @@ export const TermAssessmentPage: React.FC<{ user: any }> = ({ user }) => {
     <div className="font-sans text-black w-full px-4 sm:px-6 lg:px-8 pb-20">
       <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({show:false, msg:''})} variant="success" />
       
-      <button onClick={() => navigate('/teacher/classes')} className="mb-6 p-2 hover:bg-gray-100 transition-all flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest border border-gray-200 w-fit">
+      <button onClick={() => navigate(withTeachingClass('/teacher/classes', className))} className="mb-6 p-2 hover:bg-gray-100 transition-all flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest border border-gray-200 w-fit">
           <ArrowLeft size={16} /> Back to Class List
       </button>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Save, User } from 'lucide-react';
 import {
   getCustomTopicEntries,
@@ -20,6 +20,7 @@ import {
 } from '../../../utils/assessmentWorkflow';
 import { getTopicLabelParts } from '../../../utils/topicLabelFormat';
 import { navigateBackOr } from '../../../utils/navigation';
+import { getSelectedTeachingClass, withTeachingClass } from '../../../utils/teacherClassSelection';
 
 const TERMS = ['Term 1', 'Term 2', 'Term 3'];
 
@@ -32,6 +33,7 @@ type TopicMeta = {
 export default function StudentAssessment({ user }: { user?: any }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [student, setStudent] = useState<Student | null>(null);
   
   const [subject, setSubject] = useState<string>('');
@@ -47,7 +49,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
   
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const className = user?.assignedClass || student?.assignedClass || student?.grade || '';
+  const className = getSelectedTeachingClass(user, location.search) || student?.assignedClass || student?.grade || '';
   const standardWorkflow = isGrade1To7Class(className);
   const gradeKey = getAssessmentRecordKey(className);
   const maxMark = standardWorkflow ? 10 : 3;
@@ -231,7 +233,7 @@ export default function StudentAssessment({ user }: { user?: any }) {
       
       setToast({ show: true, msg: 'Assessments saved successfully!' });
       setTimeout(() => {
-        navigate('/teacher/classes');
+        navigate(withTeachingClass('/teacher/classes', className));
       }, 1500);
     } catch (error) {
       console.error("Failed to save assessments", error);
@@ -337,9 +339,9 @@ export default function StudentAssessment({ user }: { user?: any }) {
       
       <div className="mb-6">
         <button 
-          onClick={() => navigateBackOr(navigate as any, '/teacher/classes')}
-          className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
-        >
+            onClick={() => navigateBackOr(navigate as any, withTeachingClass('/teacher/classes', className))}
+            className="mb-4 p-2 hover:bg-slate-100 rounded-full transition-colors inline-flex"
+          >
           <ArrowLeft size={20} className="text-slate-600" />
         </button>
         <div className="flex items-center gap-3">
