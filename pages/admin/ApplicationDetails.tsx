@@ -5,7 +5,7 @@ import { Application, SystemSettings } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Loader } from '../../components/ui/Loader';
 import { Input } from '../../components/ui/Input';
-import { ArrowLeft, Check, X, Printer, AlertTriangle, Download, Mail, MessageCircle, Copy, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Check, X, Printer, AlertTriangle, Download, Mail, MessageCircle, ExternalLink } from 'lucide-react';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { Toast } from '../../components/ui/Toast';
 import {
@@ -67,16 +67,6 @@ export const ApplicationDetailsPage: React.FC = () => {
 
   const handleOfficeChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setOfficeData({ ...officeData, [e.target.name]: e.target.value });
-  };
-
-  const copyToClipboard = async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      return true;
-    } catch (error) {
-      console.error('Clipboard copy failed:', error);
-      return false;
-    }
   };
 
   const persistResponseMethod = async (method: 'Email' | 'WhatsApp') => {
@@ -153,20 +143,6 @@ export const ApplicationDetailsPage: React.FC = () => {
       })
     : '';
 
-  const handleCopyDraft = async () => {
-    if (!storedApprovalDraft || !app) return;
-    const copied = await copyToClipboard(replyType === 'email' ? approvalEmailHtml : approvalWhatsappText);
-    setToast({
-      msg: copied
-        ? replyType === 'email'
-          ? 'HTML email template copied.'
-          : 'WhatsApp text copied.'
-        : 'Copy failed in this browser.',
-      show: true,
-      type: copied ? 'success' : 'error',
-    });
-  };
-
   const handleSendApprovalDraft = async () => {
     if (!app || !storedApprovalDraft) return;
     setDraftSending(true);
@@ -177,17 +153,10 @@ export const ApplicationDetailsPage: React.FC = () => {
           setToast({ msg: 'No parent email was provided on the application.', show: true, type: 'error' });
           return;
         }
-        const copied = await copyToClipboard(approvalEmailHtml);
         await persistResponseMethod('Email');
         const subject = `Conditional Admission Approval: ${app.firstName} ${app.surname} - ${settings?.schoolName || 'Circle of Hope Academy'}`;
         window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(approvalEmailText)}`;
-        setToast({
-          msg: copied
-            ? 'Email draft opened. The HTML template was also copied for rich email paste.'
-            : 'Email draft opened.',
-          show: true,
-          type: 'success',
-        });
+        setToast({ msg: 'Email draft opened.', show: true, type: 'success' });
       } else {
         const phone = getApplicationParentPhone(app);
         if (!phone) {
@@ -316,20 +285,7 @@ export const ApplicationDetailsPage: React.FC = () => {
                     </button>
                   </div>
 
-                  <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-slate-900">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Important</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      `mailto:` drafts only support plain text reliably. The styled email preview on the right can be copied as HTML and pasted into a rich-text composer such as Gmail or Outlook.
-                    </p>
-                  </div>
-
                   <div className="mt-6 grid gap-3">
-                    <button
-                      onClick={handleCopyDraft}
-                      className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 text-sm font-bold text-white"
-                    >
-                      <Copy size={16} /> {replyType === 'email' ? 'Copy Email HTML' : 'Copy WhatsApp Text'}
-                    </button>
                     <button
                       onClick={handleSendApprovalDraft}
                       disabled={draftSending}

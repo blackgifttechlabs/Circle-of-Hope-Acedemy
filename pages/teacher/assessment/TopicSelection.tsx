@@ -5,7 +5,7 @@ import {
   addCustomTopic,
   deleteTopic,
   getCustomTopicEntries,
-  getStudentsByAssignedClass,
+  getStudentsForTeacherByClass,
   getTopicAssessments,
   getTopicOverrides,
   renameTopic,
@@ -88,11 +88,11 @@ export default function TopicSelection({ user }: { user: any }) {
 
   useEffect(() => {
     if (className) {
-      getStudentsByAssignedClass(className).then((data) => {
+      getStudentsForTeacherByClass(user.id, className).then((data) => {
         setStudents(data.filter((student) => student.studentStatus === 'ENROLLED'));
       });
     }
-  }, [className]);
+  }, [className, user.id]);
 
   useEffect(() => {
     if (themes.length === 0) return;

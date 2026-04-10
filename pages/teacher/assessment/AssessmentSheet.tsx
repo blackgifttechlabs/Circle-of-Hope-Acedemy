@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
-import { getCustomTopicEntries, getStudentsByAssignedClass, getTopicAssessments, getTopicOverrides } from '../../../services/dataService';
+import { getCustomTopicEntries, getStudentsForTeacherByClass, getTopicAssessments, getTopicOverrides } from '../../../services/dataService';
 import { CustomTopicEntry, Student, TopicAssessmentRecord, TopicOverride } from '../../../types';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -145,9 +145,9 @@ export default function AssessmentSheet({
   // ── Data fetching ────────────────────────────────────────────────────────
   useEffect(() => {
     if (className && subject) {
-      setLoading(true);
+        setLoading(true);
       Promise.all([
-        getStudentsByAssignedClass(className),
+        getStudentsForTeacherByClass(user.id, className),
         getTopicAssessments(className, 'term-1', subject),
         getTopicAssessments(className, 'term-2', subject),
         getTopicAssessments(className, 'term-3', subject),

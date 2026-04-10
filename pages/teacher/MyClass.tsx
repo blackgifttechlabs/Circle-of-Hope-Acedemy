@@ -22,7 +22,7 @@ import {
   getDefaultTopicsForTheme,
   isGrade1To7Class,
 } from '../../utils/assessmentWorkflow';
-import { getSelectedTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
+import { getSelectedTeachingClass, matchesTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
 
 interface MyClassProps {
   user: any;
@@ -93,7 +93,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
 
   const classStudents = useMemo(() => {
     return students
-      .filter((student) => (student.assignedClass || student.grade || student.level || '') === activeClass)
+      .filter((student) => matchesTeachingClass(student.assignedClass || student.grade || student.level || '', activeClass))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [activeClass, students]);
 

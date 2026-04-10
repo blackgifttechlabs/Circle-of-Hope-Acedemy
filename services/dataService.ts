@@ -83,6 +83,12 @@ const parseStudentTargetClass = (targetClass: string) => {
 };
 
 const getStudentDisplayClass = (student: Student) => normalizeClassLabel(student.assignedClass || student.grade || student.level || '');
+const matchesTeachingClass = (student: Student, className: string) => {
+  const normalizedClass = normalizeClassLabel(className);
+  const studentClass = getStudentDisplayClass(student);
+  if (!normalizedClass || !studentClass) return false;
+  return studentClass === normalizedClass || studentClass.startsWith(`${normalizedClass} - Stage`);
+};
 
 export const determineSpecialNeedsLevel = (dob: string): string => {
   const age = calculateAge(dob);
@@ -281,6 +287,11 @@ export const getStudentsForTeacher = async (teacherId: string): Promise<Student[
     }
     return false;
   });
+};
+
+export const getStudentsForTeacherByClass = async (teacherId: string, className: string): Promise<Student[]> => {
+  const students = await getStudentsForTeacher(teacherId);
+  return students.filter((student) => matchesTeachingClass(student, className));
 };
 
 export const getTeacherTeachingClasses = async (teacherId: string): Promise<string[]> => {
@@ -543,14 +554,7 @@ export const getStudentsByAssignedClass = async (className: string): Promise<Stu
     const q = query(collection(db, STUDENTS_COLLECTION));
     const querySnapshot = await getDocs(q);
     const all = querySnapshot.docs.map(doc => normalizeStudentRecord({ id: doc.id, ...doc.data() } as Student));
-    const normalizedClass = normalizeClassLabel(className);
-    
-    // Client side filtering for flexible partial matching (Base Level check)
-    return all.filter(s => {
-        const assignedClass = normalizeClassLabel(s.assignedClass);
-        if (!assignedClass) return false;
-        return assignedClass === normalizedClass || assignedClass.startsWith(`${normalizedClass} - Stage`);
-    });
+    return all.filter((student) => matchesTeachingClass(student, className));
 };
 
 export const getStudentById = async (id: string): Promise<Student | null> => {

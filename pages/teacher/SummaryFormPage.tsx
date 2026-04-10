@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getStudentsByAssignedClass, getSystemSettings, getAssessmentRecord, getTeacherById } from '../../services/dataService';
+import { getStudentsForTeacherByClass, getSystemSettings, getAssessmentRecord, getTeacherById } from '../../services/dataService';
 import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
@@ -30,7 +30,7 @@ export const SummaryFormPage: React.FC<SummaryFormPageProps> = ({ user }) => {
     const fetchData = async () => {
       if (selectedClass) {
         const [studentsData, settingsData] = await Promise.all([
-          getStudentsByAssignedClass(selectedClass),
+          getStudentsForTeacherByClass(user.id, selectedClass),
           getSystemSettings()
         ]);
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BookOpen, Calendar, ClipboardList, Layers3, Users, ArrowRight, FileSpreadsheet } from 'lucide-react';
+import { BookOpen, Calendar, ClipboardList, Layers3, Users, ArrowRight, FileSpreadsheet, X } from 'lucide-react';
 import {
   getSystemSettings,
   getStudentsForTeacher,
@@ -10,7 +10,7 @@ import {
 } from '../../services/dataService';
 import { Student, TermCalendar } from '../../types';
 import { Loader } from '../../components/ui/Loader';
-import { withTeachingClass, getSelectedTeachingClass, isSpecialNeedsClass } from '../../utils/teacherClassSelection';
+import { withTeachingClass, getSelectedTeachingClass, isSpecialNeedsClass, matchesTeachingClass } from '../../utils/teacherClassSelection';
 import { isGrade1To7Class } from '../../utils/assessmentWorkflow';
 
 interface TeacherDashboardProps {
@@ -28,6 +28,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   const [activeClass, setActiveClass] = useState('');
   const [activeTermId, setActiveTermId] = useState('');
   const [terms, setTerms] = useState<TermCalendar[]>([]);
+  const [summaryPickerOpen, setSummaryPickerOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -67,9 +68,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
 
   const classStudents = useMemo(() => {
     return students
-      .filter((student) => (student.assignedClass || student.grade || student.level || '') === activeClass)
+      .filter((student) => matchesTeachingClass(student.assignedClass || student.grade || student.level || '', activeClass))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [activeClass, students]);
+  const classCounts = useMemo(
+    () =>
+      teachingClasses.reduce<Record<string, number>>((acc, className) => {
+        acc[className] = students.filter((student) => matchesTeachingClass(student.assignedClass || student.grade || student.level || '', className)).length;
+        return acc;
+      }, {}),
+    [students, teachingClasses]
+  );
 
   const enrolledStudents = classStudents.filter((student) => student.studentStatus === 'ENROLLED');
   const assessmentStudents = classStudents.filter((student) => student.studentStatus === 'ASSESSMENT');
@@ -93,6 +102,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
     }
   };
 
+  const handleOpenSummary = (className?: string) => {
+    const targetClass = className || activeClass;
+    if (!targetClass) return;
+    navigate(withTeachingClass('/teacher/summary-form', targetClass));
+    setSummaryPickerOpen(false);
+  };
+
   if (loading) return <Loader />;
 
   if (teachingClasses.length === 0) {
@@ -110,6 +126,46 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   return (
     <div className="min-h-full bg-slate-50 -m-5 p-5 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
+        {summaryPickerOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-3xl rounded-[28px] border border-slate-200 bg-white shadow-2xl overflow-hidden">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-400">Summary Form</p>
+                  <h2 className="mt-2 text-2xl font-black text-slate-900">Select Class</h2>
+                  <p className="mt-2 text-sm text-slate-500">Choose the class you want to open. The summary will load only your students in that class.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSummaryPickerOpen(false)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 hover:bg-slate-50"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="grid gap-4 p-6 md:grid-cols-2">
+                {teachingClasses.map((className, index) => (
+                  <button
+                    key={className}
+                    type="button"
+                    onClick={() => handleOpenSummary(className)}
+                    className="rounded-[24px] border border-slate-200 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
+                  >
+                    <div
+                      className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl text-white"
+                      style={{ backgroundColor: TAB_COLORS[index % TAB_COLORS.length] }}
+                    >
+                      <ClipboardList size={18} />
+                    </div>
+                    <p className="text-lg font-black text-slate-900">{className}</p>
+                    <p className="mt-2 text-sm text-slate-500">{classCounts[className] || 0} assigned learner{(classCounts[className] || 0) === 1 ? '' : 's'}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="rounded-[28px] overflow-hidden shadow-sm border border-slate-200" style={{ background: `linear-gradient(135deg, ${currentColor} 0%, #0f172a 100%)` }}>
           <div className="p-6 md:p-8 text-white">
             <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
@@ -202,7 +258,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                   Open Class
                 </button>
                 <button
-                  onClick={() => navigate(withTeachingClass('/teacher/summary-form', activeClass))}
+                  onClick={() => (teachingClasses.length > 1 ? setSummaryPickerOpen(true) : handleOpenSummary(activeClass))}
                   className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white"
                 >
                   Summary Form

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getStudentsByAssignedClass, getDailyRegister, markDailyRegister } from '../../services/dataService';
+import { getStudentsForTeacherByClass, getDailyRegister, markDailyRegister } from '../../services/dataService';
 import { Student, StudentDailyRegister } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { CheckCircle, XCircle, Search, Calendar as CalendarIcon, Users, ChevronRight, RotateCcw, TableIcon, ClipboardCheck } from 'lucide-react';
@@ -24,7 +24,7 @@ export const DailyRegister: React.FC<{ user: any }> = ({ user }) => {
 
   const fetchData = async () => {
     setLoading(true);
-    const classStudents = await getStudentsByAssignedClass(className);
+    const classStudents = await getStudentsForTeacherByClass(user.id, className);
     setStudents(classStudents);
     const data = await getDailyRegister(className);
     setRegisterData(data);

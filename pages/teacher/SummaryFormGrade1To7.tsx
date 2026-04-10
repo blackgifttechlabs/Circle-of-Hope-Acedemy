@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
-import { getCustomTopicEntries, getStudentsByAssignedClass, getTopicAssessments, getSystemSettings, getTeacherById, getTopicOverrides } from '../../services/dataService';
+import { getCustomTopicEntries, getStudentsForTeacherByClass, getTopicAssessments, getSystemSettings, getTeacherById, getTopicOverrides } from '../../services/dataService';
 import { Student, TopicAssessmentRecord, SystemSettings } from '../../types';
 import { getTopicsForSubjectAndGrade } from '../../utils/assessmentTopics';
 import { getNonPromotionalSubjects, getPromotionalSubjects } from '../../utils/subjects';
@@ -72,7 +72,7 @@ export const SummaryFormGrade1To7 = ({ user }: { user: any }) => {
     const fetchData = async () => {
       if (selectedClass) {
         const [studentsData, settingsData] = await Promise.all([
-          getStudentsByAssignedClass(selectedClass),
+          getStudentsForTeacherByClass(user.id, selectedClass),
           getSystemSettings()
         ]);
         

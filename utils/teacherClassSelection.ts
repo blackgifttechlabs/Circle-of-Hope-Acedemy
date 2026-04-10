@@ -14,7 +14,7 @@ export const getSelectedTeachingClass = (teacher: TeacherLike, search: string): 
   const params = new URLSearchParams(search);
   const requestedClass = params.get('class')?.trim() || '';
 
-  if (requestedClass && classes.includes(requestedClass)) {
+  if (requestedClass) {
     return requestedClass;
   }
 
@@ -32,3 +32,10 @@ export const withTeachingClass = (path: string, className: string): string => {
 };
 
 export const isSpecialNeedsClass = (className: string): boolean => className.startsWith('Level ');
+
+export const matchesTeachingClass = (studentClass: string, className: string): boolean => {
+  const normalizedStudentClass = studentClass.trim();
+  const normalizedClass = className.trim();
+  if (!normalizedStudentClass || !normalizedClass) return false;
+  return normalizedStudentClass === normalizedClass || normalizedStudentClass.startsWith(`${normalizedClass} - Stage`);
+};

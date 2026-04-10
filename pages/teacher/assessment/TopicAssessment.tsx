@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, CheckCircle, Save } from 'lucide-react';
 import {
   getCustomTopicEntries,
-  getStudentsByAssignedClass,
+  getStudentsForTeacherByClass,
   getTopicAssessments,
   getTopicOverrides,
   saveTopicAssessments,
@@ -67,7 +67,7 @@ export default function TopicAssessment({ user }: { user: any }) {
 
     const loadData = async () => {
       const [studentsData, assessmentsData, customTopics, overrides] = await Promise.all([
-        getStudentsByAssignedClass(className),
+        getStudentsForTeacherByClass(user.id, className),
         getTopicAssessments(gradeKey, termId, subject),
         getCustomTopicEntries(gradeKey, termId, subject),
         getTopicOverrides(gradeKey, termId, subject),
@@ -298,7 +298,9 @@ export default function TopicAssessment({ user }: { user: any }) {
                 params.set('theme', theme);
                 if (currentTopic?.topicId) params.set('topicId', currentTopic.topicId);
                 if (currentTopic?.originalTopic) params.set('originalTopic', currentTopic.originalTopic);
-                navigate(`/teacher/assess/${encodeURIComponent(subject || '')}/${encodeURIComponent(term || 'Term 1')}/${encodeURIComponent(currentTopic?.topic || topic || '')}?${params.toString()}`);
+                const search = params.toString();
+                const path = `/teacher/assess/${encodeURIComponent(subject || '')}/${encodeURIComponent(term || 'Term 1')}/${encodeURIComponent(currentTopic?.topic || topic || '')}${search ? `?${search}` : ''}`;
+                navigate(withTeachingClass(path, className));
               }}
               className={`px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
                 activeTheme === theme ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'

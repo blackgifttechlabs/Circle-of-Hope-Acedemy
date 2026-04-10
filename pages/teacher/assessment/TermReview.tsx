@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Download, FileSpreadsheet, Printer } from 'lucide-react';
-import { getStudentsByAssignedClass, getTopicAssessments } from '../../../services/dataService';
+import { getStudentsForTeacherByClass, getTopicAssessments } from '../../../services/dataService';
 import { Student, TopicAssessmentRecord } from '../../../types';
 import { getTopicsForSubjectAndGrade } from '../../../utils/assessmentTopics';
 import { getGradeDisplayValue } from '../../../utils/assessmentWorkflow';
@@ -64,7 +64,7 @@ export default function TermReview({ user }: { user: any }) {
       const termId = term.toLowerCase().replace(' ', '-');
       
       Promise.all([
-        getStudentsByAssignedClass(className),
+        getStudentsForTeacherByClass(user.id, className),
         getTopicAssessments(className, termId, subject)
       ]).then(([studentsData, assessmentsData]) => {
         const sorted = studentsData.sort((a: Student, b: Student) => a.name.localeCompare(b.name));

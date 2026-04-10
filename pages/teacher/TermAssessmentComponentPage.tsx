@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getStudentsByAssignedClass, getSystemSettings, saveAssessmentRecord, getAssessmentRecord, getTeacherById } from '../../services/dataService';
+import { getStudentsForTeacherByClass, getSystemSettings, saveAssessmentRecord, getAssessmentRecord, getTeacherById } from '../../services/dataService';
 import { Student, SystemSettings, PRE_PRIMARY_AREAS, TermAssessmentRecord, AssessmentRating } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
@@ -59,7 +59,7 @@ export const TermAssessmentComponentPage: React.FC<{ user: any }> = ({ user }) =
   useEffect(() => {
     const fetchData = async () => {
       if (className) {
-        const classStudents = await getStudentsByAssignedClass(className);
+        const classStudents = await getStudentsForTeacherByClass(user.id, className);
         const enrolledStudents = classStudents.filter(st => st.studentStatus === 'ENROLLED');
         setStudents(enrolledStudents);
         
