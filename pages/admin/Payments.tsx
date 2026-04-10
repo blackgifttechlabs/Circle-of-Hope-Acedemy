@@ -3,6 +3,8 @@ import { CheckCircle2, CreditCard, Image as ImageIcon, Search, XCircle } from 'l
 import { approvePaymentProof, getPaymentProofs, getStudentById, getSystemSettings, rejectPaymentProof, searchStudents } from '../../services/dataService';
 import { PaymentProof, Student, SystemSettings } from '../../types';
 import { Loader } from '../../components/ui/Loader';
+import { Toast } from '../../components/ui/Toast';
+import { buildPaymentApprovalEmailHtml, buildPaymentApprovalEmailText, getStudentParentEmail } from '../../utils/admissionMessaging';
 
 interface PaymentsPageProps {
   user?: any;
@@ -20,6 +22,17 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState({ msg: '', show: false, type: 'success' as 'success' | 'error' | 'info' });
+
+  const copyToClipboard = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch (error) {
+      console.error('Clipboard copy failed:', error);
+      return false;
+    }
+  };
 
   const load = async () => {
     const [paymentProofs, setts] = await Promise.all([getPaymentProofs(), getSystemSettings()]);
@@ -65,7 +78,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
     if (!selectedProof || !selectedStudent || !termId || !amount) return;
     setBusy(true);
     try {
-      await approvePaymentProof({
+      const result = await approvePaymentProof({
         proofId: selectedProof.id!,
         studentId: selectedStudent.id,
         amount: parseFloat(amount),
@@ -74,6 +87,32 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
         adminName: user?.name || 'Admin',
         notes,
       });
+      if (!result.success) {
+        setToast({ msg: result.message || 'Payment approval failed.', show: true, type: 'error' });
+        return;
+      }
+      const parentEmail = getStudentParentEmail(selectedStudent);
+      if (parentEmail) {
+        const copied = await copyToClipboard(buildPaymentApprovalEmailHtml({
+          student: selectedStudent,
+          schoolName: settings?.schoolName,
+        }));
+        const subject = `Payment Approved: ${selectedStudent.name} - ${settings?.schoolName || 'Circle of Hope Academy'}`;
+        const body = buildPaymentApprovalEmailText({
+          student: selectedStudent,
+          schoolName: settings?.schoolName,
+        });
+        window.location.href = `mailto:${parentEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        setToast({
+          msg: copied
+            ? 'Payment approved. Email draft opened and the HTML template was copied.'
+            : 'Payment approved. Email draft opened.',
+          show: true,
+          type: 'success',
+        });
+      } else {
+        setToast({ msg: 'Payment approved, but this student has no parent email on file.', show: true, type: 'info' });
+      }
       window.dispatchEvent(new CustomEvent('coha-payment-proof-update'));
       await load();
       const refreshed = await getPaymentProofs();
@@ -103,6 +142,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
 
   return (
     <div className="space-y-6">
+      <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} variant={toast.type} />
       <div>
         <h2 className="text-2xl font-black text-coha-900">Payments</h2>
         <p className="text-sm text-gray-500">Review proof of payment uploads, match the learner, and generate official school receipts.</p>

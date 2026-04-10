@@ -319,6 +319,8 @@ export interface Application {
   id?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   submissionDate: any; 
+  approvedStudentId?: string;
+  approvedParentPin?: string;
   
   // Learner Details
   surname: string;

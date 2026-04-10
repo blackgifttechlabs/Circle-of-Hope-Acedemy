@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  Clock,
   CreditCard,
   Download,
   FileBadge2,
@@ -57,6 +58,13 @@ const fmtDate = (value: any) => {
   if (!value) return '-';
   const date = value?.toDate ? value.toDate() : new Date(value);
   return isNaN(date.getTime()) ? '-' : date.toLocaleDateString();
+};
+
+const getMillis = (value: any) => {
+  if (!value) return 0;
+  if (typeof value?.toDate === 'function') return value.toDate().getTime();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
 const fileToDataUrl = (file: File, onProgress?: (progress: number) => void) =>
@@ -123,7 +131,8 @@ const getInitialLetter = (name?: string) => (name?.trim()?.charAt(0) || 'S').toU
 export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = (searchParams.get('tab') as ParentTab) || 'home';
+  const requestedTab = searchParams.get('tab');
+  const tab = (requestedTab === 'receipts' ? 'home' : (requestedTab as ParentTab)) || 'home';
 
   const [student, setStudent] = useState<Student | null>(null);
   const [teacher, setTeacher] = useState<Teacher | null>(null);
@@ -280,6 +289,12 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
     });
   };
 
+  useEffect(() => {
+    if (requestedTab === 'receipts') {
+      setActiveTab('home');
+    }
+  }, [requestedTab]);
+
   const handlePaymentSubmit = async () => {
     if (!student) {
       setPaymentMessageType('error');
@@ -323,7 +338,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       setPaymentMessageType('success');
       setPaymentMessage('Proof of payment sent successfully.');
       window.dispatchEvent(new CustomEvent('coha-payment-proof-update'));
-      setActiveTab('receipts');
+      setActiveTab('home');
     } catch (error) {
       console.error('Payment proof submission failed:', error);
       setPaymentMessageType('error');
@@ -436,6 +451,13 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
     }
   }, [currentTerm?.id, paymentTerm]);
 
+  const needsPaymentProof = student?.studentStatus === 'WAITING_PAYMENT' || !!student?.paymentRejected;
+  const paymentUnderReview = student?.studentStatus === 'PAYMENT_VERIFICATION';
+  const showPaymentCenter = needsPaymentProof || paymentUnderReview || paymentProofs.length > 0 || receipts.length > 0;
+  const recentEnrollmentWindow = 14 * 24 * 60 * 60 * 1000;
+  const acceptedAtMs = getMillis(student?.enrolledAt);
+  const showEnrollmentBanner = acceptedAtMs > 0 && (Date.now() - acceptedAtMs) <= recentEnrollmentWindow;
+
   if (loading) return <Loader />;
   if (!student) return <div className="p-6 text-sm text-slate-500">Student not found.</div>;
 
@@ -493,6 +515,66 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       <section className="-mt-6 rounded-t-[2rem] bg-white px-3 sm:px-5 pt-5 pb-2 shadow-[0_-12px_30px_rgba(15,23,42,0.06)]">
         <div className="max-w-4xl mx-auto">
           <div className="pt-4">
+            {showEnrollmentBanner && (
+              <div className="mb-4 rounded-[1.35rem] border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-full bg-emerald-100 p-2 text-emerald-700">
+                    <CheckCircle2 size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-[0.16em] text-emerald-700">Student Enrolled</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      {student.name} was enrolled on {fmtDate(student.enrolledAt)}. This welcome notice remains visible for 2 weeks after acceptance.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {needsPaymentProof && (
+              <div className={`mb-4 rounded-[1.35rem] border px-4 py-4 shadow-sm ${student.paymentRejected ? 'border-rose-200 bg-rose-50' : 'border-amber-200 bg-amber-50'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className={`text-sm font-black uppercase tracking-[0.16em] ${student.paymentRejected ? 'text-rose-700' : 'text-amber-700'}`}>
+                      {student.paymentRejected ? 'Proof Needs Attention' : 'Registration Fee Required'}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      {student.paymentRejected
+                        ? 'Please upload a clearer proof of payment image from the payment section below.'
+                        : 'Please upload proof of payment for the registration fee from the payment section below.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('payment-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className={`shrink-0 rounded-xl px-4 py-2 text-xs font-black uppercase tracking-[0.12em] ${student.paymentRejected ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white'}`}
+                  >
+                    Upload Now
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {paymentUnderReview && (
+              <div className="mb-4 rounded-[1.35rem] border border-blue-200 bg-blue-50 px-4 py-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-[0.16em] text-blue-700">Payment Under Review</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      Your proof of payment has been received and is being reviewed by the administration team.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={refreshData}
+                    className="shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-white"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="mb-1 px-1">
               <SectionLabel icon={<CreditCard size={14} />}>Fees Summary</SectionLabel>
             </div>
@@ -526,14 +608,6 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                 </div>
                 <p className="mt-1 text-right text-[11px] font-black text-rose-600">{balancePercent}%</p>
               </div>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <button onClick={() => setActiveTab('receipts')} className="flex-1 h-12 text-sm font-bold border-2 border-coha-900 text-coha-900 rounded-[1rem] bg-white">
-                View receipts
-              </button>
-              <button onClick={() => setActiveTab('receipts')} className="flex-1 h-12 text-sm font-bold bg-coha-900 text-white rounded-[1rem]">
-                Send proof of payment
-              </button>
             </div>
           </div>
 
@@ -598,6 +672,12 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
               </button>
             </div>
           </div>
+
+          {showPaymentCenter && (
+            <div className="pb-6">
+              {renderReceipts()}
+            </div>
+          )}
 
         </div>
       </section>
@@ -865,12 +945,12 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   );
 
   const renderReceipts = () => (
-    <div>
+    <div id="payment-center">
       <section className="pt-2">
         <div className="rounded-[2rem] bg-coha-900 px-4 pb-5 pt-4 text-white shadow-[0_24px_50px_rgba(43,43,94,0.28)]">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[1.2rem] font-black tracking-[-0.03em] truncate">Payment & Receipts</p>
+              <p className="text-[1.2rem] font-black tracking-[-0.03em] truncate">Payments & Enrolment</p>
               <p className="text-xs font-semibold text-white/70 mt-1">{schoolName}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -890,57 +970,75 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
           </div>
 
           <div className="mt-4 rounded-[1.9rem] bg-white p-4 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
-            <SectionLabel icon={<FileImage size={14} />}>Send Proof Of Payment</SectionLabel>
-            <div className="grid grid-cols-1 gap-2">
-              <select value={paymentTerm} onChange={(e) => setPaymentTerm(e.target.value)} className="h-12 rounded-[0.95rem] border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800">
-                {(settings?.schoolCalendars || []).map((term) => (
-                  <option key={term.id} value={term.id}>{term.termName}</option>
-                ))}
-              </select>
-            </div>
-            <button
-              onClick={() => paymentDeviceFileRef.current?.click()}
-              className="relative mt-3 w-full overflow-hidden rounded-[1.5rem] border border-dashed border-coha-300 bg-[radial-gradient(circle_at_center,rgba(43,43,94,0.08),transparent_38%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 py-8 text-center shadow-sm"
-            >
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="absolute h-24 w-24 rounded-full border border-coha-200/70 animate-ping [animation-duration:2.8s]" />
-                <div className="absolute h-36 w-36 rounded-full border border-coha-200/50 animate-ping [animation-duration:3.2s]" />
-                <div className="absolute h-52 w-52 rounded-full border border-coha-100/60 animate-ping [animation-duration:3.8s]" />
-              </div>
-              <div className="relative z-10 flex flex-col items-center justify-center">
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-coha-900 text-white shadow-[0_14px_30px_rgba(43,43,94,0.18)]">
-                  <FileImage size={28} />
+            {needsPaymentProof ? (
+              <>
+                <SectionLabel icon={<FileImage size={14} />}>Upload Registration Fee Proof</SectionLabel>
+                <div className="grid grid-cols-1 gap-2">
+                  <select value={paymentTerm} onChange={(e) => setPaymentTerm(e.target.value)} className="h-12 rounded-[0.95rem] border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800">
+                    {(settings?.schoolCalendars || []).map((term) => (
+                      <option key={term.id} value={term.id}>{term.termName}</option>
+                    ))}
+                  </select>
                 </div>
-                <p className="max-w-[16rem] text-base font-black tracking-[-0.02em] text-slate-950">
-                  Click anywhere to upload your receipt image
+                <button
+                  onClick={() => paymentDeviceFileRef.current?.click()}
+                  className="relative mt-3 w-full overflow-hidden rounded-[1.5rem] border border-dashed border-coha-300 bg-[radial-gradient(circle_at_center,rgba(43,43,94,0.08),transparent_38%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 py-8 text-center shadow-sm"
+                >
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="absolute h-24 w-24 rounded-full border border-coha-200/70 animate-ping [animation-duration:2.8s]" />
+                    <div className="absolute h-36 w-36 rounded-full border border-coha-200/50 animate-ping [animation-duration:3.2s]" />
+                    <div className="absolute h-52 w-52 rounded-full border border-coha-100/60 animate-ping [animation-duration:3.8s]" />
+                  </div>
+                  <div className="relative z-10 flex flex-col items-center justify-center">
+                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-coha-900 text-white shadow-[0_14px_30px_rgba(43,43,94,0.18)]">
+                      <FileImage size={28} />
+                    </div>
+                    <p className="max-w-[16rem] text-base font-black tracking-[-0.02em] text-slate-950">
+                      Click anywhere to upload your proof of payment image
+                    </p>
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      Choose from device and send it to the school
+                    </p>
+                    {paymentFile && <p className="mt-3 text-xs font-black text-coha-800">{paymentFile.name}</p>}
+                  </div>
+                </button>
+                <div className="mt-2">
+                  <button disabled={!paymentFile || !paymentTerm || busyAction === 'payment'} onClick={handlePaymentSubmit} className="w-full h-14 rounded-[0.95rem] bg-coha-900 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-[0_12px_24px_rgba(43,43,94,0.22)]">
+                    {busyAction === 'payment' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                    Send proof
+                  </button>
+                </div>
+                {paymentMessage && (
+                  <p className={`mt-3 text-sm font-semibold ${paymentMessageType === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {paymentMessage}
+                  </p>
+                )}
+                <input
+                  ref={paymentDeviceFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    setPaymentFile(e.target.files?.[0] || null);
+                    if (paymentMessage) setPaymentMessage('');
+                  }}
+                />
+              </>
+            ) : paymentUnderReview ? (
+              <div className="rounded-[1.4rem] border border-blue-200 bg-blue-50 px-4 py-4">
+                <SectionLabel icon={<Clock size={14} />}>Proof Received</SectionLabel>
+                <p className="text-sm font-semibold text-slate-800">
+                  Your proof of payment is under review. The school will confirm the amount from the uploaded image and update your balance once approved.
                 </p>
-                <p className="mt-2 text-xs font-semibold text-slate-500">
-                  Choose from device and send it to the school
-                </p>
-                {paymentFile && <p className="mt-3 text-xs font-black text-coha-800">{paymentFile.name}</p>}
               </div>
-            </button>
-            <div className="mt-2">
-              <button disabled={!paymentFile || !paymentTerm || busyAction === 'payment'} onClick={handlePaymentSubmit} className="w-full h-14 rounded-[0.95rem] bg-coha-900 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-[0_12px_24px_rgba(43,43,94,0.22)]">
-                {busyAction === 'payment' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                Send proof
-              </button>
-            </div>
-            {paymentMessage && (
-              <p className={`mt-3 text-sm font-semibold ${paymentMessageType === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {paymentMessage}
-              </p>
+            ) : (
+              <div className="rounded-[1.4rem] border border-emerald-200 bg-emerald-50 px-4 py-4">
+                <SectionLabel icon={<CheckCircle2 size={14} />}>Payment Status</SectionLabel>
+                <p className="text-sm font-semibold text-slate-800">
+                  Your payment record has been updated. Approved receipts and submitted proofs remain available below for reference.
+                </p>
+              </div>
             )}
-            <input
-              ref={paymentDeviceFileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                setPaymentFile(e.target.files?.[0] || null);
-                if (paymentMessage) setPaymentMessage('');
-              }}
-            />
           </div>
         </div>
       </section>
@@ -1335,7 +1433,6 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       <div className="max-w-4xl mx-auto px-3 sm:px-5 pb-24">
         {tab === 'home' && renderHome()}
         {tab === 'details' && renderDetails()}
-        {tab === 'receipts' && renderReceipts()}
         {tab === 'homework' && renderHomework()}
         {tab === 'settings' && renderSettings()}
       </div>

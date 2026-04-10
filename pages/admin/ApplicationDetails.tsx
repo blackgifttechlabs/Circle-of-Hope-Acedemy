@@ -5,8 +5,17 @@ import { Application, SystemSettings } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Loader } from '../../components/ui/Loader';
 import { Input } from '../../components/ui/Input';
-import { ArrowLeft, Check, X, Printer, AlertTriangle, Download } from 'lucide-react';
+import { ArrowLeft, Check, X, Printer, AlertTriangle, Download, Mail, MessageCircle, Copy, ExternalLink } from 'lucide-react';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import { Toast } from '../../components/ui/Toast';
+import {
+  buildApplicationApprovalEmailHtml,
+  buildApplicationApprovalEmailText,
+  buildApplicationApprovalWhatsappText,
+  getApplicationParentEmail,
+  getApplicationParentPhone,
+  getPortalLoginUrl,
+} from '../../utils/admissionMessaging';
 
 export const ApplicationDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +24,11 @@ export const ApplicationDetailsPage: React.FC = () => {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [replyType, setReplyType] = useState<'email' | 'whatsapp'>('email');
+  const [draftSending, setDraftSending] = useState(false);
+  const [approvalDraft, setApprovalDraft] = useState<{ pin: string; studentId: string } | null>(null);
+  const [toast, setToast] = useState({ msg: '', show: false, type: 'success' as 'success' | 'error' | 'info' });
   
   // Office Use State
   const [officeData, setOfficeData] = useState({
@@ -55,86 +69,142 @@ export const ApplicationDetailsPage: React.FC = () => {
     setOfficeData({ ...officeData, [e.target.name]: e.target.value });
   };
 
+  const copyToClipboard = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch (error) {
+      console.error('Clipboard copy failed:', error);
+      return false;
+    }
+  };
+
+  const persistResponseMethod = async (method: 'Email' | 'WhatsApp') => {
+    if (!id || !app) return;
+    const updates = {
+      officeResponseMethod: method,
+      officeResponseDate: new Date().toISOString().split('T')[0],
+    };
+    await updateApplication(id, updates);
+    setApp({ ...app, ...updates });
+    setOfficeData((prev) => ({ ...prev, ...updates }));
+  };
+
   const handleApprove = async () => {
     if (!app || !id) return;
     setIsProcessing(true);
     
     try {
+        const result = await approveApplicationInitial(app);
+        if (!result) {
+            throw new Error('Parent account could not be created.');
+        }
+
         const updatedData = {
             status: 'APPROVED' as any,
-            ...officeData
+            ...officeData,
+            approvedStudentId: result.studentId,
+            approvedParentPin: result.pin,
         };
         
         await updateApplication(id, updatedData);
         setApp({ ...app, ...updatedData });
-
-        const result = await approveApplicationInitial(app);
-
-        if (settings && result) {
-            const parentEmail = app.fatherEmail || app.motherEmail; 
-            const subject = `ADMISSION CONDITIONAL APPROVAL: ${app.firstName} ${app.surname} - COHA`;
-            
-            const body = `Dear Parent/Guardian,
-
-CONGRATULATIONS! We are pleased to inform you that the application for ${app.firstName} ${app.surname} has been CONDITIONALLY APPROVED for enrollment at Circle of Hope Academy (COHA).
-
-------------------------------------------------------------
-URGENT ACTION REQUIRED: REGISTRATION FEE
-------------------------------------------------------------
-To secure this placement, a non-refundable REGISTRATION FEE of N$ 300.00 is payable immediately. Enrolment is not guaranteed until this payment is verified.
-
-------------------------------------------------------------
-OFFICIAL FEE STRUCTURE 2026
-------------------------------------------------------------
-CATEGORY                        | AMOUNT      | FREQUENCY
-------------------------------------------------------------
-Registration Fee                | N$ 300.00   | Once-off
-Tuition (Special Classes)       | N$ 2,300.00 | Monthly
-Tuition (Mainstream - Termly)   | N$ 7,100.00 | Per Term
-Kindergarten (Mainstream)       | N$ 550.00   | Monthly
-Pre-Primary (Mainstream)        | N$ 650.00   | Monthly
-Grades 1 - 3 (Mainstream)       | N$ 1,300.00 | Monthly
-Grades 4 - 7 (Mainstream)       | N$ 1,700.00 | Monthly
-Hostel Fees (Boarders)          | N$ 1,400.00 | Monthly
-------------------------------------------------------------
-
-------------------------------------------------------------
-BANKING DETAILS: TUITION, REGISTRATION & HOSTEL
-------------------------------------------------------------
-Bank Name:      First National Bank (FNB)
-Account Name:   COHA TUTORIAL ACADEMY
-Account Number: 64283855814
-Branch:         Ongwediva
-Reference:      ${app.firstName} ${app.surname} (Learner's Full Name)
-
-------------------------------------------------------------
-BANKING DETAILS: FOOD CONTRIBUTION (HOSTEL ONLY)
-------------------------------------------------------------
-Hostel Food:    N$ 3,500.00 (Per Term)
-Bank Name:      First National Bank (FNB)
-Account Name:   SEFLANA CASH AND CURRY
-Account Number: 62260164539 (Cheque)
-Reference:      22229 + ${app.firstName} ${app.surname}
-
-IMPORTANT: Please email proof of payment to acoha67@gmail.com within 48 hours of payment.
-
-PORTAL ACCESS:
-Use the following details to login and track your child's progress:
-Parent Portal URL: [School Website Link]
-Parent PIN: ${result.pin}
-
-Warm regards,
-
-Admissions Office
-Circle of Hope Academy (COHA)
-"Accessible Education for All"`;
-            
-            window.location.href = `mailto:${parentEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        }
+        setApprovalDraft(result);
+        setReplyType('email');
+        setApprovalModalOpen(true);
     } catch (error) {
         console.error("Error approving:", error);
+        setToast({ msg: 'Approval failed. The parent account was not created.', show: true, type: 'error' });
+    } finally {
+        setIsProcessing(false);
     }
-    setIsProcessing(false);
+  };
+
+  const storedApprovalDraft = approvalDraft || (app?.approvedParentPin && app?.approvedStudentId
+    ? { pin: app.approvedParentPin, studentId: app.approvedStudentId }
+    : null);
+
+  const portalUrl = getPortalLoginUrl();
+  const approvalEmailHtml = app && storedApprovalDraft
+    ? buildApplicationApprovalEmailHtml({
+        app,
+        pin: storedApprovalDraft.pin,
+        studentId: storedApprovalDraft.studentId,
+        portalUrl,
+        schoolName: settings?.schoolName,
+      })
+    : '';
+  const approvalEmailText = app && storedApprovalDraft
+    ? buildApplicationApprovalEmailText({
+        app,
+        pin: storedApprovalDraft.pin,
+        studentId: storedApprovalDraft.studentId,
+        portalUrl,
+        schoolName: settings?.schoolName,
+      })
+    : '';
+  const approvalWhatsappText = app && storedApprovalDraft
+    ? buildApplicationApprovalWhatsappText({
+        app,
+        pin: storedApprovalDraft.pin,
+        studentId: storedApprovalDraft.studentId,
+        portalUrl,
+        schoolName: settings?.schoolName,
+      })
+    : '';
+
+  const handleCopyDraft = async () => {
+    if (!storedApprovalDraft || !app) return;
+    const copied = await copyToClipboard(replyType === 'email' ? approvalEmailHtml : approvalWhatsappText);
+    setToast({
+      msg: copied
+        ? replyType === 'email'
+          ? 'HTML email template copied.'
+          : 'WhatsApp text copied.'
+        : 'Copy failed in this browser.',
+      show: true,
+      type: copied ? 'success' : 'error',
+    });
+  };
+
+  const handleSendApprovalDraft = async () => {
+    if (!app || !storedApprovalDraft) return;
+    setDraftSending(true);
+    try {
+      if (replyType === 'email') {
+        const email = getApplicationParentEmail(app);
+        if (!email) {
+          setToast({ msg: 'No parent email was provided on the application.', show: true, type: 'error' });
+          return;
+        }
+        const copied = await copyToClipboard(approvalEmailHtml);
+        await persistResponseMethod('Email');
+        const subject = `Conditional Admission Approval: ${app.firstName} ${app.surname} - ${settings?.schoolName || 'Circle of Hope Academy'}`;
+        window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(approvalEmailText)}`;
+        setToast({
+          msg: copied
+            ? 'Email draft opened. The HTML template was also copied for rich email paste.'
+            : 'Email draft opened.',
+          show: true,
+          type: 'success',
+        });
+      } else {
+        const phone = getApplicationParentPhone(app);
+        if (!phone) {
+          setToast({ msg: 'No parent WhatsApp number was provided on the application.', show: true, type: 'error' });
+          return;
+        }
+        await persistResponseMethod('WhatsApp');
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(approvalWhatsappText)}`, '_blank');
+        setToast({ msg: 'WhatsApp draft opened.', show: true, type: 'success' });
+      }
+      setApprovalModalOpen(false);
+    } catch (error) {
+      console.error('Error preparing approval draft:', error);
+      setToast({ msg: 'Could not prepare the reply draft.', show: true, type: 'error' });
+    } finally {
+      setDraftSending(false);
+    }
   };
 
   const handleReject = async () => {
@@ -199,6 +269,7 @@ Circle of Hope Academy (COHA)
 
   return (
     <div className="-m-5 pb-20 font-sans text-black bg-gray-50 min-h-[calc(100vh-64px)]">
+        <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} variant={toast.type} />
         <ConfirmModal 
             isOpen={rejectModalOpen}
             onClose={() => setRejectModalOpen(false)}
@@ -207,6 +278,101 @@ Circle of Hope Academy (COHA)
             message="Are you sure you want to reject this application? This action will mark it as rejected."
             isLoading={isProcessing}
         />
+        {approvalModalOpen && app && storedApprovalDraft && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-6xl overflow-hidden rounded-[1.5rem] bg-white shadow-2xl">
+              <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr]">
+                <div className="bg-slate-950 px-6 py-7 text-white">
+                  <p className="text-[11px] font-black uppercase tracking-[0.26em] text-blue-200">Reply Method</p>
+                  <h3 className="mt-3 text-3xl font-black tracking-[-0.04em]">Send Admission Details</h3>
+                  <p className="mt-3 text-sm text-slate-300">
+                    The draft now uses the actual applicant details and the auto-created parent login for {app.firstName} {app.surname}.
+                  </p>
+
+                  <div className="mt-6 space-y-3">
+                    <button
+                      onClick={() => setReplyType('email')}
+                      className={`w-full rounded-2xl border px-4 py-4 text-left transition-all ${replyType === 'email' ? 'border-blue-400 bg-blue-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Mail size={20} />
+                        <div>
+                          <p className="font-black">Email Draft</p>
+                          <p className="text-xs text-slate-300 mt-1">{getApplicationParentEmail(app) || 'No parent email on file'}</p>
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setReplyType('whatsapp')}
+                      className={`w-full rounded-2xl border px-4 py-4 text-left transition-all ${replyType === 'whatsapp' ? 'border-emerald-400 bg-emerald-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-300'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <MessageCircle size={20} />
+                        <div>
+                          <p className="font-black">WhatsApp Draft</p>
+                          <p className="text-xs text-slate-300 mt-1">{getApplicationParentPhone(app) || 'No parent phone on file'}</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-slate-900">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">Important</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      `mailto:` drafts only support plain text reliably. The styled email preview on the right can be copied as HTML and pasted into a rich-text composer such as Gmail or Outlook.
+                    </p>
+                  </div>
+
+                  <div className="mt-6 grid gap-3">
+                    <button
+                      onClick={handleCopyDraft}
+                      className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 text-sm font-bold text-white"
+                    >
+                      <Copy size={16} /> {replyType === 'email' ? 'Copy Email HTML' : 'Copy WhatsApp Text'}
+                    </button>
+                    <button
+                      onClick={handleSendApprovalDraft}
+                      disabled={draftSending}
+                      className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-950 disabled:opacity-60"
+                    >
+                      {draftSending ? (
+                        <>
+                          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                            <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" className="opacity-75" />
+                          </svg>
+                          Preparing draft
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink size={16} /> Open {replyType === 'email' ? 'Email' : 'WhatsApp'} Draft
+                        </>
+                      )}
+                    </button>
+                    <button onClick={() => setApprovalModalOpen(false)} className="text-sm font-bold text-slate-300 hover:text-white">
+                      Close
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-[85vh] overflow-y-auto bg-slate-100 p-5">
+                  <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">
+                      {replyType === 'email' ? 'Email Preview' : 'WhatsApp Preview'}
+                    </p>
+                    {replyType === 'email' ? (
+                      <div className="mt-4 overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white">
+                        <div dangerouslySetInnerHTML={{ __html: approvalEmailHtml }} />
+                      </div>
+                    ) : (
+                      <pre className="mt-4 whitespace-pre-wrap rounded-[1.2rem] border border-slate-200 bg-slate-50 p-5 text-sm leading-7 text-slate-700">{approvalWhatsappText}</pre>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* HERO SECTION / HEADER */}
         <div className="bg-coha-900 text-white p-6 sm:p-8 shadow-md relative overflow-hidden">
@@ -331,6 +497,16 @@ Circle of Hope Academy (COHA)
                             </div>
                             <h3 className="font-bold text-green-800 text-xl">Approved</h3>
                             <p className="text-green-600">Awaiting Payment Verification</p>
+                            {!!storedApprovalDraft && (
+                              <div className="mt-6 flex flex-col gap-3">
+                                <Button fullWidth onClick={() => { setReplyType('email'); setApprovalModalOpen(true); }} className="bg-white !text-coha-900 border border-coha-200">
+                                  <Mail size={18} /> Open Email Draft
+                                </Button>
+                                <Button fullWidth onClick={() => { setReplyType('whatsapp'); setApprovalModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 border-none">
+                                  <MessageCircle size={18} /> Open WhatsApp Draft
+                                </Button>
+                              </div>
+                            )}
                         </div>
                     ) : app.status === 'REJECTED' ? (
                         <div className="text-center py-8">

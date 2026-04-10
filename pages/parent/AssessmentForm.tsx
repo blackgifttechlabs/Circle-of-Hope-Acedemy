@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Student, SelfCareAssessment, AssessmentResponse } from '../../types';
-import { submitPaymentReceipt, getStudentById, saveParentAssessment } from '../../services/dataService';
+import { getStudentById, saveParentAssessment } from '../../services/dataService';
 import { Loader } from '../../components/ui/Loader';
-import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { AlertCircle, CheckCircle, Clock, FileText, Heart, Lock } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, FileText, Heart, Lock, Upload } from 'lucide-react';
 
 interface AssessmentFormProps {
   user: any; 
@@ -23,8 +23,8 @@ const SELF_CARE_QUESTIONS = [
 ];
 
 export const ParentAssessmentForm: React.FC<AssessmentFormProps> = ({ user }) => {
+  const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null>(null);
-  const [receiptNumber, setReceiptNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [assessmentForm, setAssessmentForm] = useState<Omit<SelfCareAssessment, 'calculatedScore' | 'completedDate'>>({
       s1: 'No', s2: 'No', s3: 'No', s4: 'No', s5: 'No', s6: 'No', s7: 'No', s8: 'No', s9: 'No',
@@ -42,17 +42,6 @@ export const ParentAssessmentForm: React.FC<AssessmentFormProps> = ({ user }) =>
         });
     }
   }, [user]);
-
-  const handleSubmitReceipt = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!receiptNumber || !student) return;
-      setLoading(true);
-      const success = await submitPaymentReceipt(student.id, receiptNumber);
-      if (success) {
-          setStudent({...student, studentStatus: 'PAYMENT_VERIFICATION', paymentRejected: false});
-      }
-      setLoading(false);
-  };
 
   const handleAssessmentChange = (id: string, value: AssessmentResponse) => {
       setAssessmentForm(prev => ({ ...prev, [id]: value }));
@@ -81,7 +70,7 @@ export const ParentAssessmentForm: React.FC<AssessmentFormProps> = ({ user }) =>
                           <AlertCircle className="text-red-600 shrink-0" size={24} />
                           <div>
                               <h3 className="text-red-800 font-bold">Payment Verification Failed</h3>
-                              <p className="text-red-700 text-sm mt-1">The receipt number you provided was invalid or already used. Please check your receipt and try again.</p>
+                              <p className="text-red-700 text-sm mt-1">The uploaded proof of payment could not be approved yet. Please return to the dashboard and upload a clear proof image again.</p>
                           </div>
                       </div>
                   </div>
@@ -93,21 +82,11 @@ export const ParentAssessmentForm: React.FC<AssessmentFormProps> = ({ user }) =>
                         <AlertCircle size={32} />
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Complete Enrollment</h2>
-                    <p className="text-gray-600">Your application has been conditionally approved. Please confirm your application fee payment to proceed.</p>
+                    <p className="text-gray-600">Your application has been conditionally approved. Upload proof of payment from the parent dashboard to continue.</p>
                 </div>
-
-                <form onSubmit={handleSubmitReceipt} className="space-y-6">
-                    <Input 
-                        label="Enter Receipt Number" 
-                        placeholder="e.g. R-99382" 
-                        value={receiptNumber} 
-                        onChange={(e) => setReceiptNumber(e.target.value)} 
-                        required
-                    />
-                    <Button fullWidth disabled={loading}>
-                        {loading ? 'Submitting...' : 'Verify Payment'}
-                    </Button>
-                </form>
+                <Button fullWidth onClick={() => navigate('/parent/dashboard')} className="inline-flex items-center justify-center gap-2">
+                    <Upload size={18} /> Go To Dashboard Payment Upload
+                </Button>
               </div>
           </div>
       );
@@ -120,7 +99,10 @@ export const ParentAssessmentForm: React.FC<AssessmentFormProps> = ({ user }) =>
                   <Clock size={32} />
                </div>
                <h2 className="text-2xl font-bold text-gray-900 mb-2">Verifying Payment</h2>
-               <p className="text-gray-600">We have received your receipt number. The administration is currently verifying the payment.</p>
+               <p className="text-gray-600">Your proof of payment has been received. The administration is currently reviewing it from the pending payments queue.</p>
+               <Button fullWidth onClick={() => navigate('/parent/dashboard')} className="mt-6 inline-flex items-center justify-center gap-2">
+                  <Lock size={18} /> Return To Dashboard
+               </Button>
           </div>
       );
   }

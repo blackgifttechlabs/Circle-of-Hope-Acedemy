@@ -1,14 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, CreditCard, Home, Settings, User, type LucideIcon } from 'lucide-react';
+import { BookOpen, Home, Settings, User, type LucideIcon } from 'lucide-react';
 import { getHomeworkAssignmentsForClass, getStudentById } from '../services/dataService';
 
-export type ParentPrimaryTab = 'home' | 'details' | 'receipts' | 'homework' | 'settings';
+export type ParentPrimaryTab = 'home' | 'details' | 'homework' | 'settings';
 
 const NAV_ITEMS: { id: ParentPrimaryTab; label: string; Icon: LucideIcon }[] = [
   { id: 'home', label: 'Home', Icon: Home },
   { id: 'details', label: 'Details', Icon: User },
-  { id: 'receipts', label: 'Receipts', Icon: CreditCard },
   { id: 'homework', label: 'Homework', Icon: BookOpen },
   { id: 'settings', label: 'Settings', Icon: Settings },
 ];
@@ -67,7 +66,7 @@ export const ParentBottomNav: React.FC<{ activeTab?: ParentPrimaryTab | null; us
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-[#3b3b78] bg-[#2b2b5e] shadow-[0_-10px_30px_rgba(15,23,42,0.28)]">
-      <div className="grid grid-cols-5">
+      <div className="grid grid-cols-4">
         {NAV_ITEMS.map(({ id, label, Icon }) => {
           const isActive = activeTab === id;
           const badge = id === 'homework' ? homeworkBadgeCount : 0;

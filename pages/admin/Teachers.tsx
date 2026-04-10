@@ -15,11 +15,15 @@ import {
   Shapes,
   PencilRuler,
   HeartHandshake,
+  Eye,
+  Repeat,
+  X,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { CustomSelect } from '../../components/ui/CustomSelect';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import { Toast } from '../../components/ui/Toast';
 import {
   addTeacher,
   deleteTeacher,
@@ -27,6 +31,7 @@ import {
   getSystemSettings,
   getTeachers,
   syncTeacherAssignments,
+  transferStudentToTeacherAndClass,
   updateTeacher,
 } from '../../services/dataService';
 import { Student, SystemSettings, Teacher } from '../../types';
@@ -52,12 +57,19 @@ export const TeachersPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [toast, setToast] = useState({ show: false, msg: '', type: 'success' as 'success' | 'error' | 'info' });
 
   const [name, setName] = useState('');
   const [subject, setSubject] = useState('');
   const [assignedClasses, setAssignedClasses] = useState<string[]>([]);
   const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>([]);
   const [classSearchMap, setClassSearchMap] = useState<Record<string, string>>({});
+  const [studentModalTeacher, setStudentModalTeacher] = useState<Teacher | null>(null);
+  const [teacherStudentSearch, setTeacherStudentSearch] = useState('');
+  const [transferStudent, setTransferStudent] = useState<Student | null>(null);
+  const [transferClass, setTransferClass] = useState('');
+  const [transferTeacherId, setTransferTeacherId] = useState('');
+  const [transferLoading, setTransferLoading] = useState(false);
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
@@ -70,7 +82,10 @@ export const TeachersPage: React.FC = () => {
     ]);
     setTeachers(teachersData);
     setSettings(settingsData);
-    setStudents(studentsData.filter((student) => student.studentStatus === 'ENROLLED'));
+    setStudents(studentsData.filter((student) => (
+      student.studentStatus === 'ENROLLED' || student.studentStatus === 'ASSESSMENT' || !student.studentStatus
+    )));
+    return { teachersData, settingsData, studentsData };
   };
 
   useEffect(() => {
@@ -119,6 +134,14 @@ export const TeachersPage: React.FC = () => {
       clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    if (!studentModalTeacher) return;
+    const updatedTeacher = teachers.find((teacher) => teacher.id === studentModalTeacher.id);
+    if (updatedTeacher) {
+      setStudentModalTeacher(updatedTeacher);
+    }
+  }, [teachers, studentModalTeacher?.id]);
 
   const classOptions = useMemo(() => {
     if (!settings) return [];
@@ -242,6 +265,22 @@ export const TeachersPage: React.FC = () => {
     return matchesSearch && matchesClass;
   });
 
+  const getTeacherStudents = (teacher: Teacher) => {
+    const assignedIds = new Set(teacher.assignedStudentIds || []);
+    const teacherClasses = new Set(getTeacherAssignedClasses(teacher));
+
+    return students
+      .filter((student) => {
+        if (student.assignedTeacherId === teacher.id) return true;
+        if (assignedIds.has(student.id)) return true;
+        if (!assignedIds.size && teacherClasses.size) {
+          return teacherClasses.has(studentClass(student));
+        }
+        return false;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  };
+
   const getStudentsForClass = (className: string) => {
     const searchValue = classSearchMap[className] || '';
     return students
@@ -268,8 +307,65 @@ export const TeachersPage: React.FC = () => {
     ));
   };
 
+  const openStudentModal = (teacher: Teacher) => {
+    setStudentModalTeacher(teacher);
+    setTeacherStudentSearch('');
+    setTransferStudent(null);
+    setTransferClass('');
+    setTransferTeacherId('');
+  };
+
+  const closeStudentModal = () => {
+    setStudentModalTeacher(null);
+    setTeacherStudentSearch('');
+    setTransferStudent(null);
+    setTransferClass('');
+    setTransferTeacherId('');
+  };
+
+  const startTransfer = (student: Student) => {
+    setTransferStudent(student);
+    setTransferClass(studentClass(student));
+    setTransferTeacherId(student.assignedTeacherId || studentModalTeacher?.id || '');
+  };
+
+  const teacherStudents = studentModalTeacher
+    ? getTeacherStudents(studentModalTeacher).filter((student) => (
+        !teacherStudentSearch.trim()
+          ? true
+          : `${student.name} ${student.id} ${student.parentName || ''} ${student.assignedClass || student.grade || student.level || ''}`
+              .toLowerCase()
+              .includes(teacherStudentSearch.toLowerCase())
+      ))
+    : [];
+
+  const transferTeacherOptions = teachers.filter((teacher) => (
+    transferClass ? getTeacherAssignedClasses(teacher).includes(transferClass) : true
+  ));
+
+  const handleTransfer = async () => {
+    if (!transferStudent || !transferClass || !transferTeacherId) return;
+    setTransferLoading(true);
+    const success = await transferStudentToTeacherAndClass(transferStudent.id, transferClass, transferTeacherId);
+    setTransferLoading(false);
+
+    if (!success) {
+      setToast({ show: true, msg: 'Could not transfer student.', type: 'error' });
+      return;
+    }
+
+    await fetchData();
+    setToast({ show: true, msg: `${transferStudent.name} was transferred to ${transferClass}.`, type: 'success' });
+    setTransferStudent(null);
+    setTransferClass('');
+    setTransferTeacherId('');
+  };
+
+  const actionButtonClass = 'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-white shadow-sm transition-colors';
+
   return (
     <div>
+      <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} variant={toast.type} />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-coha-900">Teachers</h2>
@@ -288,6 +384,209 @@ export const TeachersPage: React.FC = () => {
         message={`Are you sure you want to delete ${teacherToDelete?.name}? This action cannot be undone.`}
         isLoading={loading}
       />
+
+      {studentModalTeacher && (
+        <div className="fixed inset-0 z-50 bg-black/55 p-4">
+          <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-[1.6rem] bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-200 bg-gray-50 px-6 py-5">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">Teacher Student List</p>
+                <h3 className="mt-2 text-2xl font-black tracking-[-0.03em] text-coha-900">{studentModalTeacher.name}</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {teacherStudents.length} student{teacherStudents.length !== 1 ? 's' : ''} currently linked to this teacher.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeStudentModal}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid flex-1 grid-cols-1 xl:grid-cols-[1.25fr_0.75fr] overflow-hidden">
+              <div className="flex min-h-0 flex-col border-r border-gray-200">
+                <div className="border-b border-gray-200 px-6 py-4">
+                  <div className="relative max-w-lg">
+                    <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                    <input
+                      value={teacherStudentSearch}
+                      onChange={(e) => setTeacherStudentSearch(e.target.value)}
+                      className="h-11 w-full rounded-xl border border-gray-300 pl-10 pr-4 text-sm outline-none focus:border-coha-500"
+                      placeholder="Search linked students by name, ID, parent, or class..."
+                    />
+                  </div>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-auto">
+                  <table className="w-full text-left">
+                    <thead className="sticky top-0 bg-white text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                      <tr>
+                        <th className="px-6 py-4">Student</th>
+                        <th className="px-6 py-4">Class</th>
+                        <th className="px-6 py-4">Parent</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {teacherStudents.map((student) => (
+                        <React.Fragment key={student.id}>
+                          <tr className="hover:bg-gray-50">
+                            <td className="px-6 py-4">
+                              <p className="font-bold text-coha-900">{student.name}</p>
+                              <p className="text-xs text-gray-500">{student.id}</p>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                                {student.assignedClass || student.grade || student.level || '-'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-700">{student.parentName || '-'}</td>
+                            <td className="px-6 py-4">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    closeStudentModal();
+                                    navigate(`/admin/students/${student.id}`);
+                                  }}
+                                  className={`${actionButtonClass} bg-blue-600 hover:bg-blue-700`}
+                                >
+                                  <Eye size={14} /> View Profile
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => startTransfer(student)}
+                                  className={`${actionButtonClass} bg-amber-500 hover:bg-amber-600`}
+                                >
+                                  <Repeat size={14} /> Transfer
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {transferStudent?.id === student.id && (
+                            <tr className="bg-amber-50/60">
+                              <td colSpan={4} className="px-6 py-5">
+                                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr_auto]">
+                                  <div>
+                                    <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-gray-500">
+                                      New Class
+                                    </label>
+                                    <select
+                                      value={transferClass}
+                                      onChange={(e) => {
+                                        setTransferClass(e.target.value);
+                                        setTransferTeacherId('');
+                                      }}
+                                      className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-coha-500"
+                                    >
+                                      <option value="">Select class</option>
+                                      {classOptions.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-gray-500">
+                                      New Teacher
+                                    </label>
+                                    <select
+                                      value={transferTeacherId}
+                                      onChange={(e) => setTransferTeacherId(e.target.value)}
+                                      className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm outline-none focus:border-coha-500"
+                                    >
+                                      <option value="">Select teacher</option>
+                                      {transferTeacherOptions.map((teacher) => (
+                                        <option key={teacher.id} value={teacher.id}>
+                                          {teacher.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="flex items-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTransferStudent(null);
+                                        setTransferClass('');
+                                        setTransferTeacherId('');
+                                      }}
+                                      className="inline-flex h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-bold text-gray-700"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={transferLoading || !transferClass || !transferTeacherId}
+                                      onClick={handleTransfer}
+                                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-coha-900 px-4 text-sm font-bold text-white disabled:opacity-50"
+                                    >
+                                      {transferLoading ? (
+                                        <>
+                                          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                                            <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" className="opacity-75" />
+                                          </svg>
+                                          Moving
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Repeat size={14} /> Save Transfer
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))}
+                      {teacherStudents.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-6 py-10 text-center text-sm text-gray-500">
+                            No students are currently linked to this teacher.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="overflow-auto bg-gray-50 px-6 py-6">
+                <div className="rounded-[1.5rem] border border-gray-200 bg-white p-5 shadow-sm">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-gray-400">Assigned Classes</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {getTeacherAssignedClasses(studentModalTeacher).map((className, index) => {
+                      const theme = CLASS_BUTTON_THEMES[index % CLASS_BUTTON_THEMES.length];
+                      const Icon = theme.icon;
+                      return (
+                        <span
+                          key={className}
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold ${theme.bg} ${theme.text} ${theme.border}`}
+                        >
+                          <Icon size={14} />
+                          {className}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="mt-4 rounded-[1.5rem] border border-gray-200 bg-white p-5 shadow-sm">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-gray-400">Transfer Guidance</p>
+                  <p className="mt-3 text-sm leading-7 text-gray-600">
+                    Use the transfer button beside any learner to move that learner to a different class and teacher. Once saved, the student is removed from the old teacher and appears on the new teacher's taught-students list after refresh.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div className="bg-white p-6 mb-8 border-t-4 border-coha-500 shadow-lg animate-fade-in space-y-6">
@@ -511,9 +810,18 @@ export const TeachersPage: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 bg-gray-50">
-                      <div className="inline-flex items-center gap-2 text-sm font-bold text-gray-700">
+                      <div className="flex items-center gap-3">
+                        <div className="inline-flex items-center gap-2 text-sm font-bold text-green-600">
                         <Users size={14} className="text-gray-400" />
-                        {teacher.assignedStudentIds?.length || 0}
+                          {getTeacherStudents(teacher).length}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openStudentModal(teacher)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700"
+                        >
+                          <Eye size={14} /> View Students
+                        </button>
                       </div>
                     </td>
                     <td className="px-6 py-4 bg-white">
@@ -523,13 +831,24 @@ export const TeachersPage: React.FC = () => {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => navigate(`/admin/teachers/${teacher.id}/progress`)}
-                          className="text-coha-500 hover:text-coha-700 p-1"
+                          className={`${actionButtonClass} bg-violet-600 hover:bg-violet-700`}
                           title="View Progress"
                         >
-                          <BarChart2 size={18} />
+                          <BarChart2 size={14} /> Progress
                         </button>
-                        <button onClick={() => handleEdit(teacher)} className="text-coha-500 hover:text-coha-700 p-1" title="Edit">
-                          <Edit2 size={18} />
+                        <button
+                          onClick={() => openStudentModal(teacher)}
+                          className={`${actionButtonClass} bg-emerald-600 hover:bg-emerald-700`}
+                          title="View Students"
+                        >
+                          <Users size={14} /> Students
+                        </button>
+                        <button
+                          onClick={() => handleEdit(teacher)}
+                          className={`${actionButtonClass} bg-blue-600 hover:bg-blue-700`}
+                          title="Edit"
+                        >
+                          <Edit2 size={14} /> Edit
                         </button>
                         <button onClick={() => confirmDelete(teacher)} className="text-red-400 hover:text-red-600 p-1" title="Delete">
                           <Trash2 size={18} />
