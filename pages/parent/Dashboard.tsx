@@ -44,6 +44,7 @@ import { HomeworkAssignment, HomeworkSubmission, PaymentProof, Receipt, Student,
 import { Loader } from '../../components/ui/Loader';
 import { printSchoolReceipt } from '../../utils/printSchoolReceipt';
 import { ParentBottomNav, ParentPrimaryTab } from '../../components/ParentBottomNav';
+import { getPaymentOptionLabel, getPaymentOptions, REGISTRATION_FEE_OPTION } from '../../utils/paymentOptions';
 
 interface ParentDashboardProps {
   user: any;
@@ -204,7 +205,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   const schoolName = settings?.schoolName || 'Circle of Hope Academy';
   const studentProfileImage = student?.profileImageBase64 || '';
   const studentInitial = getInitialLetter(student?.name);
-  const getTermLabel = (termId?: string) => settings?.schoolCalendars?.find((term) => term.id === termId)?.termName || termId || '-';
+  const getTermLabel = (termId?: string) => getPaymentOptionLabel(termId, settings);
 
   const financials = useMemo(() => {
     let total = 0;
@@ -332,11 +333,11 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
         return;
       }
       setPaymentFile(null);
-      setPaymentTerm(currentTerm?.id || paymentTerm);
+      setPaymentTerm(needsPaymentProof ? REGISTRATION_FEE_OPTION : (currentTerm?.id || paymentTerm));
       if (paymentDeviceFileRef.current) paymentDeviceFileRef.current.value = '';
       await refreshData();
       setPaymentMessageType('success');
-      setPaymentMessage('Proof of payment sent successfully.');
+      setPaymentMessage(`Proof of payment for ${getTermLabel(paymentTerm)} sent successfully.`);
       window.dispatchEvent(new CustomEvent('coha-payment-proof-update'));
       setActiveTab('home');
     } catch (error) {
@@ -445,18 +446,23 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
     });
   };
 
-  useEffect(() => {
-    if (!paymentTerm && currentTerm?.id) {
-      setPaymentTerm(currentTerm.id);
-    }
-  }, [currentTerm?.id, paymentTerm]);
-
   const needsPaymentProof = student?.studentStatus === 'WAITING_PAYMENT' || !!student?.paymentRejected;
   const paymentUnderReview = student?.studentStatus === 'PAYMENT_VERIFICATION';
-  const showPaymentCenter = needsPaymentProof || paymentUnderReview || paymentProofs.length > 0 || receipts.length > 0;
+  const showPaymentCenter = true;
   const recentEnrollmentWindow = 14 * 24 * 60 * 60 * 1000;
   const acceptedAtMs = getMillis(student?.enrolledAt);
   const showEnrollmentBanner = acceptedAtMs > 0 && (Date.now() - acceptedAtMs) <= recentEnrollmentWindow;
+
+  useEffect(() => {
+    if (!paymentTerm) {
+      setPaymentTerm(needsPaymentProof ? REGISTRATION_FEE_OPTION : (currentTerm?.id || REGISTRATION_FEE_OPTION));
+      return;
+    }
+
+    if (!needsPaymentProof && paymentTerm === REGISTRATION_FEE_OPTION && currentTerm?.id) {
+      setPaymentTerm(currentTerm.id);
+    }
+  }, [currentTerm?.id, needsPaymentProof, paymentTerm]);
 
   if (loading) return <Loader />;
   if (!student) return <div className="p-6 text-sm text-slate-500">Student not found.</div>;
@@ -970,16 +976,23 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
           </div>
 
           <div className="mt-4 rounded-[1.9rem] bg-white p-4 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
-            {needsPaymentProof ? (
-              <>
-                <SectionLabel icon={<FileImage size={14} />}>Upload Registration Fee Proof</SectionLabel>
-                <div className="grid grid-cols-1 gap-2">
-                  <select value={paymentTerm} onChange={(e) => setPaymentTerm(e.target.value)} className="h-12 rounded-[0.95rem] border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800">
-                    {(settings?.schoolCalendars || []).map((term) => (
-                      <option key={term.id} value={term.id}>{term.termName}</option>
-                    ))}
-                  </select>
+            <>
+              <SectionLabel icon={<FileImage size={14} />}>{needsPaymentProof ? 'Upload Registration Fee Proof' : 'Upload Payment Proof'}</SectionLabel>
+              <div className="grid grid-cols-1 gap-2">
+                <select value={paymentTerm} onChange={(e) => setPaymentTerm(e.target.value)} className="h-12 rounded-[0.95rem] border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800">
+                  {getPaymentOptions(settings).map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              {paymentUnderReview && (
+                <div className="mt-3 rounded-[1.4rem] border border-blue-200 bg-blue-50 px-4 py-4">
+                  <SectionLabel icon={<Clock size={14} />}>Proof Received</SectionLabel>
+                  <p className="text-sm font-semibold text-slate-800">
+                    Your registration payment proof is under review. You can continue using this payment area for future fee uploads.
+                  </p>
                 </div>
+              )}
                 <button
                   onClick={() => paymentDeviceFileRef.current?.click()}
                   className="relative mt-3 w-full overflow-hidden rounded-[1.5rem] border border-dashed border-coha-300 bg-[radial-gradient(circle_at_center,rgba(43,43,94,0.08),transparent_38%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 py-8 text-center shadow-sm"
@@ -994,7 +1007,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                       <FileImage size={28} />
                     </div>
                     <p className="max-w-[16rem] text-base font-black tracking-[-0.02em] text-slate-950">
-                      Click anywhere to upload your proof of payment image
+                      Click anywhere to upload your {getTermLabel(paymentTerm).toLowerCase()} proof image
                     </p>
                     <p className="mt-2 text-xs font-semibold text-slate-500">
                       Choose from device and send it to the school
@@ -1005,7 +1018,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                 <div className="mt-2">
                   <button disabled={!paymentFile || !paymentTerm || busyAction === 'payment'} onClick={handlePaymentSubmit} className="w-full h-14 rounded-[0.95rem] bg-coha-900 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-[0_12px_24px_rgba(43,43,94,0.22)]">
                     {busyAction === 'payment' ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                    Send proof
+                    Send {getTermLabel(paymentTerm)} Proof
                   </button>
                 </div>
                 {paymentMessage && (
@@ -1023,15 +1036,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                     if (paymentMessage) setPaymentMessage('');
                   }}
                 />
-              </>
-            ) : paymentUnderReview ? (
-              <div className="rounded-[1.4rem] border border-blue-200 bg-blue-50 px-4 py-4">
-                <SectionLabel icon={<Clock size={14} />}>Proof Received</SectionLabel>
-                <p className="text-sm font-semibold text-slate-800">
-                  Your proof of payment is under review. The school will confirm the amount from the uploaded image and update your balance once approved.
-                </p>
-              </div>
-            ) : (
+            </>
+            {!needsPaymentProof && !paymentUnderReview && (
               <div className="rounded-[1.4rem] border border-emerald-200 bg-emerald-50 px-4 py-4">
                 <SectionLabel icon={<CheckCircle2 size={14} />}>Payment Status</SectionLabel>
                 <p className="text-sm font-semibold text-slate-800">

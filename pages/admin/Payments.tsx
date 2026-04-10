@@ -5,6 +5,7 @@ import { PaymentProof, Student, SystemSettings } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { Toast } from '../../components/ui/Toast';
 import { buildPaymentApprovalEmailHtml, buildPaymentApprovalEmailText, getStudentParentEmail } from '../../utils/admissionMessaging';
+import { getPaymentOptionLabel, getPaymentOptions } from '../../utils/paymentOptions';
 
 interface PaymentsPageProps {
   user?: any;
@@ -36,10 +37,15 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
 
   const load = async () => {
     const [paymentProofs, setts] = await Promise.all([getPaymentProofs(), getSystemSettings()]);
-    setProofs(paymentProofs);
+    const sortedProofs = [...paymentProofs].sort((a, b) => {
+      const aTime = a.submittedAt?.seconds || 0;
+      const bTime = b.submittedAt?.seconds || 0;
+      return bTime - aTime;
+    });
+    setProofs(sortedProofs);
     setSettings(setts);
-    if (!selectedProof && paymentProofs.length > 0) {
-      setSelectedProof(paymentProofs[0]);
+    if (!selectedProof && sortedProofs.length > 0) {
+      setSelectedProof(sortedProofs[0]);
     }
   };
 
@@ -91,15 +97,17 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
         setToast({ msg: result.message || 'Payment approval failed.', show: true, type: 'error' });
         return;
       }
-      const parentEmail = getStudentParentEmail(selectedStudent);
+      const updatedStudent = await getStudentById(selectedStudent.id);
+      const emailStudent = updatedStudent || selectedStudent;
+      const parentEmail = getStudentParentEmail(emailStudent);
       if (parentEmail) {
         const copied = await copyToClipboard(buildPaymentApprovalEmailHtml({
-          student: selectedStudent,
+          student: emailStudent,
           schoolName: settings?.schoolName,
         }));
         const subject = `Payment Approved: ${selectedStudent.name} - ${settings?.schoolName || 'Circle of Hope Academy'}`;
         const body = buildPaymentApprovalEmailText({
-          student: selectedStudent,
+          student: emailStudent,
           schoolName: settings?.schoolName,
         });
         window.location.href = `mailto:${parentEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -116,7 +124,8 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
       window.dispatchEvent(new CustomEvent('coha-payment-proof-update'));
       await load();
       const refreshed = await getPaymentProofs();
-      const next = refreshed.find((item) => item.status === 'PENDING') || refreshed[0] || null;
+      const sortedRefreshed = [...refreshed].sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+      const next = sortedRefreshed.find((item) => item.status === 'PENDING') || sortedRefreshed[0] || null;
       setSelectedProof(next);
     } finally {
       setBusy(false);
@@ -131,7 +140,8 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
       window.dispatchEvent(new CustomEvent('coha-payment-proof-update'));
       await load();
       const refreshed = await getPaymentProofs();
-      const next = refreshed.find((item) => item.status === 'PENDING') || refreshed[0] || null;
+      const sortedRefreshed = [...refreshed].sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+      const next = sortedRefreshed.find((item) => item.status === 'PENDING') || sortedRefreshed[0] || null;
       setSelectedProof(next);
     } finally {
       setBusy(false);
@@ -165,7 +175,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
                   <div>
                     <p className="font-bold text-gray-900">{proof.studentName}</p>
                     <p className="text-xs text-gray-500 mt-1">{proof.parentName}</p>
-                    <p className="text-xs text-gray-400 mt-1">{proof.termId} · {proof.amountClaimed || 'Amount pending'}</p>
+                    <p className="text-xs text-gray-400 mt-1">{getPaymentOptionLabel(proof.termId, settings)} · {proof.amountClaimed || 'Amount pending'}</p>
                   </div>
                   <span className={`text-[10px] font-black uppercase tracking-wider ${proof.status === 'APPROVED' ? 'text-green-600' : proof.status === 'REJECTED' ? 'text-red-600' : 'text-amber-600'}`}>
                     {proof.status}
@@ -226,10 +236,10 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Term</label>
+                      <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Payment For</label>
                       <select value={termId} onChange={(e) => setTermId(e.target.value)} className="mt-2 w-full h-11 border border-gray-200 rounded-xl px-3 text-sm">
-                        {(settings?.schoolCalendars || []).map((term) => (
-                          <option key={term.id} value={term.id}>{term.termName}</option>
+                        {getPaymentOptions(settings).map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
                       </select>
                     </div>

@@ -424,7 +424,7 @@ export const TeachersPage: React.FC = () => {
                     <thead className="sticky top-0 bg-white text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                       <tr>
                         <th className="px-6 py-4">Student</th>
-                        <th className="px-6 py-4">Class</th>
+                        <th className="w-[220px] px-6 py-4">Class</th>
                         <th className="px-6 py-4">Parent</th>
                         <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
@@ -438,7 +438,7 @@ export const TeachersPage: React.FC = () => {
                               <p className="text-xs text-gray-500">{student.id}</p>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                              <span className="inline-flex min-w-[170px] whitespace-nowrap rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                                 {student.assignedClass || student.grade || student.level || '-'}
                               </span>
                             </td>

@@ -1,9 +1,10 @@
 import { db, auth } from '../firebase';
-import { collection, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
+import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
+import { isRegistrationFeeOption } from '../utils/paymentOptions';
 
 // Collections
 const TEACHERS_COLLECTION = 'teachers';
@@ -678,9 +679,21 @@ export const submitPaymentProof = async (
         }));
         const docRef = await addDoc(collection(db, PAYMENT_PROOFS_COLLECTION), payload);
 
+        const isRegistrationProof = isRegistrationFeeOption(data.termId);
+        const nextStatus = isRegistrationProof
+          ? (
+              student?.studentStatus === 'ENROLLED'
+                ? 'ENROLLED'
+                : student?.studentStatus === 'ASSESSMENT'
+                  ? 'ASSESSMENT'
+                  : 'PAYMENT_VERIFICATION'
+            )
+          : (student?.studentStatus || 'ENROLLED');
+
         await updateStudent(data.studentId, {
             receiptSubmissionDate: Timestamp.now(),
-            studentStatus: student?.studentStatus === 'ENROLLED' ? 'ENROLLED' : 'PAYMENT_VERIFICATION'
+            studentStatus: nextStatus,
+            paymentRejected: isRegistrationProof ? false : student?.paymentRejected || false,
         });
 
         return { success: true, id: docRef.id };
@@ -725,13 +738,22 @@ export const approvePaymentProof = async ({
     notes?: string;
 }) => {
     try {
-        const student = await getStudentById(studentId);
+        const [student, settings, teachers] = await Promise.all([
+          getStudentById(studentId),
+          getSystemSettings(),
+          getTeachers(),
+        ]);
         if (!student) {
             return { success: false, message: 'Student not found.' };
         }
 
         const existingReceipts = await getReceiptsForStudent(studentId);
-        const settings = await getSystemSettings();
+        const isRegistrationProof = isRegistrationFeeOption(termId);
+        const targetClass = normalizeClassLabel(student.assignedClass || student.grade || student.level || '');
+        const target = targetClass ? parseStudentTargetClass(targetClass) : null;
+        const targetTeacher = targetClass
+          ? teachers.find((teacher) => (teacher.assignedClasses || []).includes(targetClass))
+          : null;
 
         let yearlyFees = 0;
         (settings?.fees || []).forEach(f => {
@@ -773,13 +795,51 @@ export const approvePaymentProof = async ({
             reviewNotes: notes || '',
         });
 
-        await updateStudent(studentId, {
-            studentStatus: getNextStatusAfterPayment(student),
+        const nextStatus = isRegistrationProof
+          ? getNextStatusAfterPayment(student)
+          : (student.studentStatus || 'ENROLLED');
+
+        const studentPayload: Partial<Student> = {
+            studentStatus: nextStatus,
             paymentRejected: false,
             academicYear,
-        });
+        };
 
-        return { success: true, receiptId: receiptRef.id, receiptNumber };
+        if (targetClass && target) {
+          studentPayload.assignedClass = targetClass;
+          studentPayload.grade = target.grade;
+          studentPayload.level = target.level;
+          studentPayload.division = target.division;
+        }
+
+        if (targetTeacher) {
+          studentPayload.assignedTeacherId = targetTeacher.id;
+          studentPayload.assignedTeacherName = targetTeacher.name;
+        }
+
+        await updateStudent(studentId, studentPayload);
+
+        if (targetTeacher) {
+          const nextTeacherStudentIds = Array.from(new Set([...(targetTeacher.assignedStudentIds || []), studentId]));
+          const nextTeacherClasses = uniqueNonEmpty([...(targetTeacher.assignedClasses || []), targetClass]);
+          await updateDoc(doc(db, TEACHERS_COLLECTION, targetTeacher.id), {
+            assignedStudentIds: nextTeacherStudentIds,
+            assignedClasses: nextTeacherClasses,
+            assignedClass: nextTeacherClasses[0] || '',
+            activeTeachingClass: normalizeClassLabel(targetTeacher.activeTeachingClass) || targetClass,
+          });
+        }
+
+        if (student.assignedTeacherId && targetTeacher && student.assignedTeacherId !== targetTeacher.id) {
+          const previousTeacher = teachers.find((teacher) => teacher.id === student.assignedTeacherId);
+          if (previousTeacher) {
+            await updateDoc(doc(db, TEACHERS_COLLECTION, previousTeacher.id), {
+              assignedStudentIds: (previousTeacher.assignedStudentIds || []).filter((id) => id !== studentId),
+            });
+          }
+        }
+
+        return { success: true, receiptId: receiptRef.id, receiptNumber, nextStatus, assignedClass: targetClass };
     } catch (error) {
         console.error('Error approving payment proof:', error);
         return { success: false, message: 'Failed to approve payment proof.' };
@@ -789,6 +849,9 @@ export const approvePaymentProof = async ({
 export const rejectPaymentProof = async (proofId: string, studentId: string, adminName: string, notes?: string) => {
     try {
         const student = await getStudentById(studentId);
+        const proofSnap = await getDoc(doc(db, PAYMENT_PROOFS_COLLECTION, proofId));
+        const proof = proofSnap.exists() ? proofSnap.data() as PaymentProof : null;
+        const isRegistrationProof = isRegistrationFeeOption(proof?.termId);
         await updateDoc(doc(db, PAYMENT_PROOFS_COLLECTION, proofId), {
             status: 'REJECTED',
             reviewedAt: Timestamp.now(),
@@ -796,8 +859,16 @@ export const rejectPaymentProof = async (proofId: string, studentId: string, adm
             reviewNotes: notes || '',
         });
         await updateStudent(studentId, {
-            studentStatus: student?.studentStatus === 'ENROLLED' ? 'ENROLLED' : 'WAITING_PAYMENT',
-            paymentRejected: true,
+            studentStatus: isRegistrationProof
+              ? (
+                  student?.studentStatus === 'ENROLLED'
+                    ? 'ENROLLED'
+                    : student?.studentStatus === 'ASSESSMENT'
+                      ? 'ASSESSMENT'
+                      : 'WAITING_PAYMENT'
+                )
+              : (student?.studentStatus || 'ENROLLED'),
+            paymentRejected: isRegistrationProof,
         });
         return true;
     } catch (error) {
@@ -1431,6 +1502,7 @@ export const saveAssessmentRecord = async (record: import('../types').TermAssess
     const docRef = doc(db, ASSESSMENT_RECORDS_COLLECTION, record.grade, 'students', record.studentId, 'terms', record.termId);
     await setDoc(docRef, {
       ...record,
+      recordedClass: record.recordedClass || record.grade,
       updatedAt: new Date().toISOString()
     });
     return true;
@@ -1461,6 +1533,24 @@ export const getAssessmentRecordsForStudent = async (grade: string, studentId: s
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as import('../types').TermAssessmentRecord));
   } catch (error) {
     console.error("Error getting assessment records for student:", error);
+    return [];
+  }
+};
+
+export const getAssessmentRecordsForStudentAcrossClasses = async (studentId: string): Promise<import('../types').TermAssessmentRecord[]> => {
+  try {
+    const q = query(collectionGroup(db, 'terms'), where('studentId', '==', studentId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() } as import('../types').TermAssessmentRecord))
+      .map((record) => ({ ...record, recordedClass: record.recordedClass || record.grade }))
+      .sort((a, b) => {
+        const classCompare = (a.recordedClass || a.grade || '').localeCompare(b.recordedClass || b.grade || '');
+        if (classCompare !== 0) return classCompare;
+        return new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime();
+      });
+  } catch (error) {
+    console.error("Error getting assessment records across classes for student:", error);
     return [];
   }
 };
@@ -1639,6 +1729,7 @@ export const saveTopicAssessments = async (
       const payload = {
         studentId,
         grade,
+        recordedClass: grade,
         termId,
         subject,
         topic,
@@ -1684,6 +1775,25 @@ export const getTopicAssessments = async (
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as import('../types').TopicAssessmentRecord));
   } catch (error) {
     console.error("Error getting topic assessments:", error);
+    return [];
+  }
+};
+
+export const getTopicAssessmentsForStudent = async (
+  studentId: string
+): Promise<import('../types').TopicAssessmentRecord[]> => {
+  try {
+    const q = query(
+      collection(db, 'topic_assessments'),
+      where('studentId', '==', studentId)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as import('../types').TopicAssessmentRecord))
+      .map((record) => ({ ...record, recordedClass: record.recordedClass || record.grade }))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  } catch (error) {
+    console.error("Error getting topic assessments for student:", error);
     return [];
   }
 };

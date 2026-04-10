@@ -203,6 +203,7 @@ export interface TermAssessmentRecord {
   studentId: string;
   termId: string;
   grade: string;
+  recordedClass?: string;
   ratings: Record<string, AssessmentRating>; // key is component id
   rawScores?: Record<string, 1 | 2 | 3 | null>; // key is skill id
   remarks?: string;
@@ -214,6 +215,7 @@ export interface TopicAssessmentRecord {
   id?: string;
   studentId: string;
   grade: string;
+  recordedClass?: string;
   termId: string;
   subject: string;
   topic: string;

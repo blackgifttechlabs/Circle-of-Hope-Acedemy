@@ -257,6 +257,16 @@ export const buildPaymentApprovalEmailHtml = ({
 }) => {
   const parentName = escapeHtml(getParentName(student));
   const learnerName = escapeHtml(getLearnerName(student));
+  const isAssessmentFlow = student.studentStatus === 'ASSESSMENT';
+  const headline = isAssessmentFlow ? 'Payment Approved' : 'Payment Approved';
+  const subheading = isAssessmentFlow
+    ? `Assessment workflow has been unlocked for ${learnerName}`
+    : `Enrollment has been confirmed for ${learnerName}`;
+  const introCopy = isAssessmentFlow
+    ? `We confirm that the payment submitted for <strong>${learnerName}</strong> has been approved successfully.
+          The learner now moves into the current assessment workflow for the assigned special-needs class.`
+    : `We confirm that the payment submitted for <strong>${learnerName}</strong> has been approved successfully.
+          The learner has now been enrolled on the school system.`;
 
   return `
   <div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#0f172a;">
@@ -269,18 +279,15 @@ export const buildPaymentApprovalEmailHtml = ({
             </td>
             <td style="padding-left:18px;vertical-align:middle;">
               <div style="font-size:12px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#a7f3d0;">Accounts Office</div>
-              <div style="font-size:28px;font-weight:800;line-height:1.1;margin-top:6px;">Payment Approved</div>
-              <div style="font-size:14px;color:#d1fae5;margin-top:8px;">Enrollment has been confirmed for ${learnerName}</div>
+              <div style="font-size:28px;font-weight:800;line-height:1.1;margin-top:6px;">${headline}</div>
+              <div style="font-size:14px;color:#d1fae5;margin-top:8px;">${subheading}</div>
             </td>
           </tr>
         </table>
       </div>
       <div style="padding:32px;">
         <p style="margin:0 0 16px;font-size:16px;line-height:1.7;">Dear ${parentName},</p>
-        <p style="margin:0 0 16px;font-size:15px;line-height:1.8;">
-          We confirm that the payment submitted for <strong>${learnerName}</strong> has been approved successfully.
-          The learner has now been enrolled on the school system.
-        </p>
+        <p style="margin:0 0 16px;font-size:15px;line-height:1.8;">${introCopy}</p>
         <table role="presentation" style="width:100%;border-collapse:collapse;border:1px solid #dbe3ef;margin:24px 0;">
           <tr>
             <td style="width:34%;padding:12px 14px;background:#f8fafc;border-bottom:1px solid #dbe3ef;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:#475569;">Learner</td>
@@ -325,7 +332,9 @@ export const buildPaymentApprovalEmailText = ({
 }) => `Dear ${getParentName(student)},
 
 The payment submitted for ${getLearnerName(student)} has been approved successfully.
-The learner has now been enrolled on the ${schoolName} system.
+${student.studentStatus === 'ASSESSMENT'
+  ? `The learner now moves into the current assessment workflow for ${getLearnerClass(student)}.`
+  : `The learner has now been enrolled on the ${schoolName} system.`}
 
 Learner details
 - Student ID: ${student.id}
@@ -349,7 +358,9 @@ export const buildPaymentApprovalWhatsappText = ({
 }) => `Dear ${getParentName(student)},
 
 The payment for ${getLearnerName(student)} has been approved successfully.
-The learner is now enrolled on the ${schoolName} system.
+${student.studentStatus === 'ASSESSMENT'
+  ? `The learner now moves into the assessment workflow for ${getLearnerClass(student)}.`
+  : `The learner is now enrolled on the ${schoolName} system.`}
 
 Student ID: ${student.id}
 Class: ${getLearnerClass(student)}

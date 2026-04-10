@@ -2,9 +2,9 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
   getCustomTopicEntries,
-  getStudentsByAssignedClass,
   getSystemSettings,
   getTopicAssessments,
+  getTopicAssessmentsForStudent,
   getTopicOverrides,
 } from '../services/dataService';
 import { Student, SystemSettings, TopicAssessmentRecord } from '../types';
@@ -25,6 +25,7 @@ const DEFAULT_TERMS = [
 export interface Grade1To7ReportCard {
   termId: string;
   termName: string;
+  recordedClass: string;
   isComplete: boolean;
   updatedAt: string;
   subjectCount: number;
@@ -156,50 +157,58 @@ export const getGrade1To7ReportCards = async (
   student: Student,
   settings?: SystemSettings | null
 ): Promise<Grade1To7ReportCard[]> => {
-  const grade = student.assignedClass || student.grade || '';
-  if (!/Grade [1-7]/i.test(grade)) return [];
-
   const resolvedSettings = settings ?? await getSystemSettings();
   const terms = getTerms(resolvedSettings);
-  const subjects = [...getPromotionalSubjects(grade), ...getNonPromotionalSubjects(grade)];
+  const topicAssessments = await getTopicAssessmentsForStudent(student.id);
+  const relevantAssessments = topicAssessments.filter((item) => /Grade [1-7]/i.test(item.recordedClass || item.grade || ''));
+  const cardMap = new Map<string, Grade1To7ReportCard>();
 
-  const cards = await Promise.all(
-    terms.map(async (term) => {
-      const snapshots = await loadSubjectSnapshots(grade, term.id, subjects);
-      let latestUpdatedAt = '';
-      let subjectCount = 0;
+  relevantAssessments.forEach((item) => {
+    const recordedClass = item.recordedClass || item.grade;
+    const key = `${recordedClass}__${item.termId}`;
+    const existing = cardMap.get(key);
+    const termName = terms.find((term) => term.id === item.termId)?.termName || item.termId;
 
-      snapshots.forEach((snapshot) => {
-        const studentRecords = snapshot.records.filter((item) => item.studentId === student.id);
-        if (studentRecords.length > 0) {
-          subjectCount += 1;
-          const latestSubjectDate = [...studentRecords]
-            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]?.updatedAt || '';
-          if (!latestUpdatedAt || new Date(latestSubjectDate).getTime() > new Date(latestUpdatedAt).getTime()) {
-            latestUpdatedAt = latestSubjectDate;
-          }
-        }
+    if (!existing) {
+      cardMap.set(key, {
+        termId: item.termId,
+        termName,
+        recordedClass,
+        isComplete: true,
+        updatedAt: item.updatedAt,
+        subjectCount: 1,
       });
+      return;
+    }
 
-      return {
-        termId: term.id,
-        termName: term.termName,
-        isComplete: subjectCount > 0,
-        updatedAt: latestUpdatedAt,
-        subjectCount,
-      };
-    })
-  );
+    const subjectCount = new Set(
+      relevantAssessments
+        .filter((entry) => (entry.recordedClass || entry.grade) === recordedClass && entry.termId === item.termId)
+        .map((entry) => entry.subject)
+    ).size;
 
-  return cards;
+    cardMap.set(key, {
+      ...existing,
+      updatedAt: new Date(item.updatedAt).getTime() > new Date(existing.updatedAt).getTime() ? item.updatedAt : existing.updatedAt,
+      subjectCount,
+    });
+  });
+
+  return Array.from(cardMap.values()).sort((a, b) => {
+    const aTerm = terms.findIndex((term) => term.id === a.termId);
+    const bTerm = terms.findIndex((term) => term.id === b.termId);
+    if (a.recordedClass === b.recordedClass) return aTerm - bTerm;
+    return a.recordedClass.localeCompare(b.recordedClass);
+  });
 };
 
 export const printGrade1To7Report = async (
   student: Student,
   termId: string,
-  printedBy: string
+  printedBy: string,
+  classNameOverride?: string
 ) => {
-  const grade = student.assignedClass || student.grade || '';
+  const grade = classNameOverride || student.assignedClass || student.grade || '';
   if (!/Grade [1-7]/i.test(grade)) return;
 
   const settings = await getSystemSettings();
@@ -210,18 +219,16 @@ export const printGrade1To7Report = async (
   const subjectsNonPromotional = getNonPromotionalSubjects(grade);
   const allSubjects = [...subjectsPromotional, ...subjectsNonPromotional];
 
-  const [classStudentsRaw, subjectSnapshots, schoolLogo, rightHeaderLogo, principalSignature] = await Promise.all([
-    getStudentsByAssignedClass(grade),
+  const [subjectSnapshots, schoolLogo, rightHeaderLogo, principalSignature] = await Promise.all([
     loadSubjectSnapshots(grade, selectedTerm.id, allSubjects),
     fetchImage(SCHOOL_LOGO_URL),
     fetchImage(REPORT_HEADER_RIGHT_LOGO_URL),
     fetchImage(PRINCIPAL_SIGNATURE_URL),
   ]);
 
-  const classStudents = classStudentsRaw
-    .filter((item) => item.studentStatus === 'ENROLLED' || !item.studentStatus)
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const classStudentIds = classStudents.map((item) => item.id);
+  const classStudentIds = Array.from(new Set([
+    ...subjectSnapshots.flatMap((snapshot) => snapshot.records.map((item) => item.studentId)),
+  ]));
 
   const buildRows = (subjects: string[]) => subjects.map((subject) => {
     const snapshot = subjectSnapshots.find((item) => item.subject === subject);

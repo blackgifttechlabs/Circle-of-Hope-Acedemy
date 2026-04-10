@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getStudentById, calculateDayPercentage, getAssessmentRecordsForStudent, getSystemSettings } from '../../services/dataService';
+import { getStudentById, calculateDayPercentage, getAssessmentRecordsForStudentAcrossClasses, getSystemSettings } from '../../services/dataService';
 import { Student, TermAssessmentRecord, SystemSettings, PRE_PRIMARY_AREAS } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { Calendar, Activity, Brain, CheckCircle, ClipboardList, Clock, FileText, Download } from 'lucide-react';
@@ -29,16 +29,12 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
         setSettings(setts);
         
         if (data && data.division === 'Mainstream') {
-            const className = data.assignedClass || data.grade || 'Grade 0';
-            if (/Grade [1-7]/i.test(className)) {
-                const records = await getGrade1To7ReportCards(data, setts);
-                setGradeReports(records);
-                setAssessmentRecords([]);
-            } else {
-                const records = await getAssessmentRecordsForStudent(data.grade || 'Grade 0', user.id);
-                setAssessmentRecords(records);
-                setGradeReports([]);
-            }
+            const [records, gradeCards] = await Promise.all([
+              getAssessmentRecordsForStudentAcrossClasses(user.id),
+              getGrade1To7ReportCards(data, setts),
+            ]);
+            setAssessmentRecords(records);
+            setGradeReports(gradeCards);
         }
         
         setLoading(false);
@@ -51,25 +47,26 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
   if (!student) return <div className="p-8 text-center text-gray-500">Student record not found.</div>;
 
   const handleDownloadReport = async (record: TermAssessmentRecord | Grade1To7ReportCard) => {
-    if (!record.isComplete || reportLoadingMap[record.termId]) return;
+    const reportKey = `${'recordedClass' in record ? record.recordedClass : record.grade}__${record.termId}`;
+    if (!record.isComplete || reportLoadingMap[reportKey]) return;
     if (!student) return;
 
-    setReportLoadingMap(prev => ({ ...prev, [record.termId]: true }));
+    setReportLoadingMap(prev => ({ ...prev, [reportKey]: true }));
     try {
-      const className = student.assignedClass || student.grade || 'Grade 0';
-      if (/Grade [1-7]/i.test(className)) {
-        await printGrade1To7Report(student, record.termId, 'Parent Portal');
+      if ('subjectCount' in record) {
+        await printGrade1To7Report(student, record.termId, 'Parent Portal', record.recordedClass);
       } else {
         const termName = settings?.schoolCalendars?.find(c => c.id === record.termId)?.termName || record.termId;
         const year = new Date().getFullYear().toString();
         await printGrade0Report(student, record as TermAssessmentRecord, termName, year, 'Class Teacher');
       }
     } finally {
-      setReportLoadingMap(prev => ({ ...prev, [record.termId]: false }));
+      setReportLoadingMap(prev => ({ ...prev, [reportKey]: false }));
     }
   };
 
   if (student.division === 'Mainstream') {
+      const prePrimaryRecords = assessmentRecords.filter((record) => /Grade 0/i.test(record.recordedClass || record.grade || ''));
       return (
         <div className="-m-5 min-h-screen bg-[#f7f8fa] text-slate-900">
             <div className="max-w-7xl mx-auto px-3 sm:px-5 pb-24 pt-3">
@@ -83,20 +80,23 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
             </div>
 
             <div className="p-4 sm:p-8 max-w-7xl mx-auto bg-white border border-gray-200 shadow-sm rounded-[20px]">
-                {/Grade [1-7]/i.test(student.assignedClass || student.grade || '') ? (
-                    gradeReports.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400 font-black uppercase tracking-widest text-xs italic border-2 border-dashed border-gray-200">
-                            No assessment reports found for this student.
-                        </div>
-                    ) : (
+                {gradeReports.length > 0 || prePrimaryRecords.length > 0 ? (
+                    <div className="space-y-8">
+                      {gradeReports.length > 0 && (
+                        <div>
+                        <p className="mb-4 text-[10px] font-black uppercase tracking-[0.24em] text-gray-400">Mainstream Reports</p>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {gradeReports.map(record => {
-                                const isReportLoading = reportLoadingMap[record.termId] === true;
+                                const reportKey = `${record.recordedClass}__${record.termId}`;
+                                const isReportLoading = reportLoadingMap[reportKey] === true;
                                 return (
-                                    <div key={record.termId} className="border-2 border-gray-200 p-6 hover:border-coha-900 transition-colors flex flex-col justify-between h-full bg-gray-50">
+                                    <div key={reportKey} className="border-2 border-gray-200 p-6 hover:border-coha-900 transition-colors flex flex-col justify-between h-full bg-gray-50">
                                         <div>
                                             <div className="flex justify-between items-start mb-4">
-                                                <h4 className="font-black text-xl uppercase tracking-tighter">{record.termName}</h4>
+                                                <div>
+                                                  <h4 className="font-black text-xl uppercase tracking-tighter">{record.termName}</h4>
+                                                  <p className="mt-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">{record.recordedClass}</p>
+                                                </div>
                                                 {record.isComplete ? (
                                                     <span className="bg-green-100 text-green-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><CheckCircle size={10} /> Ready</span>
                                                 ) : (
@@ -141,84 +141,66 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
                                 );
                             })}
                         </div>
-                    )
-                ) : assessmentRecords.length === 0 ? (
-                    <div className="text-center py-12 text-gray-400 font-black uppercase tracking-widest text-xs italic border-2 border-dashed border-gray-200">
-                        No assessment records found for this student.
+                        </div>
+                      )}
+
+                      {prePrimaryRecords.length > 0 && (
+                        <div>
+                          <p className="mb-4 text-[10px] font-black uppercase tracking-[0.24em] text-gray-400">Pre-Primary Reports</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {prePrimaryRecords.map(record => {
+                              const reportKey = `${record.recordedClass || record.grade}__${record.termId}`;
+                              const isReportLoading = reportLoadingMap[reportKey] === true;
+                              return (
+                                <div key={reportKey} className="border-2 border-gray-200 p-6 hover:border-coha-900 transition-colors flex flex-col justify-between h-full bg-gray-50">
+                                  <div>
+                                    <div className="flex justify-between items-start mb-4">
+                                      <div>
+                                        <h4 className="font-black text-xl uppercase tracking-tighter">{record.termId}</h4>
+                                        <p className="mt-2 text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">{record.recordedClass || record.grade}</p>
+                                      </div>
+                                      {record.isComplete ? (
+                                        <span className="bg-green-100 text-green-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><CheckCircle size={10} /> Complete</span>
+                                      ) : (
+                                        <span className="bg-yellow-100 text-yellow-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1">In Progress</span>
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">
+                                      Last Updated: {new Date(record.updatedAt).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => handleDownloadReport(record)}
+                                    disabled={!record.isComplete || isReportLoading}
+                                    className={`w-full py-3 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all border-none rounded-none
+                                        ${record.isComplete ? 'bg-coha-900 text-white hover:bg-coha-800 cursor-pointer' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
+                                        ${isReportLoading ? 'opacity-80 cursor-wait' : ''}
+                                    `}
+                                  >
+                                    {isReportLoading ? (
+                                      <>
+                                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                        </svg>
+                                        Generating...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Download size={14} /> Download Report
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {assessmentRecords.map(record => {
-                            const isReportLoading = reportLoadingMap[record.termId] === true;
-                            return (
-                                <div key={record.termId} className="border-2 border-gray-200 p-6 hover:border-coha-900 transition-colors flex flex-col justify-between h-full bg-gray-50">
-                                    <div>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <h4 className="font-black text-xl uppercase tracking-tighter">{record.termId}</h4>
-                                            {record.isComplete ? (
-                                                <span className="bg-green-100 text-green-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><CheckCircle size={10} /> Complete</span>
-                                            ) : (
-                                                <span className="bg-yellow-100 text-yellow-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1">In Progress</span>
-                                            )}
-                                        </div>
-                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">
-                                            Last Updated: {new Date(record.updatedAt).toLocaleDateString()}
-                                        </p>
-                                        
-                                        <div className="space-y-3 mb-6">
-                                            {PRE_PRIMARY_AREAS.map(area => {
-                                                const areaRatings = area.components.map(c => record.ratings[c.id]).filter(Boolean);
-                                                const rated = areaRatings.length;
-                                                let currentScore = 0;
-                                                areaRatings.forEach(rating => {
-                                                    if (rating === 'FM') currentScore += 2;
-                                                    else if (rating === 'AM') currentScore += 1;
-                                                });
-                                                const maxScore = rated * 2;
-                                                const progress = maxScore === 0 ? 0 : Math.round((currentScore / maxScore) * 100);
-                                                return (
-                                                    <div key={area.id}>
-                                                        <div className="flex justify-between text-[9px] font-black uppercase tracking-widest mb-1">
-                                                            <span className="text-gray-600 truncate mr-2">{area.name}</span>
-                                                            <span className="text-coha-900 shrink-0">{progress}%</span>
-                                                        </div>
-                                                        <div className="w-full bg-gray-200 h-1.5 overflow-hidden">
-                                                            <div className={`h-full ${progress >= 80 ? 'bg-green-500' : progress >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${progress}%` }}></div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                    
-                                    <button
-                                        onClick={() => handleDownloadReport(record)}
-                                        disabled={!record.isComplete || isReportLoading}
-                                        className={`w-full py-3 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all border-none rounded-none
-                                            ${record.isComplete
-                                                ? 'bg-coha-900 text-white hover:bg-coha-800 cursor-pointer'
-                                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                            }
-                                            ${isReportLoading ? 'opacity-80 cursor-wait' : ''}
-                                        `}
-                                    >
-                                        {isReportLoading ? (
-                                            <>
-                                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                                                </svg>
-                                                Generating...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Download size={14} /> Download Report
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            );
-                        })}
+                    <div className="text-center py-12 text-gray-400 font-black uppercase tracking-widest text-xs italic border-2 border-dashed border-gray-200">
+                        No assessment reports found for this student.
                     </div>
                 )}
             </div>

@@ -143,7 +143,7 @@ export const printGrade0Report = async (
   doc.text("Grade / Year / Term:", margin + col1W + col2W + 2, infoY + 4);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.text(`Grade 0  |  ${year}  |  ${termName}`, margin + col1W + col2W + 2, infoY + 9);
+  doc.text(`${record.recordedClass || record.grade || 'Grade 0'}  |  ${year}  |  ${termName}`, margin + col1W + col2W + 2, infoY + 9);
 
   // ─── MAIN AREAS TABLE ──────────────────────────────────────────
   // Columns: Area Name | Component | Rating
