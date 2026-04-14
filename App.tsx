@@ -185,7 +185,6 @@ const App: React.FC = () => {
                       <Route path="vtc-applications" element={<VtcApplicationsPage />} />
                       <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
                       <Route path="payments" element={<PaymentsPage user={user} />} />
-                      <Route path="activities" element={<ActivitiesPage />} />
                       <Route path="homeworks" element={<AdminHomeworksPage />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
                       <Route path="students/:id" element={<StudentDetailsPage user={user} />} />
@@ -204,6 +203,7 @@ const App: React.FC = () => {
                       <Route path="assessment-progress" element={<ViewAssessmentProgress />} />
                       <Route path="assessment-progress/view/:className/:subject" element={<AdminAssessmentSheetViewer />} />
                       <Route path="payments" element={<PaymentsPage user={user} />} />
+                      <Route path="activities" element={<ActivitiesPage />} />
                       <Route path="homeworks" element={<AdminHomeworksPage />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
                       <Route path="students/:id" element={<StudentDetailsPage user={user} />} />

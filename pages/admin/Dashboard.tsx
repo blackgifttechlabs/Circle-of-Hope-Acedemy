@@ -2,16 +2,25 @@ import React, { useEffect, useState } from 'react';
 import {
   Users, GraduationCap, DollarSign, AlertCircle, X,
   TrendingUp, TrendingDown, ArrowRight, Bell, ChevronRight,
-  BookOpen, Activity, BarChart2, Banknote, Clock, CheckCircle
+  BookOpen, Activity, BarChart2, Banknote, Clock, CheckCircle,
+  ShieldCheck, Edit2, Trash2, History, Save
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, AreaChart, Area, Cell
+  ResponsiveContainer, Cell
 } from 'recharts';
-import { getDashboardStats, createSubAdmin } from '../../services/dataService';
+import {
+  getDashboardStats,
+  createSubAdmin,
+  getSystemSettings,
+  getActivityLogs,
+  updateAdminAccount,
+  deleteSubAdmin,
+} from '../../services/dataService';
 import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { ActivityLog, SystemSettings } from '../../types';
 
 /* ─── Avatar ─── */
 const Av = ({ name, imageUrl, size = 36 }: { name: string; imageUrl?: string; size?: number }) => {
@@ -52,6 +61,25 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+const WeeklyPaymentTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  const item = payload[0]?.payload;
+  return (
+    <div style={{ background:'white', border:'1px solid #e2e8f0', borderRadius:10,
+      padding:'10px 14px', boxShadow:'0 4px 16px rgba(0,0,0,.08)' }}>
+      <p style={{ fontSize:11, fontWeight:900, color:'#0f172a', margin:'0 0 4px' }}>
+        {item?.range || payload[0]?.name}
+      </p>
+      <p style={{ fontSize:13, fontWeight:900, color:'#10b981', margin:0 }}>
+        N$ {(payload[0]?.value || 0).toLocaleString()} fees paid
+      </p>
+      <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', margin:'4px 0 0' }}>
+        {item?.receipts || 0} receipt{item?.receipts === 1 ? '' : 's'}
+      </p>
+    </div>
+  );
+};
+
 /* ─── Ring mini chart ─── */
 const Ring = ({ pct, color, size=60 }: { pct:number; color:string; size?:number }) => {
   const r = (size-8)/2, circ = 2*Math.PI*r;
@@ -70,6 +98,16 @@ export const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showDefaulters, setShowDefaulters] = useState(false);
   const [showCreateAdmin, setShowCreateAdmin] = useState(false);
+  const [showAdmins, setShowAdmins] = useState(false);
+  const [adminSettings, setAdminSettings] = useState<SystemSettings | null>(null);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [editAdmin, setEditAdmin] = useState<{ id: string; name: string; pin: string; roleLabel: string } | null>(null);
+  const [deleteAdmin, setDeleteAdmin] = useState<{ id: string; name: string } | null>(null);
+  const [activityAdmin, setActivityAdmin] = useState<{ id: string; name: string; roleLabel: string } | null>(null);
+  const [editAdminForm, setEditAdminForm] = useState({ name: '', pin: '' });
+  const [adminActionLoading, setAdminActionLoading] = useState(false);
+  const [adminActionMessage, setAdminActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedRevenueWeekIndex, setSelectedRevenueWeekIndex] = useState(0);
   const [newAdminName, setNewAdminName] = useState('');
   const [newAdminPin, setNewAdminPin] = useState('');
   const [createAdminLoading, setCreateAdminLoading] = useState(false);
@@ -80,6 +118,15 @@ export const AdminDashboard: React.FC = () => {
     const data = await getDashboardStats();
     setStats(data);
     setLoading(false);
+  };
+
+  const loadAdminData = async () => {
+    const [settingsData, logsData] = await Promise.all([
+      getSystemSettings(),
+      getActivityLogs(2000),
+    ]);
+    setAdminSettings(settingsData);
+    setActivityLogs(logsData);
   };
 
   useEffect(() => {
@@ -104,6 +151,18 @@ export const AdminDashboard: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const weeks = stats?.weeklyPaymentData || [];
+    if (!weeks.length) return;
+    const now = new Date();
+    const currentWeekIndex = weeks.findIndex((week: any) => {
+      const start = new Date(week.startDate);
+      const end = new Date(week.endDate);
+      return now >= start && now <= end;
+    });
+    setSelectedRevenueWeekIndex(currentWeekIndex >= 0 ? currentWeekIndex : 0);
+  }, [stats?.weeklyPaymentData?.length]);
+
   if (loading) return <Loader />;
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
@@ -123,6 +182,7 @@ export const AdminDashboard: React.FC = () => {
       setCreateAdminSuccess(result.message);
       setNewAdminName('');
       setNewAdminPin('');
+      await loadAdminData();
       setTimeout(() => {
         setShowCreateAdmin(false);
         setCreateAdminSuccess('');
@@ -133,6 +193,77 @@ export const AdminDashboard: React.FC = () => {
     setCreateAdminLoading(false);
   };
 
+  const openAdminsModal = async () => {
+    setShowAdmins(true);
+    setAdminActionMessage(null);
+    await loadAdminData();
+  };
+
+  const adminRows = [
+    {
+      id: 'admin',
+      name: adminSettings?.adminName || 'Main Admin',
+      pin: adminSettings?.adminPin || '',
+      roleLabel: 'Main Admin',
+      canDelete: false,
+    },
+    ...((adminSettings?.admins || []).map((admin) => ({
+      id: admin.id,
+      name: admin.name,
+      pin: admin.pin,
+      roleLabel: 'Sub Admin',
+      canDelete: true,
+    }))),
+  ];
+
+  const getLogsForAdmin = (admin: { id: string; name: string }) => (
+    activityLogs.filter((log) => (
+      log.actorId === admin.id ||
+      log.actorName === admin.name ||
+      (admin.id === 'admin' && log.actorId === 'admin')
+    ))
+  );
+
+  const openEditAdmin = (admin: { id: string; name: string; pin: string; roleLabel: string }) => {
+    setEditAdmin(admin);
+    setEditAdminForm({ name: admin.name, pin: admin.pin });
+    setAdminActionMessage(null);
+  };
+
+  const handleSaveAdmin = async () => {
+    if (!editAdmin) return;
+    setAdminActionLoading(true);
+    setAdminActionMessage(null);
+    const result = await updateAdminAccount(editAdmin.id, editAdminForm.name, editAdminForm.pin, adminSettings?.adminName || 'Main admin');
+    setAdminActionLoading(false);
+
+    if (!result.success) {
+      setAdminActionMessage({ type: 'error', text: result.message });
+      return;
+    }
+
+    setAdminActionMessage({ type: 'success', text: result.message });
+    setEditAdmin(null);
+    await loadAdminData();
+  };
+
+  const handleDeleteAdmin = async () => {
+    if (!deleteAdmin) return;
+    setAdminActionLoading(true);
+    setAdminActionMessage(null);
+    const result = await deleteSubAdmin(deleteAdmin.id, adminSettings?.adminName || 'Main admin');
+    setAdminActionLoading(false);
+
+    if (!result.success) {
+      setAdminActionMessage({ type: 'error', text: result.message });
+      return;
+    }
+
+    setAdminActionMessage({ type: 'success', text: result.message });
+    setDeleteAdmin(null);
+    await loadAdminData();
+  };
+
   const totalStudents   = stats?.totalStudents || 0;
   const totalTeachers   = stats?.totalTeachers || 0;
   const expectedRev     = stats?.expectedRevenue || 0;
@@ -140,6 +271,14 @@ export const AdminDashboard: React.FC = () => {
   const collected       = expectedRev - outstanding;
   const collectionPct   = expectedRev > 0 ? Math.round((collected / expectedRev) * 100) : 0;
   const defaulterCount  = stats?.defaulters?.length || 0;
+  const weeklyPaymentData = stats?.weeklyPaymentData || [];
+  const selectedRevenueWeek = weeklyPaymentData[selectedRevenueWeekIndex] || weeklyPaymentData[0] || {
+    range: 'No term weeks',
+    paid: 0,
+    receipts: 0,
+    name: '-',
+  };
+  const termPaymentsTotal = weeklyPaymentData.reduce((sum: number, week: any) => sum + (week.paid || 0), 0);
 
   /* bar chart colours per bar */
   const barColors = ['#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b','#ec4899',
@@ -215,6 +354,13 @@ export const AdminDashboard: React.FC = () => {
             className="!bg-coha-900 hover:!bg-coha-800 text-white !py-2 !px-4 !rounded-lg !text-sm !font-bold"
           >
             Create Admin
+          </Button>
+          <Button 
+            onClick={openAdminsModal}
+            variant="outline"
+            className="!py-2 !px-4 !rounded-lg !text-sm !font-bold"
+          >
+            <ShieldCheck size={16} /> View Admins
           </Button>
           <button style={{ background:'white', border:'1.5px solid #e2e8f0', borderRadius:10,
             width:40, height:40, display:'flex', alignItems:'center', justifyContent:'center',
@@ -386,7 +532,7 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Revenue trend area chart */}
+              {/* Weekly payments chart */}
               <div style={{ ...card, padding:22 }}>
                 <div style={{ display:'flex', justifyContent:'space-between',
                   alignItems:'flex-start', marginBottom:20, flexWrap:'wrap', gap:8 }}>
@@ -396,42 +542,76 @@ export const AdminDashboard: React.FC = () => {
                       Revenue Overview
                     </p>
                     <p style={{ fontSize:18, fontWeight:900, letterSpacing:-1,
-                      color:'#0f172a', margin:0 }}>Collection vs Outstanding</p>
+                      color:'#0f172a', margin:0 }}>Fees Paid by Week</p>
                   </div>
-                  <span style={{ background:'#f0fdf4', color:'#10b981', fontSize:10,
-                    fontWeight:800, padding:'4px 12px', borderRadius:20 }}>Live</span>
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6 }}>
+                    <span style={{ background:'#f0fdf4', color:'#10b981', fontSize:10,
+                      fontWeight:800, padding:'4px 12px', borderRadius:20 }}>
+                      {stats?.activeTermName || 'Current Term'}
+                    </span>
+                    <span style={{ fontSize:10, fontWeight:800, color:'#94a3b8' }}>
+                      Term total: N$ {termPaymentsTotal.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display:'flex', justifyContent:'center', marginBottom:12 }}>
+                  <div style={{ background:'#0f172a', color:'white', borderRadius:999,
+                    padding:'8px 14px', boxShadow:'0 10px 24px rgba(15,23,42,.18)',
+                    display:'flex', alignItems:'center', gap:12, flexWrap:'wrap',
+                    justifyContent:'center' }}>
+                    <span style={{ fontSize:11, fontWeight:900, letterSpacing:'.08em',
+                      textTransform:'uppercase', color:'#bfdbfe' }}>
+                      {selectedRevenueWeek.range}
+                    </span>
+                    <span style={{ width:1, height:18, background:'rgba(255,255,255,.22)' }} />
+                    <span style={{ fontSize:15, fontWeight:900 }}>
+                      N$ {(selectedRevenueWeek.paid || 0).toLocaleString()}
+                    </span>
+                    <span style={{ fontSize:10, fontWeight:800, color:'rgba(255,255,255,.65)' }}>
+                      {selectedRevenueWeek.receipts || 0} receipt{selectedRevenueWeek.receipts === 1 ? '' : 's'}
+                    </span>
+                  </div>
                 </div>
                 <div style={{ height:200 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={(stats?.graphData || []).map((d: any, i: number) => ({
-                        ...d,
-                        collected: Math.round(expectedRev * (0.4 + i * 0.05)),
-                        outstanding: Math.round(outstanding * (1 - i * 0.04)),
-                      }))}
-                      margin={{ top:0, right:0, left:-20, bottom:0 }}>
-                      <defs>
-                        <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="go" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.15}/>
-                          <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                      <XAxis dataKey="name" tick={{ fontSize:9, fill:'#94a3b8', fontWeight:700 }}
-                        axisLine={false} tickLine={false}/>
-                      <YAxis tick={{ fontSize:9, fill:'#94a3b8', fontWeight:700 }}
-                        axisLine={false} tickLine={false}/>
-                      <Tooltip content={<CustomTooltip/>}/>
-                      <Area type="monotone" dataKey="collected" name="Collected"
-                        stroke="#10b981" strokeWidth={2} fill="url(#gc)" dot={false}/>
-                      <Area type="monotone" dataKey="outstanding" name="Outstanding"
-                        stroke="#f43f5e" strokeWidth={2} fill="url(#go)" dot={false}/>
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  {weeklyPaymentData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={weeklyPaymentData} barSize={18}
+                        margin={{ top:8, right:0, left:-20, bottom:0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
+                        <XAxis dataKey="name" tick={{ fontSize:9, fill:'#94a3b8', fontWeight:700 }}
+                          axisLine={false} tickLine={false}/>
+                        <YAxis
+                          tick={{ fontSize:9, fill:'#94a3b8', fontWeight:700 }}
+                          tickFormatter={(value) => `N$${Number(value || 0) / 1000}k`}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip content={<WeeklyPaymentTooltip/>} cursor={{ fill:'#f8fafc', radius:4 }}/>
+                        <Bar
+                          dataKey="paid"
+                          name="Fees Paid"
+                          radius={[8,8,0,0]}
+                          onMouseEnter={(_: any, index: number) => setSelectedRevenueWeekIndex(index)}
+                          onClick={(_: any, index: number) => setSelectedRevenueWeekIndex(index)}
+                        >
+                          {weeklyPaymentData.map((_: any, i: number) => (
+                            <Cell
+                              key={i}
+                              fill={i === selectedRevenueWeekIndex ? '#10b981' : '#93c5fd'}
+                              stroke={i === selectedRevenueWeekIndex ? '#047857' : '#60a5fa'}
+                              strokeWidth={i === selectedRevenueWeekIndex ? 2 : 0}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div style={{ height:'100%', display:'flex', alignItems:'center',
+                      justifyContent:'center', color:'#cbd5e1', fontSize:12,
+                      fontWeight:800, textTransform:'uppercase', letterSpacing:'.1em' }}>
+                      No term payment data found.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -699,6 +879,289 @@ export const AdminDashboard: React.FC = () => {
                 onClick={() => setShowDefaulters(false)}>
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ VIEW ADMINS MODAL ══ */}
+      {showAdmins && (
+        <div style={{ position:'fixed', inset:0, zIndex:90, display:'flex',
+          alignItems:'center', justifyContent:'center',
+          background:'rgba(15,23,42,.6)', backdropFilter:'blur(4px)', padding:16 }}>
+          <div style={{ background:'white', width:'100%', maxWidth:980,
+            borderRadius:20, boxShadow:'0 24px 80px rgba(0,0,0,.2)',
+            maxHeight:'88vh', display:'flex', flexDirection:'column',
+            animation:'fadeup .25s ease', overflow:'hidden' }}>
+
+            <div style={{ padding:'22px 24px', borderBottom:'1px solid #f1f5f9',
+              display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:16 }}>
+              <div>
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
+                  <div style={{ background:'#eef2ff', padding:8, borderRadius:10 }}>
+                    <ShieldCheck size={20} color="#4f46e5"/>
+                  </div>
+                  <h3 style={{ fontSize:18, fontWeight:900, color:'#0f172a',
+                    letterSpacing:-.5, margin:0 }}>Admins</h3>
+                </div>
+                <p style={{ fontSize:12, color:'#94a3b8', fontWeight:600, margin:0 }}>
+                  View admin names, current PINs, account actions, and activity logs.
+                </p>
+              </div>
+              <button onClick={() => setShowAdmins(false)}
+                style={{ background:'#f8fafc', border:'none', cursor:'pointer',
+                  width:36, height:36, borderRadius:8, display:'flex',
+                  alignItems:'center', justifyContent:'center' }}>
+                <X size={18} color="#64748b"/>
+              </button>
+            </div>
+
+            {adminActionMessage && (
+              <div style={{
+                margin:'16px 24px 0',
+                background: adminActionMessage.type === 'success' ? '#f0fdf4' : '#fef2f2',
+                color: adminActionMessage.type === 'success' ? '#15803d' : '#b91c1c',
+                border:`1px solid ${adminActionMessage.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
+                padding:'10px 14px',
+                borderRadius:12,
+                fontSize:13,
+                fontWeight:700,
+              }}>
+                {adminActionMessage.text}
+              </div>
+            )}
+
+            <div style={{ overflowY:'auto', flex:1, paddingTop: adminActionMessage ? 12 : 0 }}>
+              <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                <thead>
+                  <tr style={{ background:'#f8fafc', position:'sticky', top:0 }}>
+                    <th className="ath">Name</th>
+                    <th className="ath">Role</th>
+                    <th className="ath">Current PIN</th>
+                    <th className="ath">Activities</th>
+                    <th className="ath" style={{ textAlign:'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminRows.map((admin) => {
+                    const adminLogCount = getLogsForAdmin(admin).length;
+                    return (
+                      <tr key={admin.id} className="ahrow" style={{ borderBottom:'1px solid #f8fafc' }}>
+                        <td className="atd">
+                          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                            <Av name={admin.name} size={34}/>
+                            <div>
+                              <p style={{ fontSize:13, fontWeight:900, color:'#0f172a', margin:0 }}>{admin.name}</p>
+                              <p style={{ fontSize:10, color:'#94a3b8', fontWeight:700, margin:'2px 0 0' }}>{admin.id}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="atd">
+                          <span style={{ background: admin.canDelete ? '#eff6ff' : '#fef3c7',
+                            color: admin.canDelete ? '#1d4ed8' : '#92400e',
+                            padding:'4px 10px', borderRadius:20, fontSize:10,
+                            fontWeight:900, textTransform:'uppercase', letterSpacing:'.06em' }}>
+                            {admin.roleLabel}
+                          </span>
+                        </td>
+                        <td className="atd">
+                          <span style={{ fontFamily:'monospace', fontSize:14, fontWeight:900,
+                            color:'#0f172a', background:'#f8fafc', border:'1px solid #e2e8f0',
+                            padding:'4px 10px', borderRadius:8 }}>
+                            {admin.pin || '-'}
+                          </span>
+                        </td>
+                        <td className="atd">
+                          <button className="abo" onClick={() => setActivityAdmin(admin)}
+                            style={{ padding:'7px 10px' }}>
+                            <History size={13}/> {adminLogCount} Logs
+                          </button>
+                        </td>
+                        <td className="atd" style={{ textAlign:'right' }}>
+                          <div style={{ display:'flex', gap:8, justifyContent:'flex-end', flexWrap:'wrap' }}>
+                            <button className="abo" onClick={() => openEditAdmin(admin)}
+                              style={{ padding:'7px 10px' }}>
+                              <Edit2 size={13}/> Edit
+                            </button>
+                            <button
+                              className="abo"
+                              disabled={!admin.canDelete}
+                              onClick={() => admin.canDelete && setDeleteAdmin(admin)}
+                              style={{
+                                padding:'7px 10px',
+                                color: admin.canDelete ? '#dc2626' : '#cbd5e1',
+                                borderColor: admin.canDelete ? '#fecaca' : '#e2e8f0',
+                                cursor: admin.canDelete ? 'pointer' : 'not-allowed',
+                              }}
+                            >
+                              <Trash2 size={13}/> Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ padding:'14px 24px', borderTop:'1px solid #f1f5f9',
+              background:'#f8fafc', display:'flex', justifyContent:'space-between',
+              alignItems:'center', flexWrap:'wrap', gap:8 }}>
+              <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8',
+                textTransform:'uppercase', letterSpacing:'.08em' }}>
+                {adminRows.length} admin account{adminRows.length !== 1 ? 's' : ''}
+              </span>
+              <button className="abp" style={{ background:'#0f172a' }}
+                onClick={() => setShowAdmins(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ EDIT ADMIN MODAL ══ */}
+      {editAdmin && (
+        <div style={{ position:'fixed', inset:0, zIndex:110, display:'flex',
+          alignItems:'center', justifyContent:'center',
+          background:'rgba(15,23,42,.62)', backdropFilter:'blur(4px)', padding:16 }}>
+          <div style={{ background:'white', width:'100%', maxWidth:420,
+            borderRadius:20, boxShadow:'0 24px 80px rgba(0,0,0,.22)',
+            overflow:'hidden', animation:'fadeup .2s ease' }}>
+            <div style={{ padding:'20px 24px', borderBottom:'1px solid #f1f5f9',
+              display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <h3 style={{ margin:0, fontSize:18, fontWeight:900, color:'#0f172a' }}>
+                Edit {editAdmin.roleLabel}
+              </h3>
+              <button onClick={() => setEditAdmin(null)}
+                style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8' }}>
+                <X size={20}/>
+              </button>
+            </div>
+            <div style={{ padding:24 }}>
+              <div style={{ marginBottom:16 }}>
+                <Input
+                  label="Admin Name"
+                  value={editAdminForm.name}
+                  onChange={(event) => setEditAdminForm((prev) => ({ ...prev, name: event.target.value }))}
+                />
+              </div>
+              <div style={{ marginBottom:24 }}>
+                <Input
+                  label="Current PIN"
+                  value={editAdminForm.pin}
+                  onChange={(event) => setEditAdminForm((prev) => ({ ...prev, pin: event.target.value }))}
+                />
+              </div>
+              <Button type="button" fullWidth disabled={adminActionLoading} onClick={handleSaveAdmin}>
+                <Save size={16}/> {adminActionLoading ? 'Saving...' : 'Save Admin'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ DELETE ADMIN CONFIRMATION ══ */}
+      {deleteAdmin && (
+        <div style={{ position:'fixed', inset:0, zIndex:110, display:'flex',
+          alignItems:'center', justifyContent:'center',
+          background:'rgba(15,23,42,.62)', backdropFilter:'blur(4px)', padding:16 }}>
+          <div style={{ background:'white', width:'100%', maxWidth:440,
+            borderRadius:20, boxShadow:'0 24px 80px rgba(0,0,0,.22)',
+            overflow:'hidden', animation:'fadeup .2s ease' }}>
+            <div style={{ padding:24 }}>
+              <div style={{ background:'#fef2f2', color:'#dc2626', width:44, height:44,
+                borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center',
+                marginBottom:14 }}>
+                <Trash2 size={22}/>
+              </div>
+              <h3 style={{ margin:'0 0 8px', fontSize:20, fontWeight:900, color:'#0f172a' }}>
+                Delete admin?
+              </h3>
+              <p style={{ margin:'0 0 22px', fontSize:13, lineHeight:1.6, color:'#64748b', fontWeight:600 }}>
+                This will remove {deleteAdmin.name}'s admin access immediately. This action cannot be undone.
+              </p>
+              <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+                <button className="abo" onClick={() => setDeleteAdmin(null)}>Cancel</button>
+                <button className="abp" style={{ background:'#dc2626' }}
+                  disabled={adminActionLoading}
+                  onClick={handleDeleteAdmin}>
+                  {adminActionLoading ? 'Deleting...' : 'Delete Admin'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ ADMIN ACTIVITIES MODAL ══ */}
+      {activityAdmin && (
+        <div style={{ position:'fixed', inset:0, zIndex:110, display:'flex',
+          alignItems:'center', justifyContent:'center',
+          background:'rgba(15,23,42,.62)', backdropFilter:'blur(4px)', padding:16 }}>
+          <div style={{ background:'white', width:'100%', maxWidth:860,
+            borderRadius:20, boxShadow:'0 24px 80px rgba(0,0,0,.22)',
+            maxHeight:'86vh', display:'flex', flexDirection:'column',
+            overflow:'hidden', animation:'fadeup .2s ease' }}>
+            <div style={{ padding:'20px 24px', borderBottom:'1px solid #f1f5f9',
+              display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:16 }}>
+              <div>
+                <h3 style={{ margin:0, fontSize:18, fontWeight:900, color:'#0f172a' }}>
+                  Activities: {activityAdmin.name}
+                </h3>
+                <p style={{ fontSize:12, color:'#94a3b8', fontWeight:700, margin:'4px 0 0' }}>
+                  {activityAdmin.roleLabel} activity log
+                </p>
+              </div>
+              <button onClick={() => setActivityAdmin(null)}
+                style={{ background:'#f8fafc', border:'none', cursor:'pointer',
+                  width:36, height:36, borderRadius:8, display:'flex',
+                  alignItems:'center', justifyContent:'center' }}>
+                <X size={18} color="#64748b"/>
+              </button>
+            </div>
+            <div style={{ overflowY:'auto', flex:1 }}>
+              <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                <thead>
+                  <tr style={{ background:'#f8fafc', position:'sticky', top:0 }}>
+                    <th className="ath">Action Time</th>
+                    <th className="ath">Category</th>
+                    <th className="ath">Action</th>
+                    <th className="ath">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getLogsForAdmin(activityAdmin).map((log) => {
+                    const date = log.createdAt?.toDate ? log.createdAt.toDate() : new Date(log.createdAt);
+                    return (
+                      <tr key={log.id} style={{ borderBottom:'1px solid #f8fafc' }}>
+                        <td className="atd" style={{ whiteSpace:'nowrap', color:'#64748b', fontWeight:700 }}>
+                          {Number.isNaN(date.getTime()) ? '-' : date.toLocaleString()}
+                        </td>
+                        <td className="atd">
+                          <span style={{ background:'#eef2ff', color:'#4338ca',
+                            padding:'3px 9px', borderRadius:20, fontSize:10,
+                            fontWeight:900, textTransform:'uppercase', letterSpacing:'.06em' }}>
+                            {log.category}
+                          </span>
+                        </td>
+                        <td className="atd" style={{ fontWeight:900, color:'#0f172a' }}>{log.action}</td>
+                        <td className="atd" style={{ color:'#64748b', fontWeight:600 }}>{log.details || '-'}</td>
+                      </tr>
+                    );
+                  })}
+                  {getLogsForAdmin(activityAdmin).length === 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ padding:'42px 16px', textAlign:'center',
+                        color:'#cbd5e1', fontWeight:800, fontSize:12,
+                        textTransform:'uppercase', letterSpacing:'.1em' }}>
+                        No activity logs found for this admin.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

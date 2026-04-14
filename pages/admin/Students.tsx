@@ -214,6 +214,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
     const result = await createStudentByAdmin({
       ...newStudentForm,
       adminName: user?.name || 'Admin',
+      adminId: user?.id || 'admin',
     });
     setLoading(false);
 

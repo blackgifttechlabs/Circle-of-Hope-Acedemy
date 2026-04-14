@@ -287,6 +287,7 @@ This receipt is available in the parent portal.`;
         termId: reviewTermId,
         academicYear: selectedStudent.academicYear || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
         adminName: user?.name || 'Admin',
+        adminId: user?.id || 'admin',
         notes: reviewNotes,
       });
       if (!result.success) {
@@ -340,6 +341,7 @@ This receipt is available in the parent portal.`;
         paymentLabel: manualCategory === 'OTHER' ? manualOtherLabel : undefined,
         academicYear: manualStudent.academicYear || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
         adminName: user?.name || 'Admin',
+        adminId: user?.id || 'admin',
         notes: manualNotes,
       });
 

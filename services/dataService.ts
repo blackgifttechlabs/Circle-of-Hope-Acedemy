@@ -439,12 +439,14 @@ export const createStudentByAdmin = async ({
     dob,
     targetClass,
     adminName,
+    adminId = 'admin',
 }: {
     firstName: string;
     surname: string;
     dob: string;
     targetClass: string;
     adminName: string;
+    adminId?: string;
 }): Promise<{ success: boolean; student?: Student; message?: string }> => {
   try {
     const cleanFirstName = firstName.trim();
@@ -494,7 +496,7 @@ export const createStudentByAdmin = async ({
     await addActivityLog({
       category: 'STUDENT',
       action: `${adminName} added student ${name}`,
-      actorId: 'admin',
+      actorId: adminId,
       actorName: adminName,
       actorRole: UserRole.ADMIN,
       targetId: customId,
@@ -877,6 +879,7 @@ export const approvePaymentProof = async ({
     termId,
     academicYear,
     adminName,
+    adminId,
     notes,
 }: {
     proofId: string;
@@ -885,6 +888,7 @@ export const approvePaymentProof = async ({
     termId: string;
     academicYear: string;
     adminName: string;
+    adminId?: string;
     notes?: string;
 }) => {
     try {
@@ -994,7 +998,7 @@ export const approvePaymentProof = async ({
         await addActivityLog({
           category: 'PAYMENT',
           action: `${adminName} approved a payment proof for ${student.name}`,
-          actorId: 'admin',
+          actorId: adminId || 'admin',
           actorName: adminName,
           actorRole: UserRole.ADMIN,
           targetId: studentId,
@@ -1017,6 +1021,7 @@ export const recordAdminPayment = async ({
     paymentLabel,
     academicYear,
     adminName,
+    adminId,
     notes,
 }: {
     studentId: string;
@@ -1026,6 +1031,7 @@ export const recordAdminPayment = async ({
     paymentLabel?: string;
     academicYear: string;
     adminName: string;
+    adminId?: string;
     notes?: string;
 }): Promise<{ success: boolean; receipt?: Receipt; student?: Student; message?: string }> => {
     try {
@@ -1095,7 +1101,7 @@ export const recordAdminPayment = async ({
         await addActivityLog({
             category: 'PAYMENT',
             action: `${adminName} processed a transaction for ${student.name}`,
-            actorId: 'admin',
+            actorId: adminId || 'admin',
             actorName: adminName,
             actorRole: UserRole.ADMIN,
             targetId: studentId,
@@ -1467,6 +1473,100 @@ export const createSubAdmin = async (name: string, pin: string): Promise<{succes
   }
 };
 
+export const updateAdminAccount = async (
+  adminId: string,
+  name: string,
+  pin: string,
+  actorName: string = 'Main admin'
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    const settings = await getSystemSettings();
+    if (!settings) return { success: false, message: 'System settings not found.' };
+
+    const cleanName = name.trim();
+    const cleanPin = pin.trim();
+    if (!cleanName || cleanPin.length < 4) {
+      return { success: false, message: 'Admin name and a PIN of at least 4 characters are required.' };
+    }
+
+    const isMainAdmin = adminId === 'admin';
+    const pinUsedByMain = settings.adminPin === cleanPin && !isMainAdmin;
+    const pinUsedByOtherSubAdmin = (settings.admins || []).some((admin) => (
+      admin.pin === cleanPin && admin.id !== adminId
+    ));
+    if (pinUsedByMain || pinUsedByOtherSubAdmin) {
+      return { success: false, message: 'This PIN is already in use by another admin.' };
+    }
+
+    if (isMainAdmin) {
+      await saveSystemSettings({ adminName: cleanName, adminPin: cleanPin });
+    } else {
+      const admins = settings.admins || [];
+      if (!admins.some((admin) => admin.id === adminId)) {
+        return { success: false, message: 'Admin account not found.' };
+      }
+      await saveSystemSettings({
+        admins: admins.map((admin) => (
+          admin.id === adminId ? { ...admin, name: cleanName, pin: cleanPin } : admin
+        )),
+      });
+    }
+
+    await addActivityLog({
+      category: 'ADMIN',
+      action: `${actorName} edited admin ${cleanName}`,
+      actorId: 'admin',
+      actorName,
+      actorRole: UserRole.ADMIN,
+      targetId: adminId,
+      targetName: cleanName,
+      details: isMainAdmin ? 'Main admin profile updated.' : 'Sub-admin profile updated.',
+    });
+
+    return { success: true, message: 'Admin updated successfully.' };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'Failed to update admin.' };
+  }
+};
+
+export const deleteSubAdmin = async (
+  adminId: string,
+  actorName: string = 'Main admin'
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    if (adminId === 'admin') {
+      return { success: false, message: 'The main admin account cannot be deleted.' };
+    }
+
+    const settings = await getSystemSettings();
+    if (!settings) return { success: false, message: 'System settings not found.' };
+
+    const targetAdmin = (settings.admins || []).find((admin) => admin.id === adminId);
+    if (!targetAdmin) {
+      return { success: false, message: 'Admin account not found.' };
+    }
+
+    await saveSystemSettings({
+      admins: (settings.admins || []).filter((admin) => admin.id !== adminId),
+    });
+
+    await addActivityLog({
+      category: 'ADMIN',
+      action: `${actorName} deleted admin ${targetAdmin.name}`,
+      actorId: 'admin',
+      actorName,
+      actorRole: UserRole.ADMIN,
+      targetId: adminId,
+      targetName: targetAdmin.name,
+      details: 'Sub-admin account deleted.',
+    });
+
+    return { success: true, message: 'Admin deleted successfully.' };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'Failed to delete admin.' };
+  }
+};
+
 export const getAdminProfile = async (adminId: string = 'admin') => {
   const settings = await getSystemSettings();
   if (adminId === 'admin') {
@@ -1648,12 +1748,56 @@ export const getDashboardStats = async () => {
     }
 
     const paidByStudent = new Map<string, number>();
+    const receiptDateValue = (value: any) => {
+      if (!value) return null;
+      if (typeof value?.toDate === 'function') return value.toDate();
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+    const formatWeekDay = (date: Date) => date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+    const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const endOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+    const activeTerm = settings?.schoolCalendars?.find((term) => term.id === settings.activeTermId) || settings?.schoolCalendars?.[0];
+    const termStartRaw = activeTerm ? new Date(activeTerm.learnersOpeningDate || activeTerm.teachersOpeningDate) : null;
+    const termEndRaw = activeTerm ? new Date(activeTerm.learnersClosingDate || activeTerm.teachersClosingDate) : null;
+    const termStart = termStartRaw && !Number.isNaN(termStartRaw.getTime()) ? startOfDay(termStartRaw) : startOfDay(new Date());
+    const termEnd = termEndRaw && !Number.isNaN(termEndRaw.getTime()) ? endOfDay(termEndRaw) : endOfDay(new Date(termStart.getFullYear(), termStart.getMonth() + 2, termStart.getDate()));
+    const weeklyPaymentData: Array<{ name: string; range: string; startDate: string; endDate: string; paid: number; receipts: number }> = [];
+    const cursor = new Date(termStart);
+    while (cursor <= termEnd) {
+      const start = startOfDay(cursor);
+      const end = endOfDay(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6));
+      const cappedEnd = end > termEnd ? termEnd : end;
+      weeklyPaymentData.push({
+        name: `W${weeklyPaymentData.length + 1}`,
+        range: `${formatWeekDay(start)} - ${formatWeekDay(cappedEnd)}`,
+        startDate: start.toISOString(),
+        endDate: cappedEnd.toISOString(),
+        paid: 0,
+        receipts: 0,
+      });
+      cursor.setDate(cursor.getDate() + 7);
+    }
+
     receiptsSnap.docs.forEach((receiptDoc) => {
       const data = receiptDoc.data();
       const studentId = data.usedByStudentId;
       if (!studentId) return;
+      if (data.paymentCategory === 'OTHER') return;
       const amount = parseFloat(data.amount) || 0;
       paidByStudent.set(studentId, (paidByStudent.get(studentId) || 0) + amount);
+
+      const paidAt = receiptDateValue(data.generatedAt || data.createdAt || data.date);
+      if (!paidAt || paidAt < termStart || paidAt > termEnd) return;
+      const week = weeklyPaymentData.find((item) => {
+        const start = new Date(item.startDate);
+        const end = new Date(item.endDate);
+        return paidAt >= start && paidAt <= end;
+      });
+      if (week) {
+        week.paid += amount;
+        week.receipts += 1;
+      }
     });
 
     let collectedRevenue = 0;
@@ -1722,6 +1866,8 @@ export const getDashboardStats = async () => {
       outstandingRevenue: Math.max(expectedRevenue - collectedRevenue, 0),
       defaulters,
       graphData,
+      weeklyPaymentData,
+      activeTermName: activeTerm?.termName || 'Current Term',
       recentActivities
     };
   } catch (error) {
