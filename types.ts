@@ -464,6 +464,19 @@ export interface Receipt {
   notes?: string;
 }
 
+export interface ActivityLog {
+  id?: string;
+  action: string;
+  category: 'LOGIN' | 'PAYMENT' | 'STUDENT' | 'LESSON_PLAN' | 'ADMIN' | 'SYSTEM';
+  actorId?: string;
+  actorName: string;
+  actorRole: string;
+  targetId?: string;
+  targetName?: string;
+  details?: string;
+  createdAt: any;
+}
+
 export interface PaymentProof {
   id?: string;
   studentId: string;

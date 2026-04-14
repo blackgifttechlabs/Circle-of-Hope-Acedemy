@@ -46,7 +46,7 @@ const CLASS_BUTTON_THEMES = [
   { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200', active: 'bg-cyan-600 text-white border-cyan-600', icon: HeartHandshake },
 ];
 
-export const TeachersPage: React.FC = () => {
+export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
   const navigate = useNavigate();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -346,7 +346,13 @@ export const TeachersPage: React.FC = () => {
   const handleTransfer = async () => {
     if (!transferStudent || !transferClass || !transferTeacherId) return;
     setTransferLoading(true);
-    const success = await transferStudentToTeacherAndClass(transferStudent.id, transferClass, transferTeacherId);
+    const success = await transferStudentToTeacherAndClass(
+      transferStudent.id,
+      transferClass,
+      transferTeacherId,
+      user?.name || 'Admin',
+      user?.id || 'admin'
+    );
     setTransferLoading(false);
 
     if (!success) {

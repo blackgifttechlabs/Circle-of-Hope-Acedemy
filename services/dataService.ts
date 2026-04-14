@@ -1,7 +1,7 @@
 import { db, auth } from '../firebase';
 import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 import { getPaymentOptionLabel, isRegistrationFeeOption } from '../utils/paymentOptions';
@@ -18,6 +18,7 @@ const PAYMENT_PROOFS_COLLECTION = 'payment_proofs';
 const HOMEWORK_ASSIGNMENTS_COLLECTION = 'homework_assignments';
 const HOMEWORK_SUBMISSIONS_COLLECTION = 'homework_submissions';
 const STUDENT_DOCUMENTS_COLLECTION = 'student_documents';
+const ACTIVITY_LOGS_COLLECTION = 'activity_logs';
 
 // Admin Auth Configuration
 const ADMIN_EMAIL = "admin@coha.com";
@@ -200,6 +201,17 @@ export const uploadLessonPlan = async (plan: Omit<WeeklyLessonPlan, 'id' | 'uplo
       ...plan,
       uploadedAt: new Date().toISOString()
     });
+    const teacher = await getTeacherById(plan.teacherId);
+    await addActivityLog({
+      category: 'LESSON_PLAN',
+      action: `${teacher?.name || 'Teacher'} submitted a lesson plan for ${plan.classLevel}`,
+      actorId: plan.teacherId,
+      actorName: teacher?.name || 'Teacher',
+      actorRole: UserRole.TEACHER,
+      targetId: docRef.id,
+      targetName: `${plan.classLevel} lesson plan`,
+      details: `Term: ${plan.termId}. Week: ${plan.weekNumber || '-'}. Theme: ${plan.theme || '-'}.`,
+    });
     return docRef.id;
   } catch (error) {
     console.error("Error uploading lesson plan:", error);
@@ -360,7 +372,9 @@ export const syncTeacherAssignments = async (
 export const transferStudentToTeacherAndClass = async (
   studentId: string,
   targetClass: string,
-  teacherId: string
+  teacherId: string,
+  actorName: string = 'Admin',
+  actorId: string = 'admin'
 ) => {
   try {
     const [student, teacher, teachers] = await Promise.all([
@@ -402,6 +416,16 @@ export const transferStudentToTeacherAndClass = async (
     }
 
     await batch.commit();
+    await addActivityLog({
+      category: 'STUDENT',
+      action: `${actorName} transferred ${student.name} to ${target.normalizedClass}`,
+      actorId,
+      actorName,
+      actorRole: UserRole.ADMIN,
+      targetId: studentId,
+      targetName: student.name,
+      details: `Assigned teacher: ${teacher.name}. Previous teacher: ${student.assignedTeacherName || 'Unassigned'}.`,
+    });
     return true;
   } catch (error) {
     console.error('Error transferring student:', error);
@@ -465,6 +489,17 @@ export const createStudentByAdmin = async ({
       ...studentData,
       createdBy: adminName,
       createdAt: Timestamp.now(),
+    });
+
+    await addActivityLog({
+      category: 'STUDENT',
+      action: `${adminName} added student ${name}`,
+      actorId: 'admin',
+      actorName: adminName,
+      actorRole: UserRole.ADMIN,
+      targetId: customId,
+      targetName: name,
+      details: `Class: ${target.normalizedClass}. Parent PIN generated.`,
     });
 
     if (targetTeacher) {
@@ -659,6 +694,30 @@ export const getReceiptsForStudent = async (studentId: string): Promise<Receipt[
     return receipts.filter(r => r.usedByStudentId === studentId);
 };
 
+export const addActivityLog = async (data: Omit<ActivityLog, 'id' | 'createdAt'>) => {
+    try {
+        await addDoc(collection(db, ACTIVITY_LOGS_COLLECTION), {
+            ...data,
+            createdAt: Timestamp.now(),
+        });
+        return true;
+    } catch (error) {
+        console.error('Error adding activity log:', error);
+        return false;
+    }
+};
+
+export const getActivityLogs = async (maxResults = 1000): Promise<ActivityLog[]> => {
+    try {
+        const q = query(collection(db, ACTIVITY_LOGS_COLLECTION), orderBy('createdAt', 'desc'), limit(maxResults));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() } as ActivityLog));
+    } catch (error) {
+        console.error('Error fetching activity logs:', error);
+        return [];
+    }
+};
+
 export const addReceipt = async (number: string, amount: string, date: string) => {
     try {
         await addDoc(collection(db, RECEIPTS_COLLECTION), {
@@ -774,6 +833,17 @@ export const submitPaymentProof = async (
             receiptSubmissionDate: Timestamp.now(),
             studentStatus: nextStatus,
             paymentRejected: isRegistrationProof ? false : student?.paymentRejected || false,
+        });
+
+        await addActivityLog({
+            category: 'PAYMENT',
+            action: `${data.parentName || 'Parent'} submitted payment proof for ${data.studentName}`,
+            actorId: data.studentId,
+            actorName: data.parentName || 'Parent',
+            actorRole: UserRole.PARENT,
+            targetId: data.studentId,
+            targetName: data.studentName,
+            details: `Payment for ${data.termId}. Class: ${data.studentClass || '-'}.`,
         });
 
         return { success: true, id: docRef.id };
@@ -921,6 +991,17 @@ export const approvePaymentProof = async ({
           }
         }
 
+        await addActivityLog({
+          category: 'PAYMENT',
+          action: `${adminName} approved a payment proof for ${student.name}`,
+          actorId: 'admin',
+          actorName: adminName,
+          actorRole: UserRole.ADMIN,
+          targetId: studentId,
+          targetName: student.name,
+          details: `Receipt ${receiptNumber}. Amount N$ ${amount.toFixed(2)}. Payment for ${getPaymentOptionLabel(termId, settings)}.`,
+        });
+
         return { success: true, receiptId: receiptRef.id, receiptNumber, nextStatus, assignedClass: targetClass };
     } catch (error) {
         console.error('Error approving payment proof:', error);
@@ -1011,6 +1092,17 @@ export const recordAdminPayment = async ({
         });
 
         const updatedStudent = await getStudentById(studentId);
+        await addActivityLog({
+            category: 'PAYMENT',
+            action: `${adminName} processed a transaction for ${student.name}`,
+            actorId: 'admin',
+            actorName: adminName,
+            actorRole: UserRole.ADMIN,
+            targetId: studentId,
+            targetName: student.name,
+            details: `Receipt ${receiptNumber}. Amount N$ ${amount.toFixed(2)}. Payment for ${safePaymentLabel}.`,
+        });
+
         return {
             success: true,
             receipt: { id: receiptRef.id, ...receiptPayload },
@@ -1045,6 +1137,16 @@ export const rejectPaymentProof = async (proofId: string, studentId: string, adm
                 )
               : (student?.studentStatus || 'ENROLLED'),
             paymentRejected: isRegistrationProof,
+        });
+        await addActivityLog({
+            category: 'PAYMENT',
+            action: `${adminName} rejected payment proof for ${student?.name || proof?.studentName || studentId}`,
+            actorId: 'admin',
+            actorName: adminName,
+            actorRole: UserRole.ADMIN,
+            targetId: studentId,
+            targetName: student?.name || proof?.studentName || studentId,
+            details: notes || 'No notes recorded.',
         });
         return true;
     } catch (error) {
@@ -1347,6 +1449,17 @@ export const createSubAdmin = async (name: string, pin: string): Promise<{succes
 
     const updatedAdmins = [...(settings.admins || []), newAdmin];
     await saveSystemSettings({ admins: updatedAdmins });
+
+    await addActivityLog({
+      category: 'ADMIN',
+      action: `${settings.adminName || 'Main admin'} created admin ${name}`,
+      actorId: 'admin',
+      actorName: settings.adminName || 'Main admin',
+      actorRole: UserRole.ADMIN,
+      targetId: newAdmin.id,
+      targetName: name,
+      details: 'Sub-admin account created.',
+    });
 
     return { success: true, message: 'Admin created successfully.' };
   } catch (error: any) {

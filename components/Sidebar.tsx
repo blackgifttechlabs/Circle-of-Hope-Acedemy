@@ -136,6 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Lesson Plans',     path: '/admin/lesson-plans',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Assessments',      path: '/admin/assessment-progress', icon: <BarChart3   size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Payments',         path: '/admin/payments',           icon: <CreditCard  size={17} strokeWidth={2.2} />, badge: paymentBadgeCount },
+    { label: 'View Activities',  path: '/admin/activities',         icon: <Activity    size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Homeworks',        path: '/admin/homeworks',          icon: <BookOpen    size={17} strokeWidth={2.2} />, badge: homeworkBadgeCount },
     { label: 'Students',         path: '/admin/students',         icon: <GraduationCap   size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Settings',         path: '/admin/settings',         icon: <Settings        size={17} strokeWidth={2.2} />, badge: 0 },

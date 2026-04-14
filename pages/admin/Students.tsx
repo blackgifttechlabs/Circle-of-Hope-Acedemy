@@ -184,7 +184,13 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
   const handleTransfer = async () => {
     if (!transferStudent || !transferClass || !transferTeacherId) return;
     setLoading(true);
-    const success = await transferStudentToTeacherAndClass(transferStudent.id, transferClass, transferTeacherId);
+    const success = await transferStudentToTeacherAndClass(
+      transferStudent.id,
+      transferClass,
+      transferTeacherId,
+      user?.name || 'Admin',
+      user?.id || 'admin'
+    );
     setLoading(false);
 
     if (success) {

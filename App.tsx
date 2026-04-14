@@ -21,6 +21,7 @@ import { ViewLessonPlans } from './pages/admin/ViewLessonPlans';
 import { ViewAssessmentProgress } from './pages/admin/ViewAssessmentProgress';
 import { AdminAssessmentSheetViewer } from './pages/admin/AdminAssessmentSheetViewer';
 import { PaymentsPage } from './pages/admin/Payments';
+import { ActivitiesPage } from './pages/admin/Activities';
 import { AdminHomeworksPage } from './pages/admin/Homeworks';
 import { ParentDashboard } from './pages/parent/Dashboard';
 import { ParentAssessmentForm } from './pages/parent/AssessmentForm';
@@ -184,6 +185,7 @@ const App: React.FC = () => {
                       <Route path="vtc-applications" element={<VtcApplicationsPage />} />
                       <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
                       <Route path="payments" element={<PaymentsPage user={user} />} />
+                      <Route path="activities" element={<ActivitiesPage />} />
                       <Route path="homeworks" element={<AdminHomeworksPage />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
                       <Route path="students/:id" element={<StudentDetailsPage user={user} />} />
@@ -196,7 +198,7 @@ const App: React.FC = () => {
                       <Route path="applications/:id" element={<ApplicationDetailsPage />} />
                       <Route path="vtc-applications" element={<VtcApplicationsPage />} />
                       <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
-                      <Route path="teachers" element={<TeachersPage />} />
+                      <Route path="teachers" element={<TeachersPage user={user} />} />
                       <Route path="teachers/:id/progress" element={<TeacherProgressPage />} />
                       <Route path="lesson-plans" element={<ViewLessonPlans />} />
                       <Route path="assessment-progress" element={<ViewAssessmentProgress />} />

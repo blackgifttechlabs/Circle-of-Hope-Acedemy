@@ -25,6 +25,7 @@ import { Loader } from '../../components/ui/Loader';
 import { Toast } from '../../components/ui/Toast';
 import { getStudentParentEmail, getStudentParentPhone } from '../../utils/admissionMessaging';
 import { getPaymentOptionLabel, getPaymentOptions, REGISTRATION_FEE_OPTION } from '../../utils/paymentOptions';
+import { printSchoolReceipt } from '../../utils/printSchoolReceipt';
 
 interface PaymentsPageProps {
   user?: any;
@@ -196,6 +197,46 @@ School details
 - Website: ${SCHOOL_CONTACTS.website}
 
 This receipt is available in the parent portal.`;
+  };
+
+  const calculateFeeTotalsForStudent = (studentId: string, receipt?: Receipt) => {
+    let total = 0;
+    (settings?.fees || []).forEach((fee) => {
+      const amount = parseFloat(fee.amount) || 0;
+      let multiplier = 1;
+      if (fee.frequency === 'Monthly') multiplier = 12;
+      else if (fee.frequency === 'Termly') multiplier = 3;
+      total += amount * multiplier;
+    });
+
+    const paid = receipts
+      .filter((item) => item.usedByStudentId === studentId && item.paymentCategory !== 'OTHER')
+      .reduce((sum, item) => sum + (parseFloat(item.amount || '0') || 0), 0);
+
+    return {
+      paid,
+      balance: typeof receipt?.balanceAfterPayment === 'number' ? receipt.balanceAfterPayment : total - paid,
+    };
+  };
+
+  const handleViewReceipt = async (receipt: Receipt) => {
+    if (!receipt.usedByStudentId) {
+      setToast({ msg: 'This receipt is not linked to a student record.', show: true, type: 'error' });
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const student = await getStudentById(receipt.usedByStudentId);
+      if (!student) {
+        setToast({ msg: 'Student record not found for this receipt.', show: true, type: 'error' });
+        return;
+      }
+
+      await printSchoolReceipt(student, receipt, calculateFeeTotalsForStudent(student.id, receipt), { mode: 'open' });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const openEmailDraft = async (student: Student, receipt: Receipt) => {
@@ -533,6 +574,7 @@ This receipt is available in the parent portal.`;
                   <th className="px-5 py-4">Date</th>
                   <th className="px-5 py-4">By</th>
                   <th className="px-5 py-4 text-right">Amount</th>
+                  <th className="px-5 py-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -551,11 +593,20 @@ This receipt is available in the parent portal.`;
                     <td className="px-5 py-4 text-xs font-semibold text-gray-500">{fmtDate(receipt.generatedAt || receipt.createdAt || receipt.date)}</td>
                     <td className="px-5 py-4 text-sm text-gray-600">{receipt.generatedBy || '-'}</td>
                     <td className="px-5 py-4 text-right font-black text-gray-900">{fmtMoney(parseFloat(receipt.amount || '0'))}</td>
+                    <td className="px-5 py-4 text-right">
+                      <button
+                        onClick={() => handleViewReceipt(receipt)}
+                        disabled={busy}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-coha-200 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-coha-800 hover:bg-coha-900 hover:text-white disabled:opacity-50"
+                      >
+                        <ReceiptText size={14} /> View Receipt
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {filteredReceipts.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-500">No receipts found.</td>
+                    <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-500">No receipts found.</td>
                   </tr>
                 )}
               </tbody>

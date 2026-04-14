@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { verifyAdminPin, searchTeachers, searchStudents, searchVtcStudents } from '../services/dataService';
+import { addActivityLog, verifyAdminPin, searchTeachers, searchStudents, searchVtcStudents } from '../services/dataService';
 import { UserRole, Teacher, Student } from '../types';
 import { User, ShieldCheck, GraduationCap, ArrowLeft, BookOpen, ChevronRight, Search as SearchIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -58,6 +58,14 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
     
     if (adminUser) {
       if (showToast) showToast(`Welcome back, ${adminUser.name}!`);
+      addActivityLog({
+        category: 'LOGIN',
+        action: `${adminUser.name} logged in`,
+        actorId: adminUser.id,
+        actorName: adminUser.name,
+        actorRole: adminUser.adminRole === 'sub_admin' ? 'SUB_ADMIN' : UserRole.ADMIN,
+        details: adminUser.adminRole === 'sub_admin' ? 'Sub-admin portal login.' : 'Main admin portal login.',
+      });
       onLogin(UserRole.ADMIN, adminUser);
       navigate('/admin/dashboard');
     } else {
@@ -126,6 +134,16 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
 
     if (success) {
       if (showToast) showToast(`Welcome back, ${userData.name}!`);
+      addActivityLog({
+        category: 'LOGIN',
+        action: `${userData.name} logged in`,
+        actorId: selectedUser.id,
+        actorName: userData.name,
+        actorRole: role,
+        targetId: role === UserRole.PARENT ? selectedUser.id : undefined,
+        targetName: role === UserRole.PARENT ? selectedUser.name : undefined,
+        details: role === UserRole.PARENT ? `Parent logged in for ${selectedUser.name}.` : `${role} portal login.`,
+      });
       onLogin(role, userData);
       if (role === UserRole.TEACHER) navigate('/teacher/dashboard');
       if (role === UserRole.PARENT) navigate('/parent/dashboard');
