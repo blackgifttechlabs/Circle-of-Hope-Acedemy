@@ -216,7 +216,9 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       else if (fee.frequency === 'Termly') multiplier = 3;
       total += amount * multiplier;
     });
-    const paid = receipts.reduce((sum, receipt) => sum + (parseFloat(receipt.amount) || 0), 0);
+    const paid = receipts
+      .filter((receipt) => receipt.paymentCategory !== 'OTHER')
+      .reduce((sum, receipt) => sum + (parseFloat(receipt.amount) || 0), 0);
     return { total, paid, balance: total - paid };
   }, [settings, receipts]);
   const paidPercent = financials.total > 0 ? Math.min(100, Math.round((financials.paid / financials.total) * 100)) : 0;

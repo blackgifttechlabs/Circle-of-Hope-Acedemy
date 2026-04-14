@@ -67,7 +67,7 @@ export const printSchoolReceipt = async (student: Student, receipt: Receipt, tot
       ['Class', student.assignedClass || student.grade || student.level || '-'],
       ['Parent / Guardian', student.parentName || '-'],
       ['Academic Year', receipt.academicYear || student.academicYear || new Date().getFullYear().toString()],
-      ['Term', receipt.termId || '-'],
+      ['Payment For', receipt.paymentLabel || receipt.termId || '-'],
     ],
   });
 
@@ -77,7 +77,7 @@ export const printSchoolReceipt = async (student: Student, receipt: Receipt, tot
     head: [['Description', 'Amount (N$)']],
     headStyles: { fillColor: [0, 29, 100], textColor: 255, fontStyle: 'bold' },
     body: [
-      ['School fee payment received', parseFloat(receipt.amount || '0').toFixed(2)],
+      [receipt.paymentLabel || (receipt.paymentCategory === 'OTHER' ? 'Other payment received' : 'School fee payment received'), parseFloat(receipt.amount || '0').toFixed(2)],
       ['Total paid to date', totals.paid.toFixed(2)],
       ['Outstanding balance', totals.balance.toFixed(2)],
     ],

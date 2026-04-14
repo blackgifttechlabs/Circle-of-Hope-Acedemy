@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import {
+  createStudentByAdmin,
   calculateFinalStage,
   getStudents,
   getStudentsByStatus,
@@ -10,7 +11,7 @@ import {
   transferStudentToTeacherAndClass,
 } from '../../services/dataService';
 import { Student, SystemSettings, Division, Teacher } from '../../types';
-import { Search, Eye, Download, Filter, Key, Repeat } from 'lucide-react';
+import { Search, Eye, Download, Filter, Key, Repeat, UserPlus } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
 import { printStudentList } from '../../utils/printStudentList';
 import { getTeacherAssignedClasses } from '../../utils/teacherClassSelection';
@@ -32,6 +33,13 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
   const [transferStudent, setTransferStudent] = useState<Student | null>(null);
   const [transferClass, setTransferClass] = useState('');
   const [transferTeacherId, setTransferTeacherId] = useState('');
+  const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [newStudentForm, setNewStudentForm] = useState({
+    firstName: '',
+    surname: '',
+    dob: '',
+    targetClass: '',
+  });
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -190,6 +198,30 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
     }
   };
 
+  const handleCreateStudent = async () => {
+    if (!newStudentForm.firstName.trim() || !newStudentForm.surname.trim() || !newStudentForm.dob || !newStudentForm.targetClass) {
+      setToast({ show: true, msg: 'Enter the student name, surname, date of birth, and class.' });
+      return;
+    }
+
+    setLoading(true);
+    const result = await createStudentByAdmin({
+      ...newStudentForm,
+      adminName: user?.name || 'Admin',
+    });
+    setLoading(false);
+
+    if (!result.success) {
+      setToast({ show: true, msg: result.message || 'Could not add student.' });
+      return;
+    }
+
+    setToast({ show: true, msg: `${result.student?.name || 'Student'} was added.` });
+    setAddStudentOpen(false);
+    setNewStudentForm({ firstName: '', surname: '', dob: '', targetClass: '' });
+    fetchStudents();
+  };
+
   return (
     <div>
       <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({show:false, msg:''})} variant="success" />
@@ -199,11 +231,16 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
           <h2 className="text-2xl font-bold text-coha-900 uppercase tracking-tight">Student Directory</h2>
           <p className="text-gray-600 text-sm">Manage enrollment records and portal access.</p>
         </div>
-        {viewMode === 'ENROLLED' && (
-             <Button variant="outline" onClick={() => printStudentList(filteredStudents, settings)}>
-                <Download size={20} /> Download List
-            </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setAddStudentOpen(true)}>
+            <UserPlus size={20} /> Add Student
+          </Button>
+          {viewMode === 'ENROLLED' && (
+               <Button variant="outline" onClick={() => printStudentList(filteredStudents, settings)}>
+                  <Download size={20} /> Download List
+              </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex justify-between items-center border-b border-gray-200 mb-6 bg-white shadow-sm flex-wrap">
@@ -289,8 +326,8 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                 {user?.adminRole !== 'sub_admin' && <th className="px-6 py-4">Login PIN</th>}
                 <th className="px-6 py-4">Division</th>
                 <th className="px-6 py-4">Current Grade</th>
-                {user?.adminRole !== 'sub_admin' && <th className="px-6 py-4">Teacher</th>}
-                {user?.adminRole !== 'sub_admin' && <th className="px-6 py-4">Actions</th>}
+                <th className="px-6 py-4">Teacher</th>
+                <th className="px-6 py-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -325,47 +362,43 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                   <td className="px-6 py-4 font-medium text-sm">
                       {student.assignedClass || student.grade || student.level}
                   </td>
-                  {user?.adminRole !== 'sub_admin' && (
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {student.assignedTeacherName || <span className="text-gray-400 italic">Unassigned</span>}
-                    </td>
-                  )}
-                  {user?.adminRole !== 'sub_admin' && (
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2 flex-wrap">
-                          {viewMode === 'ASSESSMENT' ? (
-                              <>
-                                  <button onClick={() => navigate(`/admin/assessment/${student.id}`)} className="p-2 border border-gray-200 hover:bg-coha-900 hover:text-white transition-all">
-                                      <Eye size={14} />
-                                  </button>
-                                  <Button onClick={() => handleFinalizeAssessment(student.id)} className="py-1 px-3 text-[10px] font-black uppercase">
-                                      Finalize
-                                  </Button>
-                              </>
-                          ) : (
-                              <>
-                                <button
-                                  onClick={() => navigate(`/admin/students/${student.id}`)}
-                                  className="text-coha-500 hover:underline font-bold text-sm flex items-center gap-1"
-                                >
-                                  <Eye size={16} /> Profile
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {student.assignedTeacherName || <span className="text-gray-400 italic">Unassigned</span>}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex gap-2 flex-wrap">
+                        {viewMode === 'ASSESSMENT' && user?.adminRole !== 'sub_admin' ? (
+                            <>
+                                <button onClick={() => navigate(`/admin/assessment/${student.id}`)} className="p-2 border border-gray-200 hover:bg-coha-900 hover:text-white transition-all">
+                                    <Eye size={14} />
                                 </button>
-                                <button
-                                  onClick={() => openTransferModal(student)}
-                                  className="text-orange-600 hover:underline font-bold text-sm flex items-center gap-1"
-                                >
-                                  <Repeat size={16} /> Transfer
-                                </button>
-                              </>
-                          )}
-                      </div>
-                    </td>
-                  )}
+                                <Button onClick={() => handleFinalizeAssessment(student.id)} className="py-1 px-3 text-[10px] font-black uppercase">
+                                    Finalize
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                              <button
+                                onClick={() => navigate(`/admin/students/${student.id}`)}
+                                className="text-coha-500 hover:underline font-bold text-sm flex items-center gap-1"
+                              >
+                                <Eye size={16} /> Profile
+                              </button>
+                              <button
+                                onClick={() => openTransferModal(student)}
+                                className="text-orange-600 hover:underline font-bold text-sm flex items-center gap-1"
+                              >
+                                <Repeat size={16} /> Transfer
+                              </button>
+                            </>
+                        )}
+                    </div>
+                  </td>
                 </tr>
               ))}
                {filteredStudents.length === 0 && (
                 <tr>
-                  <td colSpan={user?.adminRole === 'sub_admin' ? 4 : 7} className="px-6 py-8 text-center text-gray-500 italic">No student records found matching filters.</td>
+                  <td colSpan={user?.adminRole === 'sub_admin' ? 6 : 7} className="px-6 py-8 text-center text-gray-500 italic">No student records found matching filters.</td>
                 </tr>
               )}
             </tbody>
@@ -430,6 +463,73 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                 className="!bg-orange-500 hover:!bg-orange-600"
               >
                 {loading ? 'Saving...' : 'Transfer Student'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addStudentOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-xl shadow-xl">
+            <div className="p-5 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-coha-900">Add Student</h3>
+              <p className="text-sm text-gray-500 mt-1">Create a student record directly in the admin portal.</p>
+            </div>
+
+            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Name</label>
+                <input
+                  value={newStudentForm.firstName}
+                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, firstName: e.target.value }))}
+                  className="w-full p-3 border border-gray-300 bg-white outline-none"
+                  placeholder="Student name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Surname</label>
+                <input
+                  value={newStudentForm.surname}
+                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, surname: e.target.value }))}
+                  className="w-full p-3 border border-gray-300 bg-white outline-none"
+                  placeholder="Student surname"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Date of Birth</label>
+                <input
+                  type="date"
+                  value={newStudentForm.dob}
+                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, dob: e.target.value }))}
+                  className="w-full p-3 border border-gray-300 bg-white outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Class</label>
+                <select
+                  value={newStudentForm.targetClass}
+                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, targetClass: e.target.value }))}
+                  className="w-full p-3 border border-gray-300 bg-white outline-none"
+                >
+                  <option value="">Select class</option>
+                  {classOptions.map((className) => (
+                    <option key={className} value={className}>{className}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-gray-200 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setAddStudentOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleCreateStudent}
+                disabled={loading}
+              >
+                {loading ? 'Saving...' : 'Add Student'}
               </Button>
             </div>
           </div>

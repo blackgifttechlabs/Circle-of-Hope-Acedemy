@@ -186,6 +186,7 @@ const App: React.FC = () => {
                       <Route path="payments" element={<PaymentsPage user={user} />} />
                       <Route path="homeworks" element={<AdminHomeworksPage />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
+                      <Route path="students/:id" element={<StudentDetailsPage user={user} />} />
                       <Route path="*" element={<Navigate to="applications" />} />
                     </>
                   ) : (
@@ -203,7 +204,7 @@ const App: React.FC = () => {
                       <Route path="payments" element={<PaymentsPage user={user} />} />
                       <Route path="homeworks" element={<AdminHomeworksPage />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
-                      <Route path="students/:id" element={<StudentDetailsPage />} />
+                      <Route path="students/:id" element={<StudentDetailsPage user={user} />} />
                       <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.ADMIN} user={user} />} />
                       <Route path="settings" element={<SettingsPage />} />
                       <Route path="*" element={<Navigate to="dashboard" />} />

@@ -455,6 +455,9 @@ export interface Receipt {
   studentName?: string;
   studentClass?: string;
   paymentProofId?: string;
+  paymentCategory?: 'FEES' | 'OTHER';
+  paymentLabel?: string;
+  manualEntry?: boolean;
   generatedAt?: any;
   generatedBy?: string;
   balanceAfterPayment?: number;

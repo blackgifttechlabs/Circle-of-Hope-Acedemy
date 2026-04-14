@@ -60,7 +60,7 @@ const fileToDataUrl = (file: File) =>
 
 const getInitialLetter = (name?: string) => (name?.trim()?.charAt(0) || 'S').toUpperCase();
 
-export const StudentDetailsPage: React.FC = () => {
+export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -86,6 +86,7 @@ export const StudentDetailsPage: React.FC = () => {
   const [editForm, setEditForm] = useState<Partial<Student>>({});
   const [profileFile, setProfileFile] = useState<File | null>(null);
   const [profilePreview, setProfilePreview] = useState('');
+  const canViewAssessments = user?.adminRole !== 'sub_admin';
 
   const fetchData = async () => {
     if (!id) return;
@@ -102,14 +103,19 @@ export const StudentDetailsPage: React.FC = () => {
     setReceipts(receiptData.filter((receipt) => receipt.usedByStudentId === id));
     setDocuments(documentData);
 
-    if (studentData) {
+    if (studentData && canViewAssessments) {
       const [reports, records] = await Promise.all([
         getGrade1To7ReportCards(studentData, settingsData),
         getAssessmentRecordsForStudentAcrossClasses(id),
       ]);
       setGradeReports(reports);
       setAssessmentRecords(records);
+    } else {
+      setGradeReports([]);
+      setAssessmentRecords([]);
+    }
 
+    if (studentData) {
       setEditForm(studentData);
       setProfilePreview(studentData.profileImageBase64 || '');
     }
@@ -119,7 +125,7 @@ export const StudentDetailsPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [id]);
+  }, [id, canViewAssessments]);
 
   const financials = useMemo(() => {
     if (!student || !settings) return { total: 0, paid: 0, balance: 0 };
@@ -133,7 +139,9 @@ export const StudentDetailsPage: React.FC = () => {
       yearlyFees += amount * multiplier;
     });
 
-    const paidTotal = receipts.reduce((acc, receipt) => acc + (parseFloat(receipt.amount) || 0), 0);
+    const paidTotal = receipts
+      .filter((receipt) => receipt.paymentCategory !== 'OTHER')
+      .reduce((acc, receipt) => acc + (parseFloat(receipt.amount) || 0), 0);
     return {
       total: yearlyFees,
       paid: paidTotal,
@@ -143,7 +151,7 @@ export const StudentDetailsPage: React.FC = () => {
 
   const className = student?.assignedClass || student?.grade || student?.level || '';
   const isGrade1To7Student = /Grade [1-7]/i.test(className);
-  const showAssessmentTab = student ? (student.grade === 'Grade 0' || isGrade1To7Student || gradeReports.length > 0 || assessmentRecords.length > 0) : false;
+  const showAssessmentTab = canViewAssessments && student ? (student.grade === 'Grade 0' || isGrade1To7Student || gradeReports.length > 0 || assessmentRecords.length > 0) : false;
 
   if (pageLoading || !student) return <Loader />;
 

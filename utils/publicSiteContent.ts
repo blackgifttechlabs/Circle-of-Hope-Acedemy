@@ -37,7 +37,7 @@ export const SCHOOL_OVERVIEW_PARAGRAPHS = [
 ];
 
 export const SCHOOL_OVERVIEW_STATS = [
-  { value: '2020', label: 'Founded' },
+  { value: '2019', label: 'Founded' },
   { value: '7826', label: 'Registration No.' },
   { value: 'Inclusive', label: 'Learning Model' },
   { value: 'Ongwediva', label: 'Campus Base' },

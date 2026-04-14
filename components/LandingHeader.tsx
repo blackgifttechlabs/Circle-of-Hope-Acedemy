@@ -51,7 +51,7 @@ export const LandingHeader: React.FC = () => {
               </h1>
               
               <span className="text-[8px] md:text-[10px] font-archivo text-gray-500 tracking-[0.2em] md:tracking-[0.3em] uppercase group-hover:text-coha-700 transition-colors">
-                EST. 2020
+                EST. 2019
               </span>
             </div>
           </div>

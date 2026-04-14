@@ -4,7 +4,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'fire
 import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
-import { isRegistrationFeeOption } from '../utils/paymentOptions';
+import { getPaymentOptionLabel, isRegistrationFeeOption } from '../utils/paymentOptions';
 
 // Collections
 const TEACHERS_COLLECTION = 'teachers';
@@ -409,6 +409,82 @@ export const transferStudentToTeacherAndClass = async (
   }
 };
 
+export const createStudentByAdmin = async ({
+    firstName,
+    surname,
+    dob,
+    targetClass,
+    adminName,
+}: {
+    firstName: string;
+    surname: string;
+    dob: string;
+    targetClass: string;
+    adminName: string;
+}): Promise<{ success: boolean; student?: Student; message?: string }> => {
+  try {
+    const cleanFirstName = firstName.trim();
+    const cleanSurname = surname.trim();
+    const cleanTargetClass = targetClass.trim();
+    if (!cleanFirstName || !cleanSurname || !dob || !cleanTargetClass) {
+      return { success: false, message: 'Student name, surname, date of birth, and class are required.' };
+    }
+
+    const customId = await generateStudentId();
+    const pin = Math.floor(1000 + Math.random() * 9000).toString();
+    const target = parseStudentTargetClass(cleanTargetClass);
+    const teachers = await getTeachers();
+    const targetTeacher = teachers.find((teacher) => (teacher.assignedClasses || []).includes(target.normalizedClass));
+    const name = `${cleanFirstName} ${cleanSurname}`.trim();
+    const academicYear = `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`;
+
+    const studentData: Student = {
+      id: customId,
+      name,
+      firstName: cleanFirstName,
+      surname: cleanSurname,
+      dob,
+      role: UserRole.PARENT,
+      grade: target.grade,
+      level: target.level,
+      assignedClass: target.normalizedClass,
+      division: target.division,
+      assignedTeacherId: targetTeacher?.id || '',
+      assignedTeacherName: targetTeacher?.name || '',
+      parentPin: pin,
+      parentName: 'Parent / Guardian',
+      studentStatus: 'ENROLLED',
+      academicYear,
+      enrolledAt: Timestamp.now(),
+      ...(target.division === Division.SPECIAL_NEEDS
+        ? { assessment: { teacherAssessments: {}, isComplete: false } }
+        : {}),
+    };
+
+    await setDoc(doc(db, STUDENTS_COLLECTION, customId), {
+      ...studentData,
+      createdBy: adminName,
+      createdAt: Timestamp.now(),
+    });
+
+    if (targetTeacher) {
+      const nextTeacherStudentIds = Array.from(new Set([...(targetTeacher.assignedStudentIds || []), customId]));
+      const nextTeacherClasses = uniqueNonEmpty([...(targetTeacher.assignedClasses || []), target.normalizedClass]);
+      await updateDoc(doc(db, TEACHERS_COLLECTION, targetTeacher.id), {
+        assignedStudentIds: nextTeacherStudentIds,
+        assignedClasses: nextTeacherClasses,
+        assignedClass: nextTeacherClasses[0] || '',
+        activeTeachingClass: normalizeClassLabel(targetTeacher.activeTeachingClass) || target.normalizedClass,
+      });
+    }
+
+    return { success: true, student: studentData };
+  } catch (error) {
+    console.error('Error creating student by admin:', error);
+    return { success: false, message: 'Failed to create student.' };
+  }
+};
+
 const generateStudentId = async (): Promise<string> => {
   const settingsRef = doc(db, SETTINGS_COLLECTION, 'general');
   try {
@@ -783,6 +859,8 @@ export const approvePaymentProof = async ({
             academicYear,
             studentName: student.name,
             studentClass: student.assignedClass || student.grade || student.level || '',
+            paymentCategory: 'FEES',
+            paymentLabel: getPaymentOptionLabel(termId, settings),
             generatedAt: Timestamp.now(),
             generatedBy: adminName,
             createdAt: Timestamp.now(),
@@ -847,6 +925,100 @@ export const approvePaymentProof = async ({
     } catch (error) {
         console.error('Error approving payment proof:', error);
         return { success: false, message: 'Failed to approve payment proof.' };
+    }
+};
+
+export const recordAdminPayment = async ({
+    studentId,
+    amount,
+    paymentCategory,
+    termId,
+    paymentLabel,
+    academicYear,
+    adminName,
+    notes,
+}: {
+    studentId: string;
+    amount: number;
+    paymentCategory: 'FEES' | 'OTHER';
+    termId?: string;
+    paymentLabel?: string;
+    academicYear: string;
+    adminName: string;
+    notes?: string;
+}): Promise<{ success: boolean; receipt?: Receipt; student?: Student; message?: string }> => {
+    try {
+        const [student, settings] = await Promise.all([
+          getStudentById(studentId),
+          getSystemSettings(),
+        ]);
+        if (!student) {
+            return { success: false, message: 'Student not found.' };
+        }
+        if (!amount || amount <= 0) {
+            return { success: false, message: 'Enter a valid payment amount.' };
+        }
+
+        const existingReceipts = await getReceiptsForStudent(studentId);
+        const feeReceipts = existingReceipts.filter((receipt) => receipt.paymentCategory !== 'OTHER');
+        const paidBefore = feeReceipts.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+
+        let yearlyFees = 0;
+        (settings?.fees || []).forEach((fee) => {
+            const feeAmount = parseFloat(fee.amount) || 0;
+            let multiplier = 1;
+            if (fee.frequency === 'Monthly') multiplier = 12;
+            else if (fee.frequency === 'Termly') multiplier = 3;
+            yearlyFees += feeAmount * multiplier;
+        });
+
+        const isFeesPayment = paymentCategory === 'FEES';
+        const receiptNumber = buildSchoolReceiptNumber();
+        const safeTermId = isFeesPayment ? termId || settings?.activeTermId || settings?.schoolCalendars?.[0]?.id || '' : '';
+        const safePaymentLabel = isFeesPayment
+          ? getPaymentOptionLabel(safeTermId, settings)
+          : (paymentLabel?.trim() || 'Other payment');
+        const balanceAfterPayment = isFeesPayment ? yearlyFees - (paidBefore + amount) : yearlyFees - paidBefore;
+
+        const receiptPayload = {
+            number: receiptNumber,
+            amount: amount.toFixed(2),
+            date: new Date().toISOString(),
+            isUsed: true,
+            usedByStudentId: studentId,
+            type: 'SCHOOL_RECEIPT' as const,
+            termId: safeTermId,
+            academicYear,
+            studentName: student.name,
+            studentClass: student.assignedClass || student.grade || student.level || '',
+            paymentCategory,
+            paymentLabel: safePaymentLabel,
+            manualEntry: true,
+            generatedAt: Timestamp.now(),
+            generatedBy: adminName,
+            createdAt: Timestamp.now(),
+            balanceAfterPayment,
+            notes: notes || '',
+        };
+
+        const receiptRef = await addDoc(collection(db, RECEIPTS_COLLECTION), receiptPayload);
+        const nextStatus = isFeesPayment ? getNextStatusAfterPayment(student) : (student.studentStatus || 'ENROLLED');
+
+        await updateStudent(studentId, {
+            studentStatus: nextStatus,
+            paymentRejected: false,
+            academicYear,
+        });
+
+        const updatedStudent = await getStudentById(studentId);
+        return {
+            success: true,
+            receipt: { id: receiptRef.id, ...receiptPayload },
+            student: updatedStudent || student,
+        };
+    } catch (error) {
+        console.error('Error recording admin payment:', error);
+        return { success: false, message: 'Failed to record payment.' };
     }
 };
 
