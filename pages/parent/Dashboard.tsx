@@ -35,6 +35,8 @@ import {
   getStudentDocuments,
   getSystemSettings,
   getTeacherByClass,
+  getMatronLogsForStudent,
+  getMatrons,
   submitHomeworkSubmission,
   submitPaymentProof,
   updateStudent,
@@ -143,6 +145,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
   const [assignments, setAssignments] = useState<HomeworkAssignment[]>([]);
   const [homeworkSubmissions, setHomeworkSubmissions] = useState<HomeworkSubmission[]>([]);
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
+  const [matronLogs, setMatronLogs] = useState<any[]>([]);
+  const [matrons, setMatrons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
@@ -250,17 +254,21 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
       setAssignments([]);
     }
 
-    const [studentReceipts, proofs, submissions, docs] = await Promise.all([
+    const [studentReceipts, proofs, submissions, docs, logsData, matsData] = await Promise.all([
       getReceiptsForStudent(user.id),
       getPaymentProofsForStudent(user.id),
       getHomeworkSubmissionsForStudent(user.id),
       getStudentDocuments(user.id),
+      getMatronLogsForStudent(user.id),
+      getMatrons(),
     ]);
 
     setReceipts(studentReceipts.filter((item) => item.type !== 'BANK_REFERENCE' || item.usedByStudentId));
     setPaymentProofs(proofs);
     setHomeworkSubmissions(submissions);
     setDocuments(docs);
+    setMatronLogs(logsData);
+    setMatrons(matsData);
   };
 
   useEffect(() => {
@@ -665,16 +673,16 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
               </button>
               <button
-                onClick={() => setActiveTab('settings')}
+                onClick={() => setActiveTab('details')}
                 className="min-h-[112px] rounded-[1.45rem] px-3 py-4 text-center text-white relative overflow-hidden shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
                 style={{ background: 'radial-gradient(circle at top right, rgba(255,255,255,0.28), transparent 26%), radial-gradient(circle at bottom left, rgba(255,255,255,0.16), transparent 34%), linear-gradient(135deg, #7e22ce 0%, #d946ef 100%)' }}
               >
                 <div className="relative z-10 flex h-full flex-col items-center justify-center">
                   <div className="w-10 h-10 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-3">
-                    <FileText size={18} />
+                    <Users size={18} />
                   </div>
-                  <p className="text-[0.95rem] font-black tracking-[-0.02em]">Account Settings</p>
-                  <p className="text-[11px] text-white/80 mt-1 font-semibold leading-tight">Change PIN and sign out of the portal</p>
+                  <p className="text-[0.95rem] font-black tracking-[-0.02em]">Matron Logs</p>
+                  <p className="text-[11px] text-white/80 mt-1 font-semibold leading-tight">Daily care and medication records</p>
                 </div>
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
               </button>
@@ -920,7 +928,40 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
             <input ref={otherFileRef} type="file" accept="image/*,.pdf,application/pdf" className="hidden" onChange={(e) => { setOtherFile(e.target.files?.[0] || null); if (documentUploadTarget === 'OTHER_DOCUMENT') { setDocumentMessage(''); setDocumentUploadProgress(0); } }} />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+          <div className="pt-6">
+            <SectionLabel icon={<Users size={14} />}>Daily Care (Matron Logs)</SectionLabel>
+            <div className="space-y-3">
+                {matronLogs.length === 0 && <p className="text-sm text-slate-500 italic">No daily care logs recorded yet.</p>}
+                {matronLogs.map(log => (
+                    <div key={log.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                        <div className="flex justify-between items-start mb-2">
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-coha-100 text-coha-700">
+                                {log.category.replace('_', ' ')}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-bold">
+                                {fmtDate(log.logged_at)}
+                            </span>
+                        </div>
+                        <div className="text-sm text-slate-700 space-y-1">
+                            {Object.entries(log.log_data).map(([key, value]: [string, any]) => (
+                                <div key={key} className="flex gap-2">
+                                    <span className="font-bold capitalize">{key.replace('_', ' ')}:</span>
+                                    <span>{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : Array.isArray(value) ? value.join(', ') : value}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center gap-2">
+                            <User size={12} className="text-slate-400" />
+                            <span className="text-[10px] text-slate-500 font-bold uppercase">
+                                Logged by {matrons.find(m => m.id === log.matron_id)?.name || 'Matron'}
+                            </span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
             {documents.length === 0 && <p className="text-sm text-slate-500">No documents uploaded yet.</p>}
             {documents.map((item) => (
               <div key={item.id} className="rounded-[1.2rem] border border-slate-200 bg-white overflow-hidden shadow-sm">

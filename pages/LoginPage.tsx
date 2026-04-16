@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { addActivityLog, verifyAdminPin, searchTeachers, searchStudents, searchVtcStudents } from '../services/dataService';
-import { UserRole, Teacher, Student } from '../types';
-import { User, ShieldCheck, GraduationCap, ArrowLeft, BookOpen, ChevronRight, Search as SearchIcon } from 'lucide-react';
+import { addActivityLog, verifyAdminPin, searchTeachers, searchStudents, searchVtcStudents, getMatrons, verifyMatronPin } from '../services/dataService';
+import { UserRole, Teacher, Student, Matron } from '../types';
+import { User, ShieldCheck, GraduationCap, ArrowLeft, BookOpen, ChevronRight, Search as SearchIcon, HeartPulse } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface LoginProps {
@@ -13,7 +13,7 @@ interface LoginProps {
 }
 
 export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
-  const [activeTab, setActiveTab] = useState<'ADMIN' | 'TEACHER' | 'PARENT' | 'VTC'>('ADMIN');
+  const [activeTab, setActiveTab] = useState<'ADMIN' | 'TEACHER' | 'PARENT' | 'VTC' | 'MATRON'>('ADMIN');
   const [step, setStep] = useState<number>(0); // 0: Role Selection, 1: Login Form (Mobile)
   const [pin, setPin] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,6 +91,9 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
       } else if (activeTab === 'VTC') {
         const results = await searchVtcStudents(term);
         setSearchResults(results.map(r => ({ ...r, name: `${r.firstName} ${r.surname}` })));
+      } else if (activeTab === 'MATRON') {
+        const results = await getMatrons();
+        setSearchResults(results.filter(m => m.name.toLowerCase().includes(term.toLowerCase())));
       }
     } else {
       setSearchResults([]);
@@ -103,7 +106,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
     setSearchTerm(user.name);
   };
 
-  const handleUserLogin = (e: React.FormEvent) => {
+  const handleUserLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) {
       setError('Please select a user first');
@@ -130,6 +133,12 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
         success = true;
         role = UserRole.VTC_STUDENT;
       }
+    } else if (activeTab === 'MATRON') {
+      const matron = await verifyMatronPin(selectedUser.id, pin);
+      if (matron) {
+        success = true;
+        role = UserRole.MATRON;
+      }
     }
 
     if (success) {
@@ -148,6 +157,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
       if (role === UserRole.TEACHER) navigate('/teacher/dashboard');
       if (role === UserRole.PARENT) navigate('/parent/dashboard');
       if (role === UserRole.VTC_STUDENT) navigate('/vtc/dashboard');
+      if (role === UserRole.MATRON) navigate('/matron/dashboard');
     } else {
       setError('Incorrect PIN');
     }
@@ -157,6 +167,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
     { id: 'ADMIN', label: 'Admin', icon: ShieldCheck, desc: 'System Management' },
     { id: 'TEACHER', label: 'Teacher', icon: User, desc: 'Class & Grades' },
     { id: 'PARENT', label: 'Parent', icon: GraduationCap, desc: 'Student Progress' },
+    { id: 'MATRON', label: 'Matron', icon: HeartPulse, desc: 'Care & Medication' },
     { id: 'VTC', label: 'VTC', icon: BookOpen, desc: 'Vocational Training' },
   ] as const;
 
@@ -284,12 +295,12 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
 
                 <div className="mb-8 md:mb-12">
                   <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3" style={{ fontFamily: '"Google Sans", sans-serif' }}>
-                    {activeTab === 'ADMIN' ? 'Admin Access' : `Welcome, ${activeTab.charAt(0) + activeTab.slice(1).toLowerCase()}`}
+                    {activeTab === 'ADMIN' ? 'Admin Access' : (activeTab === 'MATRON' && selectedUser) ? `Welcome, Matron` : `Welcome, ${activeTab.charAt(0) + activeTab.slice(1).toLowerCase()}`}
                   </h2>
                   <p className="text-gray-500 text-sm md:text-base leading-relaxed" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
                     {activeTab === 'ADMIN' 
                       ? 'Enter your security PIN to continue.' 
-                      : 'Please identify yourself to proceed.'}
+                      : (activeTab === 'MATRON' && !selectedUser) ? 'Search for your name to log in.' : 'Please identify yourself to proceed.'}
                   </p>
                 </div>
 
@@ -321,7 +332,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                   </form>
                 )}
 
-                {(activeTab === 'TEACHER' || activeTab === 'PARENT' || activeTab === 'VTC') && (
+                {(activeTab === 'TEACHER' || activeTab === 'PARENT' || activeTab === 'VTC' || activeTab === 'MATRON') && (
                   <form onSubmit={handleUserLogin} className="space-y-8">
                     {!selectedUser ? (
                       <div className="relative">
@@ -397,15 +408,34 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                         </div>
                         <div>
                           <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-3" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Authorization PIN</label>
-                          <input
-                            type="password"
-                            placeholder="••••"
-                            value={pin}
-                            onChange={(e) => setPin(e.target.value)}
-                            maxLength={4}
-                            autoFocus
-                            className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 transition-all font-mono text-2xl tracking-[0.5em]"
-                          />
+                          <div className="flex justify-between gap-2 max-w-[280px] mx-auto">
+                            {[0, 1, 2, 3].map((idx) => (
+                              <input
+                                key={idx}
+                                id={`pin-${idx}`}
+                                type="password"
+                                inputMode="numeric"
+                                maxLength={1}
+                                value={pin[idx] || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val && !/^\d$/.test(val)) return;
+                                  const newPin = pin.split('');
+                                  newPin[idx] = val;
+                                  setPin(newPin.join(''));
+                                  if (val && idx < 3) {
+                                    document.getElementById(`pin-${idx + 1}`)?.focus();
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Backspace' && !pin[idx] && idx > 0) {
+                                    document.getElementById(`pin-${idx - 1}`)?.focus();
+                                  }
+                                }}
+                                className="w-14 h-16 bg-gray-50 border-2 border-gray-200 rounded-2xl text-center text-2xl font-bold focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 outline-none transition-all"
+                              />
+                            ))}
+                          </div>
                         </div>
                         {error && <p className="text-red-500 text-sm font-medium" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{error}</p>}
                         <button 

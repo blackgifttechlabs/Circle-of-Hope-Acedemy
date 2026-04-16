@@ -44,6 +44,11 @@ import StudentAssessment from './pages/teacher/assessment/StudentAssessment';
 import TermReview from './pages/teacher/assessment/TermReview';
 import AssessmentSheet from './pages/teacher/assessment/AssessmentSheet';
 import { VtcDashboard } from './pages/vtc/Dashboard';
+import { MatronDashboard } from './pages/matron/Dashboard';
+import { MatronStudentList } from './pages/matron/StudentList';
+import { MatronStudentProfile } from './pages/matron/StudentProfile';
+import { MatronSettings } from './pages/matron/Settings';
+import { MatronRecords } from './pages/admin/MatronRecords';
 import { UserRole } from './types';
 import { seedAdminUser, getAdminProfile } from './services/dataService';
 import { Toast } from './components/ui/Toast';
@@ -188,6 +193,7 @@ const App: React.FC = () => {
                       <Route path="homeworks" element={<AdminHomeworksPage />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
                       <Route path="students/:id" element={<StudentDetailsPage user={user} />} />
+                      <Route path="matron-records" element={<MatronRecords />} />
                       <Route path="*" element={<Navigate to="applications" />} />
                     </>
                   ) : (
@@ -207,6 +213,7 @@ const App: React.FC = () => {
                       <Route path="homeworks" element={<AdminHomeworksPage />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
                       <Route path="students/:id" element={<StudentDetailsPage user={user} />} />
+                      <Route path="matron-records" element={<MatronRecords />} />
                       <Route path="assessment/:id" element={<AssessmentPage userRole={UserRole.ADMIN} user={user} />} />
                       <Route path="settings" element={<SettingsPage />} />
                       <Route path="*" element={<Navigate to="dashboard" />} />
@@ -253,6 +260,21 @@ const App: React.FC = () => {
                       <Route path="assessment-form" element={<ParentAssessmentForm user={user} />} />
                       <Route path="assessment" element={<ParentAssessmentProgress user={user} />} />
                       <Route path="register" element={<ParentDailyRegister user={user} />} />
+                      <Route path="*" element={<Navigate to="dashboard" />} />
+                  </Routes>
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* Matron Routes */}
+          <Route path="/matron/*" element={
+            <ProtectedRoute isAuthenticated={!!user} userRole={role} allowedRoles={[UserRole.MATRON]}>
+               <AppLayout role={UserRole.MATRON} user={user} onLogout={handleLogout}>
+                  <Routes>
+                      <Route path="dashboard" element={<MatronDashboard user={user} />} />
+                      <Route path="students" element={<MatronStudentList />} />
+                      <Route path="students/:id" element={<MatronStudentProfile user={user} />} />
+                      <Route path="settings" element={<MatronSettings user={user} />} />
                       <Route path="*" element={<Navigate to="dashboard" />} />
                   </Routes>
               </AppLayout>

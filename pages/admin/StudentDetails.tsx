@@ -8,8 +8,10 @@ import {
   getStudentDocuments,
   getSystemSettings,
   updateStudent,
+  getStudentMedications,
+  addStudentMedication,
 } from '../../services/dataService';
-import { Student, SystemSettings, Receipt, TermAssessmentRecord, PRE_PRIMARY_AREAS, UploadedDocument } from '../../types';
+import { Student, SystemSettings, Receipt, TermAssessmentRecord, PRE_PRIMARY_AREAS, UploadedDocument, StudentMedication } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import {
   ArrowLeft,
@@ -31,9 +33,12 @@ import {
   Trash2,
   User,
   X,
+  Pill,
+  Plus,
 } from 'lucide-react';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { Toast } from '../../components/ui/Toast';
+import { Button } from '../../components/ui/Button';
 import { printStudentProfile } from '../../utils/printStudentProfile';
 import { printGrade0Report } from '../../utils/printGrade0Report';
 import { Grade1To7ReportCard, getGrade1To7ReportCards, printGrade1To7Report } from '../../utils/printGrade1To7Report';
@@ -70,7 +75,8 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
   const [assessmentRecords, setAssessmentRecords] = useState<TermAssessmentRecord[]>([]);
   const [gradeReports, setGradeReports] = useState<Grade1To7ReportCard[]>([]);
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
-  const [activeTab, setActiveTab] = useState<'PERSONAL' | 'PARENTS' | 'FINANCE' | 'ASSESSMENTS' | 'DOCUMENTS'>('PERSONAL');
+  const [medications, setMedications] = useState<StudentMedication[]>([]);
+  const [activeTab, setActiveTab] = useState<'PERSONAL' | 'PARENTS' | 'FINANCE' | 'ASSESSMENTS' | 'DOCUMENTS' | 'MEDICATIONS'>('PERSONAL');
   const [showPin, setShowPin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
@@ -81,6 +87,14 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
     variant: 'success',
   });
   const [reportLoadingMap, setReportLoadingMap] = useState<Record<string, boolean>>({});
+  const [showAddMedicationModal, setShowAddMedicationModal] = useState(false);
+  const [newMedication, setNewMedication] = useState({
+    medicine_name: '',
+    dosage: '',
+    scheduled_time_from: '',
+    scheduled_time_to: '',
+    notes: ''
+  });
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Student>>({});
@@ -91,14 +105,16 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
   const fetchData = async () => {
     if (!id) return;
     setPageLoading(true);
-    const [studentData, settingsData, receiptData, documentData] = await Promise.all([
+    const [studentData, settingsData, receiptData, documentData, medicationData] = await Promise.all([
       getStudentById(id),
       getSystemSettings(),
       getReceipts(),
       getStudentDocuments(id),
+      getStudentMedications(id),
     ]);
 
     setStudent(studentData);
+    setMedications(medicationData);
     setSettings(settingsData);
     setReceipts(receiptData.filter((receipt) => receipt.usedByStudentId === id));
     setDocuments(documentData);
@@ -243,6 +259,27 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
     setProfileFile(file);
     const preview = await fileToDataUrl(file);
     setProfilePreview(preview);
+  };
+
+  const handleAddMedication = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    setSaving(true);
+    const success = await addStudentMedication({
+      ...newMedication,
+      student_id: id,
+      added_by: user?.id || 'admin'
+    });
+    if (success) {
+      setToast({ show: true, msg: 'Medication added.', variant: 'success' });
+      setShowAddMedicationModal(false);
+      setNewMedication({ medicine_name: '', dosage: '', scheduled_time_from: '', scheduled_time_to: '', notes: '' });
+      const updatedMedications = await getStudentMedications(id);
+      setMedications(updatedMedications);
+    } else {
+      setToast({ show: true, msg: 'Failed to add medication.', variant: 'error' });
+    }
+    setSaving(false);
   };
 
   const handleSaveStudent = async () => {
@@ -659,6 +696,9 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
         <button onClick={() => setActiveTab('DOCUMENTS')} className={`px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'DOCUMENTS' ? 'border-b-4 border-coha-900 text-coha-900' : 'text-gray-400 hover:text-coha-900 hover:bg-gray-50'}`}>
           <FileText size={16} /> Uploaded Documents
         </button>
+        <button onClick={() => setActiveTab('MEDICATIONS')} className={`px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'MEDICATIONS' ? 'border-b-4 border-coha-900 text-coha-900' : 'text-gray-400 hover:text-coha-900 hover:bg-gray-50'}`}>
+          <Pill size={16} /> Medications
+        </button>
         {showAssessmentTab && (
           <button onClick={() => setActiveTab('ASSESSMENTS')} className={`px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 transition-all whitespace-nowrap ${activeTab === 'ASSESSMENTS' ? 'border-b-4 border-coha-900 text-coha-900' : 'text-gray-400 hover:text-coha-900 hover:bg-gray-50'}`}>
             <FileText size={16} /> Assessment Reports
@@ -824,6 +864,46 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
             </div>
           )}
 
+          {activeTab === 'MEDICATIONS' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between mb-6 border-b pb-2">
+                <h3 className="text-[10px] font-black uppercase text-coha-900 tracking-[0.3em] flex items-center gap-2">
+                  <Pill size={14} /> Medications
+                </h3>
+                <button
+                  onClick={() => setShowAddMedicationModal(true)}
+                  className="px-4 py-2 bg-coha-900 text-white font-black uppercase text-[10px] tracking-widest inline-flex items-center gap-2"
+                >
+                  <Plus size={16} /> Add Medication
+                </button>
+              </div>
+
+              {medications.length === 0 ? (
+                <div className="text-center py-12 text-gray-400 font-black uppercase tracking-widest text-xs italic border-2 border-dashed border-gray-200">
+                  No active medications for this learner.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {medications.map((med) => (
+                    <div key={med.id} className="border-2 border-gray-200 p-6 bg-gray-50 rounded-xl relative">
+                      <h4 className="font-black text-xl uppercase tracking-tighter text-coha-900">{med.medicine_name}</h4>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1">{med.dosage}</p>
+                      <div className="mt-4 flex items-center gap-2 text-gray-700">
+                        <Calendar size={14} />
+                        <span className="text-sm font-bold">{med.scheduled_time_from} - {med.scheduled_time_to}</span>
+                      </div>
+                      {med.notes && (
+                        <p className="mt-4 text-xs text-gray-600 bg-white p-3 border border-gray-100 italic">
+                          {med.notes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'DOCUMENTS' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between mb-6 border-b pb-2">
@@ -868,6 +948,73 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
           )}
         </div>
       </div>
+
+      {showAddMedicationModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-fade-in">
+            <div className="bg-coha-900 p-6 text-white flex justify-between items-center">
+              <h3 className="font-black uppercase tracking-widest text-sm">Add Medication</h3>
+              <button onClick={() => setShowAddMedicationModal(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleAddMedication} className="p-6 space-y-4">
+              <div>
+                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1">Medicine Name</label>
+                <input
+                  type="text"
+                  required
+                  value={newMedication.medicine_name}
+                  onChange={e => setNewMedication(prev => ({ ...prev, medicine_name: e.target.value }))}
+                  className="w-full border border-gray-300 p-3 rounded-lg text-sm font-bold outline-none focus:border-coha-900"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1">Dosage (e.g. 5ml)</label>
+                <input
+                  type="text"
+                  required
+                  value={newMedication.dosage}
+                  onChange={e => setNewMedication(prev => ({ ...prev, dosage: e.target.value }))}
+                  className="w-full border border-gray-300 p-3 rounded-lg text-sm font-bold outline-none focus:border-coha-900"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1">From Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={newMedication.scheduled_time_from}
+                    onChange={e => setNewMedication(prev => ({ ...prev, scheduled_time_from: e.target.value }))}
+                    className="w-full border border-gray-300 p-3 rounded-lg text-sm font-bold outline-none focus:border-coha-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1">To Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={newMedication.scheduled_time_to}
+                    onChange={e => setNewMedication(prev => ({ ...prev, scheduled_time_to: e.target.value }))}
+                    className="w-full border border-gray-300 p-3 rounded-lg text-sm font-bold outline-none focus:border-coha-900"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1">Notes</label>
+                <textarea
+                  value={newMedication.notes}
+                  onChange={e => setNewMedication(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full border border-gray-300 p-3 rounded-lg text-sm font-bold outline-none focus:border-coha-900"
+                  rows={3}
+                ></textarea>
+              </div>
+              <Button type="submit" fullWidth disabled={saving}>
+                {saving ? 'Adding...' : 'Save Medication'}
+              </Button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

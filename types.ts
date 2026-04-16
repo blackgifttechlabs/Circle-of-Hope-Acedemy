@@ -4,7 +4,8 @@ export enum UserRole {
   ADMIN = 'ADMIN',
   TEACHER = 'TEACHER',
   PARENT = 'PARENT',
-  VTC_STUDENT = 'VTC_STUDENT'
+  VTC_STUDENT = 'VTC_STUDENT',
+  MATRON = 'MATRON'
 }
 
 export enum Division {
@@ -107,6 +108,7 @@ export interface SystemSettings {
   specialNeedsLevels: string[];
   schoolCalendars?: TermCalendar[];
   hostelCalendars?: HostelCalendar[];
+  address?: string;
   
   termStartDate: string;
   termStartTime: string;
@@ -585,4 +587,53 @@ export interface VtcApplication {
   medicalDocuments?: ApplicationFileAttachment[];
   otherDocuments?: ApplicationFileAttachment[];
   pin?: string;
+}
+
+export interface Matron {
+  id: string;
+  name: string;
+  pin: string; // stored hashed or plain for simple auth as per spec "stored hashed"
+  school_id: string;
+  created_by: string;
+  created_at: any;
+  is_active: boolean;
+  role: UserRole.MATRON;
+}
+
+export interface StudentMedication {
+  id: string;
+  student_id: string;
+  medicine_name: string;
+  dosage: string;
+  scheduled_time_from: string; // "08:00"
+  scheduled_time_to: string;   // "08:30"
+  notes?: string;
+  added_by: string;
+  is_active: boolean;
+  created_at: any;
+}
+
+export type MatronLogCategory = 'eating' | 'potty_training' | 'bed_wetting' | 'medication' | 'incident' | 'appointment' | 'behavior' | 'discipline';
+
+export interface MatronLog {
+  id: string;
+  student_id: string;
+  matron_id: string;
+  category: MatronLogCategory;
+  log_data: any; // JSON
+  logged_at: any;
+  created_at: any;
+}
+
+export interface MedicationAdministration {
+  id: string;
+  student_medication_id: string;
+  student_id: string;
+  matron_id: string;
+  time_given: any; // timestamp
+  was_on_time: boolean;
+  minutes_late: number | null;
+  side_effects?: string;
+  notes?: string;
+  created_at: any;
 }

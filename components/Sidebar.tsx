@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Users, GraduationCap, LogOut, X,
   FileText, Settings, Activity, ClipboardList, ChevronLeft,
   ChevronRight, Calendar, BarChart3, CreditCard, BookOpen,
+  HeartPulse, Pill, AlertTriangle
 } from 'lucide-react';
 import { UserRole } from '../types';
 import { getAllHomeworkSubmissions, getHomeworkSubmissionsForClass, getPaymentProofs, getPendingActionCounts, getStudentById } from '../services/dataService';
@@ -138,6 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Payments',         path: '/admin/payments',           icon: <CreditCard  size={17} strokeWidth={2.2} />, badge: paymentBadgeCount },
     { label: 'View Activities',  path: '/admin/activities',         icon: <Activity    size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Homeworks',        path: '/admin/homeworks',          icon: <BookOpen    size={17} strokeWidth={2.2} />, badge: homeworkBadgeCount },
+    { label: 'Matron Records',   path: '/admin/matron-records',     icon: <HeartPulse  size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Students',         path: '/admin/students',         icon: <GraduationCap   size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Settings',         path: '/admin/settings',         icon: <Settings        size={17} strokeWidth={2.2} />, badge: 0 },
   ];
@@ -171,10 +173,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Dashboard', path: '/vtc/dashboard', icon: <LayoutDashboard size={17} strokeWidth={2.2} />, badge: 0 },
   ];
 
+  const matronLinks = [
+    { label: 'Dashboard', path: '/matron/dashboard', icon: <LayoutDashboard size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Students',  path: '/matron/students',  icon: <GraduationCap   size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Settings',  path: '/matron/settings',  icon: <Settings        size={17} strokeWidth={2.2} />, badge: 0 },
+  ];
+
   let links = parentLinks;
   if (role === UserRole.ADMIN)      links = user?.adminRole === 'sub_admin' ? subAdminLinks : adminLinks;
   if (role === UserRole.TEACHER)    links = teacherLinks;
   if (role === UserRole.VTC_STUDENT) links = vtcLinks;
+  if (role === UserRole.MATRON)     links = matronLinks;
 
   /* ─── role display label ─── */
   const rolePillLabel: Record<string, string> = {
@@ -182,6 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     [UserRole.TEACHER]:     'Teacher',
     [UserRole.PARENT]:      'Parent',
     [UserRole.VTC_STUDENT]: 'VTC Student',
+    [UserRole.MATRON]:      'Matron',
   };
 
   /* ─── user initials ─── */

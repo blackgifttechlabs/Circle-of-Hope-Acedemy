@@ -16,6 +16,7 @@ import {
   getActivityLogs,
   updateAdminAccount,
   deleteSubAdmin,
+  addMatron,
 } from '../../services/dataService';
 import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
@@ -113,6 +114,13 @@ export const AdminDashboard: React.FC = () => {
   const [createAdminLoading, setCreateAdminLoading] = useState(false);
   const [createAdminError, setCreateAdminError] = useState('');
   const [createAdminSuccess, setCreateAdminSuccess] = useState('');
+  const [showCreateMatron, setShowCreateMatron] = useState(false);
+  const [newMatronName, setNewMatronName] = useState('');
+  const [newMatronPin, setNewMatronPin] = useState('');
+  const [confirmMatronPin, setConfirmMatronPin] = useState('');
+  const [createMatronLoading, setCreateMatronLoading] = useState(false);
+  const [createMatronError, setCreateMatronError] = useState('');
+  const [createMatronSuccess, setCreateMatronSuccess] = useState('');
 
   const refreshStats = async () => {
     const data = await getDashboardStats();
@@ -164,6 +172,40 @@ export const AdminDashboard: React.FC = () => {
   }, [stats?.weeklyPaymentData?.length]);
 
   if (loading) return <Loader />;
+
+  const handleCreateMatron = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateMatronLoading(true);
+    setCreateMatronError('');
+    setCreateMatronSuccess('');
+
+    if (newMatronPin.length !== 4 || isNaN(Number(newMatronPin))) {
+      setCreateMatronError('PIN must be a 4-digit number.');
+      setCreateMatronLoading(false);
+      return;
+    }
+
+    if (newMatronPin !== confirmMatronPin) {
+      setCreateMatronError('PINs do not match.');
+      setCreateMatronLoading(false);
+      return;
+    }
+
+    const result = await addMatron(newMatronName, newMatronPin, adminSettings?.adminName || 'Admin');
+    if (result) {
+      setCreateMatronSuccess('Matron created successfully.');
+      setNewMatronName('');
+      setNewMatronPin('');
+      setConfirmMatronPin('');
+      setTimeout(() => {
+        setShowCreateMatron(false);
+        setCreateMatronSuccess('');
+      }, 2000);
+    } else {
+      setCreateMatronError('Failed to create matron.');
+    }
+    setCreateMatronLoading(false);
+  };
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -349,6 +391,12 @@ export const AdminDashboard: React.FC = () => {
           </p>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <Button
+            onClick={() => setShowCreateMatron(true)}
+            className="!bg-coha-600 hover:!bg-coha-500 text-white !py-2 !px-4 !rounded-lg !text-sm !font-bold"
+          >
+            Add Matron
+          </Button>
           <Button 
             onClick={() => setShowCreateAdmin(true)}
             className="!bg-coha-900 hover:!bg-coha-800 text-white !py-2 !px-4 !rounded-lg !text-sm !font-bold"
@@ -1163,6 +1211,70 @@ export const AdminDashboard: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ CREATE MATRON MODAL ══ */}
+      {showCreateMatron && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(15,23,42,0.6)', zIndex:100,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)' }}>
+          <div style={{ background:'white', borderRadius:20, width:'100%', maxWidth:400,
+            boxShadow:'0 20px 40px rgba(0,0,0,.15)', overflow:'hidden', animation:'fadeup .3s ease' }}>
+            <div style={{ padding:'20px 24px', borderBottom:'1px solid #f1f5f9', display:'flex',
+              justifyContent:'space-between', alignItems:'center' }}>
+              <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:'#0f172a' }}>Create Matron</h3>
+              <button onClick={() => setShowCreateMatron(false)}
+                style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8' }}>
+                <X size={20}/>
+              </button>
+            </div>
+            <form onSubmit={handleCreateMatron} style={{ padding:24 }}>
+              {createMatronError && (
+                <div style={{ background:'#fef2f2', color:'#ef4444', padding:'10px 14px', borderRadius:8, fontSize:13, fontWeight:600, marginBottom:16 }}>
+                  {createMatronError}
+                </div>
+              )}
+              {createMatronSuccess && (
+                <div style={{ background:'#f0fdf4', color:'#10b981', padding:'10px 14px', borderRadius:8, fontSize:13, fontWeight:600, marginBottom:16 }}>
+                  {createMatronSuccess}
+                </div>
+              )}
+              <div style={{ marginBottom:16 }}>
+                <Input
+                  label="Full Name"
+                  placeholder="e.g. Mary Jane"
+                  value={newMatronName}
+                  onChange={(e) => setNewMatronName(e.target.value)}
+                  required
+                />
+              </div>
+              <div style={{ marginBottom:16 }}>
+                <Input
+                  label="4-digit PIN"
+                  type="password"
+                  maxLength={4}
+                  placeholder="Enter PIN"
+                  value={newMatronPin}
+                  onChange={(e) => setNewMatronPin(e.target.value)}
+                  required
+                />
+              </div>
+              <div style={{ marginBottom:24 }}>
+                <Input
+                  label="Confirm PIN"
+                  type="password"
+                  maxLength={4}
+                  placeholder="Re-enter PIN"
+                  value={confirmMatronPin}
+                  onChange={(e) => setConfirmMatronPin(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" fullWidth disabled={createMatronLoading}>
+                {createMatronLoading ? 'Creating...' : 'Create Matron'}
+              </Button>
+            </form>
           </div>
         </div>
       )}

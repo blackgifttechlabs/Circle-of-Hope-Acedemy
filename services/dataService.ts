@@ -1,10 +1,11 @@
 import { db, auth } from '../firebase';
 import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 import { getPaymentOptionLabel, isRegistrationFeeOption } from '../utils/paymentOptions';
+import { hashPin } from '../utils/crypto';
 
 // Collections
 const TEACHERS_COLLECTION = 'teachers';
@@ -19,6 +20,10 @@ const HOMEWORK_ASSIGNMENTS_COLLECTION = 'homework_assignments';
 const HOMEWORK_SUBMISSIONS_COLLECTION = 'homework_submissions';
 const STUDENT_DOCUMENTS_COLLECTION = 'student_documents';
 const ACTIVITY_LOGS_COLLECTION = 'activity_logs';
+const MATRONS_COLLECTION = 'matrons';
+const STUDENT_MEDICATIONS_COLLECTION = 'student_medications';
+const MATRON_LOGS_COLLECTION = 'matron_logs';
+const MEDICATION_ADMINISTRATIONS_COLLECTION = 'medication_administrations';
 
 // Admin Auth Configuration
 const ADMIN_EMAIL = "admin@coha.com";
@@ -230,6 +235,27 @@ export const getLessonPlans = async (teacherId: string, classLevel: string) => {
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WeeklyLessonPlan));
   } catch (error) {
     console.error("Error fetching lesson plans:", error);
+    return [];
+  }
+};
+
+export const getMedicationAdministrations = async (startDate?: Date, endDate?: Date): Promise<MedicationAdministration[]> => {
+  try {
+    let q;
+    if (startDate && endDate) {
+      q = query(
+        collection(db, MEDICATION_ADMINISTRATIONS_COLLECTION),
+        where("time_given", ">=", Timestamp.fromDate(startDate)),
+        where("time_given", "<=", Timestamp.fromDate(endDate)),
+        orderBy("time_given", "desc")
+      );
+    } else {
+      q = query(collection(db, MEDICATION_ADMINISTRATIONS_COLLECTION), orderBy("time_given", "desc"));
+    }
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MedicationAdministration));
+  } catch (error) {
+    console.error("Error fetching medication administrations:", error);
     return [];
   }
 };
@@ -2513,4 +2539,296 @@ export const getStudentDailyRegister = async (grade: string, studentId: string):
     console.error('Error fetching student daily register:', error);
     return null;
   }
+};
+
+// --- MATRON MODULE LOGIC ---
+
+export const addMatron = async (name: string, pin: string, createdBy: string) => {
+  try {
+    const settings = await getSystemSettings();
+    const hashedPin = await hashPin(pin);
+    const docRef = await addDoc(collection(db, MATRONS_COLLECTION), {
+      name,
+      pin: hashedPin,
+      created_by: createdBy,
+      school_id: settings?.schoolName || 'default',
+      created_at: Timestamp.now(),
+      is_active: true,
+      role: UserRole.MATRON
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding matron: ", error);
+    return null;
+  }
+};
+
+export const getMatrons = async (): Promise<Matron[]> => {
+  try {
+    const q = query(collection(db, MATRONS_COLLECTION), where("is_active", "==", true));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Matron));
+  } catch (error) {
+    console.error("Error fetching matrons:", error);
+    return [];
+  }
+};
+
+export const updateMatron = async (id: string, data: Partial<Matron>) => {
+  try {
+    const docRef = doc(db, MATRONS_COLLECTION, id);
+    await updateDoc(docRef, data as any);
+    return true;
+  } catch (error) {
+    console.error("Error updating matron:", error);
+    return false;
+  }
+};
+
+export const deleteMatron = async (id: string) => {
+  try {
+    const docRef = doc(db, MATRONS_COLLECTION, id);
+    await updateDoc(docRef, { is_active: false });
+    return true;
+  } catch (error) {
+    console.error("Error deleting matron:", error);
+    return false;
+  }
+};
+
+export const verifyMatronPin = async (matronId: string, pin: string): Promise<Matron | null> => {
+  try {
+    const docRef = doc(db, MATRONS_COLLECTION, matronId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const hashedPin = await hashPin(pin);
+      if (data && data.pin === hashedPin && data.is_active) {
+        return { id: docSnap.id, ...data } as Matron;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error("Error verifying matron pin:", error);
+    return null;
+  }
+};
+
+export const addStudentMedication = async (medication: Omit<StudentMedication, 'id' | 'created_at' | 'is_active'>) => {
+  try {
+    const docRef = await addDoc(collection(db, STUDENT_MEDICATIONS_COLLECTION), {
+      ...medication,
+      created_at: Timestamp.now(),
+      is_active: true
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding student medication:", error);
+    return null;
+  }
+};
+
+export const getStudentMedications = async (studentId: string): Promise<StudentMedication[]> => {
+  try {
+    const q = query(
+      collection(db, STUDENT_MEDICATIONS_COLLECTION),
+      where("student_id", "==", studentId),
+      where("is_active", "==", true)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentMedication));
+  } catch (error) {
+    console.error("Error fetching student medications:", error);
+    return [];
+  }
+};
+
+export const updateStudentMedication = async (id: string, data: Partial<StudentMedication>) => {
+  try {
+    const docRef = doc(db, STUDENT_MEDICATIONS_COLLECTION, id);
+    await updateDoc(docRef, data as any);
+    return true;
+  } catch (error) {
+    console.error("Error updating student medication:", error);
+    return false;
+  }
+};
+
+export const addMatronLog = async (log: Omit<MatronLog, 'id' | 'created_at'>) => {
+  try {
+    const docRef = await addDoc(collection(db, MATRON_LOGS_COLLECTION), {
+      ...log,
+      created_at: Timestamp.now()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding matron log:", error);
+    return null;
+  }
+};
+
+export const getMatronLogsForStudent = async (studentId: string, date?: Date): Promise<MatronLog[]> => {
+  try {
+    let q = query(
+      collection(db, MATRON_LOGS_COLLECTION),
+      where("student_id", "==", studentId),
+      orderBy("logged_at", "desc")
+    );
+
+    if (date) {
+        const start = new Date(date);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(date);
+        end.setHours(23, 59, 59, 999);
+
+        q = query(
+          collection(db, MATRON_LOGS_COLLECTION),
+          where("student_id", "==", studentId),
+          where("logged_at", ">=", Timestamp.fromDate(start)),
+          where("logged_at", "<=", Timestamp.fromDate(end)),
+          orderBy("logged_at", "desc")
+        );
+    }
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MatronLog));
+  } catch (error) {
+    console.error("Error fetching matron logs:", error);
+    return [];
+  }
+};
+
+export const getAllMatronLogs = async (startDate?: Date, endDate?: Date): Promise<MatronLog[]> => {
+  try {
+    let q;
+    if (startDate && endDate) {
+      q = query(
+        collection(db, MATRON_LOGS_COLLECTION),
+        where("logged_at", ">=", Timestamp.fromDate(startDate)),
+        where("logged_at", "<=", Timestamp.fromDate(endDate)),
+        orderBy("logged_at", "desc")
+      );
+    } else {
+      q = query(collection(db, MATRON_LOGS_COLLECTION), orderBy("logged_at", "desc"));
+    }
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MatronLog));
+  } catch (error) {
+    console.error("Error fetching all matron logs:", error);
+    return [];
+  }
+};
+
+export const addMedicationAdministration = async (admin: Omit<MedicationAdministration, 'id' | 'created_at'>) => {
+  try {
+    const docRef = await addDoc(collection(db, MEDICATION_ADMINISTRATIONS_COLLECTION), {
+      ...admin,
+      created_at: Timestamp.now()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding medication administration:", error);
+    return null;
+  }
+};
+
+export const getMedicationAdministrationsForStudent = async (studentId: string, date?: Date): Promise<MedicationAdministration[]> => {
+  try {
+    let q = query(
+      collection(db, MEDICATION_ADMINISTRATIONS_COLLECTION),
+      where("student_id", "==", studentId),
+      orderBy("time_given", "desc")
+    );
+
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+
+      q = query(
+        collection(db, MEDICATION_ADMINISTRATIONS_COLLECTION),
+        where("student_id", "==", studentId),
+        where("time_given", ">=", Timestamp.fromDate(start)),
+        where("time_given", "<=", Timestamp.fromDate(end)),
+        orderBy("time_given", "desc")
+      );
+    }
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MedicationAdministration));
+  } catch (error) {
+    console.error("Error fetching medication administrations:", error);
+    return [];
+  }
+};
+
+export const getMedicationAdministrationsToday = async (): Promise<MedicationAdministration[]> => {
+  try {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    const q = query(
+      collection(db, MEDICATION_ADMINISTRATIONS_COLLECTION),
+      where("time_given", ">=", Timestamp.fromDate(start)),
+      where("time_given", "<=", Timestamp.fromDate(end))
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MedicationAdministration));
+  } catch (error) {
+    console.error("Error fetching today's medication administrations:", error);
+    return [];
+  }
+};
+
+export const getAllStudentMedications = async (): Promise<StudentMedication[]> => {
+    try {
+      const q = query(collection(db, STUDENT_MEDICATIONS_COLLECTION), where("is_active", "==", true));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentMedication));
+    } catch (error) {
+      console.error("Error fetching all student medications:", error);
+      return [];
+    }
+};
+
+export const getMatronAlerts = async () => {
+  const [students, allMedications, adminsToday] = await Promise.all([
+      getStudents(),
+      getAllStudentMedications(),
+      getMedicationAdministrationsToday()
+  ]);
+
+  const alerts: any[] = [];
+  const now = new Date();
+  const currentTimeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+
+  for (const med of allMedications) {
+    const student = students.find(s => s.id === med.student_id);
+    if (!student) continue;
+
+    const admin = adminsToday.find(a => a.student_medication_id === med.id);
+    if (!admin) {
+      if (currentTimeStr > med.scheduled_time_to) {
+        alerts.push({
+          type: 'MISSED',
+          studentName: student.name,
+          medicineName: med.medicine_name,
+          dueTime: med.scheduled_time_from + " - " + med.scheduled_time_to
+        });
+      }
+    } else if (!admin.was_on_time) {
+      alerts.push({
+        type: 'LATE',
+        studentName: student.name,
+        medicineName: med.medicine_name,
+        timeGiven: admin.time_given?.toDate ? admin.time_given.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date(admin.time_given).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+        dueTime: med.scheduled_time_from + " - " + med.scheduled_time_to,
+        minutesLate: admin.minutes_late
+      });
+    }
+  }
+  return alerts;
 };
