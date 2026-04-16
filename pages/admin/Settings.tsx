@@ -3,7 +3,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { getSystemSettings, saveSystemSettings } from '../../services/dataService';
 import { SystemSettings, FeeItem, SupplyItem } from '../../types';
-import { Save, User, DollarSign, Package, Calendar, Plus, Trash2, CheckSquare, Square, Eye, EyeOff, BookOpen, Heart, Settings } from 'lucide-react';
+import { Save, User, DollarSign, Package, Calendar, Plus, Trash2, CheckSquare, Square, Eye, EyeOff, BookOpen, Heart, Settings, Home } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { CalendarSettings } from './CalendarSettings';
 
@@ -17,6 +17,7 @@ export const SettingsPage: React.FC = () => {
     stationery: [],
     grades: [],
     specialNeedsLevels: [],
+    hostels: [],
     schoolCalendars: [],
     hostelCalendars: [],
     termStartDate: '',
@@ -33,6 +34,7 @@ export const SettingsPage: React.FC = () => {
   const [newStationery, setNewStationery] = useState('');
   const [newGrade, setNewGrade] = useState('');
   const [newLevel, setNewLevel] = useState('');
+  const [newHostel, setNewHostel] = useState('');
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -62,6 +64,7 @@ export const SettingsPage: React.FC = () => {
             stationery: data.stationery || [],
             grades: data.grades || [],
             specialNeedsLevels: data.specialNeedsLevels || ['Level 1A', 'Level 1B', 'Level 2', 'Level 3'],
+            hostels: data.hostels || [],
             schoolCalendars: schoolCals,
             hostelCalendars: hostelCals
         });
@@ -144,6 +147,17 @@ export const SettingsPage: React.FC = () => {
 
   const removeLevel = (lvl: string) => {
     setSettings({ ...settings, specialNeedsLevels: settings.specialNeedsLevels.filter(l => l !== lvl) });
+  };
+
+  const addHostel = () => {
+    if (newHostel && !(settings.hostels || []).includes(newHostel)) {
+        setSettings({ ...settings, hostels: [...(settings.hostels || []), newHostel] });
+        setNewHostel('');
+    }
+  };
+
+  const removeHostel = (hostel: string) => {
+    setSettings({ ...settings, hostels: (settings.hostels || []).filter(h => h !== hostel) });
   };
 
   return (
@@ -523,6 +537,36 @@ export const SettingsPage: React.FC = () => {
                                 className="mb-0"
                             />
                             <Button onClick={addLevel} variant="secondary">Add</Button>
+                        </div>
+                    </div>
+
+                    {/* Section 4: Hostel Configuration */}
+                    <div className="bg-white border border-gray-200 p-6">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 bg-orange-100 rounded-full text-orange-700">
+                                <Home size={24} />
+                            </div>
+                            <h3 className="text-xl font-bold text-orange-900">Hostel Names</h3>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mb-6 p-4 bg-orange-50 border border-orange-100 min-h-[100px] content-start">
+                            {(settings.hostels || []).map((hostel) => (
+                                <div key={hostel} className="bg-white text-orange-900 px-4 py-2 shadow-sm flex items-center gap-3 border border-orange-200 font-bold">
+                                    {hostel}
+                                    <button onClick={() => removeHostel(hostel)} className="text-red-400 hover:text-red-600">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex gap-2">
+                            <Input
+                                placeholder="Add Hostel (e.g. Dorm A)"
+                                value={newHostel}
+                                onChange={(e) => setNewHostel(e.target.value)}
+                                className="mb-0"
+                            />
+                            <Button onClick={addHostel}>Add</Button>
                         </div>
                     </div>
                 </div>

@@ -1336,6 +1336,12 @@ export const getAllHomeworkSubmissions = async (): Promise<HomeworkSubmission[]>
     return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission));
 };
 
+export const getAllHomeworkAssignments = async (): Promise<HomeworkAssignment[]> => {
+    const q = query(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkAssignment));
+};
+
 export const markHomeworkSubmissionReviewed = async (submissionId: string, notes?: string) => {
     try {
         await updateDoc(doc(db, HOMEWORK_SUBMISSIONS_COLLECTION, submissionId), {
@@ -2781,9 +2787,10 @@ export const getMatronLogsForStudent = async (studentId: string, date?: Date): P
   }
 };
 
-export const getAllMatronLogs = async (startDate?: Date, endDate?: Date): Promise<MatronLog[]> => {
+export const getAllMatronLogs = async (startDate?: Date, endDate?: Date, studentId?: string): Promise<MatronLog[]> => {
   try {
-    let q;
+    let q = query(collection(db, MATRON_LOGS_COLLECTION), orderBy("logged_at", "desc"));
+
     if (startDate && endDate) {
       q = query(
         collection(db, MATRON_LOGS_COLLECTION),
@@ -2791,9 +2798,12 @@ export const getAllMatronLogs = async (startDate?: Date, endDate?: Date): Promis
         where("logged_at", "<=", Timestamp.fromDate(endDate)),
         orderBy("logged_at", "desc")
       );
-    } else {
-      q = query(collection(db, MATRON_LOGS_COLLECTION), orderBy("logged_at", "desc"));
     }
+
+    if (studentId) {
+      q = query(q, where("student_id", "==", studentId));
+    }
+
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MatronLog));
   } catch (error) {

@@ -23,7 +23,9 @@ export const MatronRecords: React.FC = () => {
   const [matrons, setMatrons] = useState<Matron[]>([]);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
+  const [showHistoryStudentId, setShowHistoryStudentId] = useState<string | null>(null);
   const [studentLogs, setStudentLogs] = useState<Record<string, MatronLog[]>>({});
+  const [historyLogs, setHistoryLogs] = useState<MatronLog[]>([]);
   const [allMedications, setAllMedications] = useState<StudentMedication[]>([]);
   const [allAdministrations, setAllAdministrations] = useState<MedicationAdministration[]>([]);
   const [homeworkSubmissions, setHomeworkSubmissions] = useState<HomeworkSubmission[]>([]);
@@ -116,11 +118,83 @@ export const MatronRecords: React.FC = () => {
   };
 
   const filteredStudents = students.filter(s => {
+    const matchesHostel = s.needsHostel && s.dorm;
     const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesClass = filters.class === 'ALL' || s.assignedClass === filters.class;
     const matchesDorm = filters.dorm === 'ALL' || s.dorm === filters.dorm;
-    return matchesSearch && matchesClass && matchesDorm;
+    return matchesHostel && matchesSearch && matchesClass && matchesDorm;
   });
+
+  const handleViewAll = async (studentId: string) => {
+    setLoading(true);
+    const logs = await getAllMatronLogs(undefined, undefined, studentId);
+    setHistoryLogs(logs.sort((a, b) => {
+      const da = a.logged_at?.toDate ? a.logged_at.toDate() : new Date(a.logged_at);
+      const db = b.logged_at?.toDate ? b.logged_at.toDate() : new Date(b.logged_at);
+      return db.getTime() - da.getTime();
+    }));
+    setShowHistoryStudentId(studentId);
+    setLoading(false);
+  };
+
+  const downloadStudentReport = async (student: Student, logs: MatronLog[], rangeLabel: string) => {
+    const doc = new jsPDF() as any;
+    const schoolName = settings?.schoolName || 'Circle of Hope Academy';
+    const compliance = getCompliance(student.id);
+
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(43, 43, 94);
+    doc.text('Student Care Summary Report', 105, 25, { align: 'center' });
+
+    doc.setFontSize(14);
+    doc.setTextColor(100);
+    doc.text(student.name, 105, 35, { align: 'center' });
+
+    doc.setFontSize(10);
+    doc.text(`Period: ${rangeLabel} | Generated: ${new Date().toLocaleDateString()}`, 105, 45, { align: 'center' });
+
+    doc.autoTable({
+      startY: 60,
+      head: [['Medication Compliance', 'Doses Due', 'Given', 'On Time', 'Late', 'Missed']],
+      body: [['Summary', compliance.due, compliance.given, compliance.onTime, compliance.late, compliance.missed]],
+      theme: 'striped',
+      headStyles: { fillColor: [43, 43, 94] },
+    });
+
+    const logsByDate: Record<string, any[][]> = {};
+    logs.forEach(log => {
+        const date = log.logged_at?.toDate ? log.logged_at.toDate() : new Date(log.logged_at);
+        const dateStr = date.toLocaleDateString();
+        if (!logsByDate[dateStr]) logsByDate[dateStr] = [];
+        logsByDate[dateStr].push([
+            date.toLocaleTimeString(),
+            log.category.replace('_', ' ').toUpperCase(),
+            matrons.find(m => m.id === log.matron_id)?.name || 'Unknown',
+            Object.entries(log.log_data).map(([k, v]) => `${k}: ${v}`).join(', ')
+        ]);
+    });
+
+    let currentY = (doc as any).lastAutoTable.finalY + 15;
+
+    Object.entries(logsByDate).forEach(([date, data]) => {
+        if (currentY > 250) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Records for ${date}`, 14, currentY);
+        doc.autoTable({
+            startY: currentY + 5,
+            head: [['Time', 'Category', 'Matron', 'Details']],
+            body: data,
+            theme: 'grid',
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [100, 100, 100] }
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+    });
+
+    doc.save(`report_${student.name.replace(/\s+/g, '_')}.pdf`);
+  };
 
   const downloadPDF = async () => {
     const doc = new jsPDF() as any;
@@ -179,6 +253,94 @@ export const MatronRecords: React.FC = () => {
     }
 
     doc.save(`matron_records_${dateRange.start}_to_${dateRange.end}.pdf`);
+  };
+
+  const downloadExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+
+    // Summary Sheet
+    const summarySheet = workbook.addWorksheet('Compliance Summary');
+    summarySheet.columns = [
+      { header: 'Student Name', key: 'name', width: 25 },
+      { header: 'Class/Room', key: 'class', width: 15 },
+      { header: 'Dorm', key: 'dorm', width: 15 },
+      { header: 'Doses Due', key: 'due', width: 12 },
+      { header: 'Doses Given', key: 'given', width: 12 },
+      { header: 'On Time', key: 'onTime', width: 12 },
+      { header: 'Late', key: 'late', width: 12 },
+      { header: 'Missed', key: 'missed', width: 12 },
+    ];
+
+    filteredStudents.forEach(student => {
+      const compliance = getCompliance(student.id);
+      summarySheet.addRow({
+        name: student.name,
+        class: student.assignedClass || 'N/A',
+        dorm: student.dorm || 'N/A',
+        due: compliance.due,
+        given: compliance.given,
+        onTime: compliance.onTime,
+        late: compliance.late,
+        missed: compliance.missed
+      });
+    });
+
+    // Formatting Summary Sheet
+    summarySheet.getRow(1).font = { bold: true };
+    summarySheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+
+    // Individual Category Sheets
+    const categories: { key: string, label: string }[] = [
+      { key: 'eating', label: 'Eating' },
+      { key: 'potty_training', label: 'Potty Training' },
+      { key: 'bed_wetting', label: 'Bed Wetting' },
+      { key: 'medication', label: 'Medication' },
+      { key: 'incident', label: 'Incidents' },
+      { key: 'appointment', label: 'Appointments' },
+      { key: 'behavior', label: 'Behaviour' },
+      { key: 'discipline', label: 'Discipline' }
+    ];
+
+    categories.forEach(cat => {
+      const sheet = workbook.addWorksheet(cat.label);
+
+      // Collect all logs for this category
+      const logs: any[] = [];
+      filteredStudents.forEach(student => {
+        const studentLogsList = studentLogs[student.id] || [];
+        studentLogsList.filter(l => l.category === cat.key).forEach(log => {
+          logs.push({
+            date: new Date(log.logged_at?.toDate ? log.logged_at.toDate() : log.logged_at),
+            studentName: student.name,
+            room: student.assignedClass || 'N/A',
+            matron: matrons.find(m => m.id === log.matron_id)?.name || 'Unknown',
+            ...log.log_data
+          });
+        });
+      });
+
+      if (logs.length > 0) {
+        // Dynamic columns based on keys in log_data
+        const dataKeys = Array.from(new Set(logs.flatMap(l => Object.keys(l))));
+        sheet.columns = dataKeys.map(k => ({
+          header: k.charAt(0).toUpperCase() + k.slice(1).replace('_', ' '),
+          key: k,
+          width: 20
+        }));
+
+        logs.sort((a, b) => b.date.getTime() - a.date.getTime()).forEach(log => {
+          sheet.addRow(log);
+        });
+
+        sheet.getRow(1).font = { bold: true };
+        sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+      } else {
+        sheet.addRow(['No records found for this period.']);
+      }
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `matron_report_${dateRange.start}_to_${dateRange.end}.xlsx`);
   };
 
   const printPDF = async () => {
@@ -266,6 +428,9 @@ export const MatronRecords: React.FC = () => {
         <div className="flex gap-2">
           <Button onClick={downloadPDF} variant="outline" className="!rounded-xl !py-2 !text-xs font-black uppercase tracking-widest shadow-sm">
             <Download size={16} /> PDF
+          </Button>
+          <Button onClick={downloadExcel} variant="outline" className="!rounded-xl !py-2 !text-xs font-black uppercase tracking-widest shadow-sm">
+            <Download size={16} /> Excel
           </Button>
           <Button onClick={printPDF} variant="outline" className="!rounded-xl !py-2 !text-xs font-black uppercase tracking-widest shadow-sm">
             <Printer size={16} /> Print
@@ -431,7 +596,7 @@ export const MatronRecords: React.FC = () => {
                           <p className="text-[10px] font-black text-slate-800 uppercase tracking-tighter mb-0.5">{lastLog.category.replace('_', ' ')}</p>
                           <p className="text-[9px] font-bold text-slate-400">{new Date(lastLog.logged_at?.toDate ? lastLog.logged_at.toDate() : lastLog.logged_at).toLocaleTimeString()}</p>
                         </div>
-                      ) : <span className="text-[10px] font-bold text-slate-300 uppercase">No Logs</span>}
+                      ) : <span className="text-[10px] font-bold text-rose-400 uppercase tracking-widest font-black">No Records Today</span>}
                     </td>
                     <td className="px-6 py-5 text-right">
                        <button className="p-2 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-coha-900 group-hover:text-white transition-all">
@@ -443,10 +608,33 @@ export const MatronRecords: React.FC = () => {
                   {expandedStudentId === student.id && (
                     <tr>
                       <td colSpan={5} className="bg-slate-50/50 p-8 border-y border-slate-100">
+                         <div className="flex justify-between items-start mb-6">
+                            <div>
+                               <h3 className="text-xl font-black text-slate-900">{student.name}</h3>
+                               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Today's Detailed Activity</p>
+                            </div>
+                            <div className="flex gap-2">
+                               <Button
+                                onClick={(e) => { e.stopPropagation(); handleViewAll(student.id); }}
+                                variant="outline"
+                                className="!py-1.5 !px-3 !text-[10px]"
+                               >
+                                 View All Records
+                               </Button>
+                               <Button
+                                onClick={(e) => { e.stopPropagation(); downloadStudentReport(student, logs, 'Today'); }}
+                                variant="secondary"
+                                className="!py-1.5 !px-3 !text-[10px]"
+                               >
+                                 <Download size={14} /> Report
+                               </Button>
+                            </div>
+                         </div>
+
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-4">
                                <h4 className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-                                 <Activity size={14} /> Care Activity Timeline
+                                 <Activity size={14} /> Today's Activity Timeline
                                </h4>
                                {logs.length > 0 ? (
                                  <div className="space-y-3">
@@ -532,6 +720,75 @@ export const MatronRecords: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {showHistoryStudentId && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+           <div className="bg-white w-full max-w-4xl rounded-[40px] overflow-hidden shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
+              <div className="p-8 bg-coha-900 text-white flex justify-between items-center shrink-0">
+                 <div>
+                    <h3 className="text-2xl font-black uppercase tracking-tight">Full History</h3>
+                    <p className="text-xs text-white/60 font-bold uppercase mt-1 tracking-widest">{students.find(s => s.id === showHistoryStudentId)?.name}</p>
+                 </div>
+                 <div className="flex gap-3">
+                    <Button
+                        onClick={() => {
+                            const s = students.find(st => st.id === showHistoryStudentId);
+                            if (s) downloadStudentReport(s, historyLogs, 'All Time');
+                        }}
+                        className="bg-white/10 hover:bg-white/20 border border-white/20 !py-2"
+                    >
+                        <Download size={18} /> Download All
+                    </Button>
+                    <button onClick={() => setShowHistoryStudentId(null)} className="p-2 hover:bg-white/10 rounded-2xl transition-colors">
+                        <XIcon size={24} />
+                    </button>
+                 </div>
+              </div>
+              <div className="p-8 overflow-y-auto flex-1 custom-scrollbar bg-slate-50">
+                 <div className="space-y-8">
+                    {historyLogs.length === 0 && <p className="text-center py-20 text-slate-400 font-bold italic">No records found.</p>}
+                    {Object.entries(historyLogs.reduce((acc, log) => {
+                        const date = log.logged_at?.toDate ? log.logged_at.toDate() : new Date(log.logged_at);
+                        const ds = date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                        if (!acc[ds]) acc[ds] = [];
+                        acc[ds].push(log);
+                        return acc;
+                    }, {} as Record<string, MatronLog[]>)).map(([date, logs]) => (
+                        <div key={date}>
+                           <div className="flex items-center gap-4 mb-4">
+                              <div className="h-px flex-1 bg-slate-200" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{date}</span>
+                              <div className="h-px flex-1 bg-slate-200" />
+                           </div>
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {logs.map(log => (
+                                 <div key={log.id} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+                                    <div className="flex justify-between items-start mb-3">
+                                       <span className="text-[10px] font-black uppercase tracking-widest text-coha-600 bg-coha-50 px-2 py-0.5 rounded">
+                                          {log.category.replace('_', ' ')}
+                                       </span>
+                                       <span className="text-[9px] font-bold text-slate-300">
+                                          {new Date(log.logged_at?.toDate ? log.logged_at.toDate() : log.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                       </span>
+                                    </div>
+                                    <div className="space-y-1">
+                                       {Object.entries(log.log_data).map(([k, v]: [string, any]) => (
+                                          <div key={k} className="flex gap-2 text-xs">
+                                             <span className="font-bold text-slate-400 uppercase tracking-tighter">{k.replace('_', ' ')}:</span>
+                                             <span className="font-bold text-slate-700">{typeof v === 'boolean' ? (v ? 'Yes' : 'No') : Array.isArray(v) ? v.join(', ') : v}</span>
+                                          </div>
+                                       ))}
+                                    </div>
+                                 </div>
+                              ))}
+                           </div>
+                        </div>
+                    ))}
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

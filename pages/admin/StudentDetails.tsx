@@ -294,6 +294,7 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
         division: editForm.division || student.division,
         grade: editForm.grade || '',
         assignedClass: editForm.assignedClass || '',
+        needsHostel: editForm.needsHostel || false,
         dorm: editForm.dorm || '',
         parentName: editForm.parentName || '',
         fatherName: editForm.fatherName || '',
@@ -759,7 +760,34 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
                       <EditableField label="Division" field="division" value={student.division} type="select" options={['Mainstream', 'Special Needs']} />
                       <EditableField label="Grade" field="grade" value={student.grade} />
                       <EditableField label="Assigned Class" field="assignedClass" value={student.assignedClass} />
-                      <EditableField label="Hostel / Dorm" field="dorm" value={student.dorm} />
+                      <div className="border-t border-gray-100 pt-4 mt-4">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!editForm.needsHostel}
+                            onChange={(e) => setEditForm(prev => ({ ...prev, needsHostel: e.target.checked }))}
+                            className="w-5 h-5 accent-coha-900"
+                          />
+                          <span className="text-xs font-black uppercase tracking-widest text-coha-900">Requires Hostel</span>
+                        </label>
+                      </div>
+                      {editForm.needsHostel && (
+                        <div className="mt-4 animate-fade-in">
+                          <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-3">Hostel Assignment</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {(settings?.hostels || []).map(hostel => (
+                              <button
+                                key={hostel}
+                                type="button"
+                                onClick={() => setEditForm(prev => ({ ...prev, dorm: hostel }))}
+                                className={`p-3 text-[10px] font-black uppercase tracking-widest border transition-all ${editForm.dorm === hostel ? 'bg-coha-900 text-white border-coha-900' : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-coha-300'}`}
+                              >
+                                {hostel}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <>
@@ -767,7 +795,7 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
                       <DetailRow label="Initial Grade" value={student.grade} />
                       <DetailRow label="Current Status" value={student.studentStatus} />
                       <DetailRow label="Current Assignment" value={statusDisplay} />
-                      <DetailRow label="Hostel / Dorm" value={student.dorm} />
+                      <DetailRow label="Hostel Status" value={student.needsHostel ? `Residing in ${student.dorm || 'Unassigned'}` : 'Not in Hostel'} />
                     </>
                   )}
                 </div>

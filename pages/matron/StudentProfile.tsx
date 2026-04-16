@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getStudentById,
   getStudentMedications,
   getMedicationAdministrationsForStudent,
   addMatronLog,
   addMedicationAdministration,
-  getMatronLogsForStudent
+  getMatronLogsForStudent,
+  getMatrons
 } from '../../services/dataService';
-import { Student, StudentMedication, MedicationAdministration, MatronLogCategory } from '../../types';
+import { Student, StudentMedication, MedicationAdministration, MatronLogCategory, MatronLog, Matron } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import {
   Utensils,
@@ -22,7 +23,9 @@ import {
   X,
   CheckCircle2,
   Clock,
-  ChevronRight
+  ChevronRight,
+  ArrowLeft,
+  ChevronLeft
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -43,6 +46,9 @@ const CATEGORIES = [
 export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'log';
+
   const [student, setStudent] = useState<Student | null>(null);
   const [studentList, setStudentList] = useState<string[]>([]);
   const [medications, setMedications] = useState<StudentMedication[]>([]);
@@ -51,16 +57,21 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
   const [activeModal, setActiveModal] = useState<MatronLogCategory | null>(null);
   const [saving, setSaving] = useState(false);
   const [loggedToday, setLoggedToday] = useState<Record<string, boolean>>({});
+  const [existingLogs, setExistingLogs] = useState<Record<string, any>>({});
+  const [allLogs, setAllLogs] = useState<MatronLog[]>([]);
+  const [matrons, setMatrons] = useState<Matron[]>([]);
   const [medicationOverdue, setMedicationOverdue] = useState(false);
 
   const fetchData = async () => {
     if (!id) return;
 
-    const [studentData, medsData, adminsData, logsData] = await Promise.all([
+    const [studentData, medsData, adminsData, logsData, historyLogs, matronsData] = await Promise.all([
       getStudentById(id),
       getStudentMedications(id),
       getMedicationAdministrationsForStudent(id, new Date()),
-      getMatronLogsForStudent(id, new Date())
+      getMatronLogsForStudent(id, new Date()),
+      getMatronLogsForStudent(id),
+      getMatrons()
     ]);
 
     const savedList = sessionStorage.getItem('matron_student_context');
@@ -69,6 +80,7 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
     }
 
     const status: Record<string, boolean> = {};
+    const logData: Record<string, any> = {};
     if (medsData.length > 0 && medsData.every(m => adminsData.some(a => a.student_medication_id === m.id))) {
         status['medication'] = true;
     }
@@ -82,12 +94,20 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
     setMedicationOverdue(overdue);
     logsData.forEach(log => {
         status[log.category] = true;
+        logData[log.category] = log.log_data;
     });
 
     setStudent(studentData);
     setMedications(medsData);
     setAdministrations(adminsData);
     setLoggedToday(status);
+    setExistingLogs(logData);
+    setAllLogs(historyLogs.sort((a, b) => {
+        const da = a.logged_at?.toDate ? a.logged_at.toDate() : new Date(a.logged_at);
+        const db = b.logged_at?.toDate ? b.logged_at.toDate() : new Date(b.logged_at);
+        return db.getTime() - da.getTime();
+    }));
+    setMatrons(matronsData);
     setLoading(false);
   };
 
@@ -162,67 +182,21 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
 
   const currentIndex = studentList.indexOf(id || '');
 
+  const logsByDate = useMemo(() => {
+    const groups: Record<string, MatronLog[]> = {};
+    allLogs.forEach(log => {
+      const date = log.logged_at?.toDate ? log.logged_at.toDate() : new Date(log.logged_at);
+      const dateStr = date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      if (!groups[dateStr]) groups[dateStr] = [];
+      groups[dateStr].push(log);
+    });
+    return groups;
+  }, [allLogs]);
+
   if (loading || !student) return <Loader />;
 
-  return (
-    <div className="px-[10px] pb-20">
-      <div className="flex justify-between items-center mb-6">
-        <button onClick={() => navigate('/matron/students')} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-500 shadow-sm">
-          <ChevronRight size={24} className="rotate-180" />
-        </button>
-        {studentList.length > 0 && (
-          <div className="flex gap-2">
-            <button
-              disabled={currentIndex <= 0}
-              onClick={() => navigateStudent('prev')}
-              className="px-4 py-2 bg-white border border-slate-200 rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-30"
-            >
-              Prev
-            </button>
-            <button
-              disabled={currentIndex >= studentList.length - 1}
-              onClick={() => navigateStudent('next')}
-              className="px-4 py-2 bg-coha-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-30"
-            >
-              Next
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8 relative">
-        {student.profileImageBase64 ? (
-          <img src={student.profileImageBase64} alt={student.name} className="w-24 h-24 rounded-2xl object-cover" />
-        ) : (
-          <div className="w-24 h-24 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 text-3xl font-bold">
-            {student.name.charAt(0)}
-          </div>
-        )}
-        <div className="flex-1 text-center sm:text-left">
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">{student.name}</h1>
-          <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
-            <p className="text-sm font-bold text-slate-500">Room: {student.assignedClass || 'N/A'}</p>
-            <span className="text-slate-300">|</span>
-            <input
-              className="text-sm font-black text-coha-600 bg-coha-50 px-2 py-0.5 rounded outline-none w-24 text-center"
-              value={student.dorm || ''}
-              onChange={async (e) => {
-                const newDorm = e.target.value;
-                setStudent({ ...student, dorm: newDorm });
-                await updateDoc(doc(db, STUDENTS_COLLECTION, student.id), { dorm: newDorm });
-              }}
-              placeholder="Set Dorm"
-            />
-          </div>
-          {student.medicalConditions && (
-            <div className="mt-2 flex items-center gap-2 text-red-600 bg-red-50 px-3 py-1 rounded-full w-fit">
-              <AlertCircle size={14} />
-              <span className="text-xs font-bold uppercase tracking-wider">{student.medicalConditions}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
+  const renderLogGrid = () => (
+    <>
       <div className="grid grid-cols-2 gap-4">
         {CATEGORIES.map(cat => {
           const Icon = cat.icon;
@@ -257,8 +231,124 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
           medications={medications}
           administrations={administrations}
           onMarkMedicationGiven={handleMarkMedicationGiven}
+          initialData={existingLogs[activeModal]}
         />
       )}
+    </>
+  );
+
+  const renderHistory = () => (
+    <div className="space-y-10">
+       {Object.entries(logsByDate).map(([date, logs]) => (
+          <div key={date}>
+             <div className="flex items-center gap-4 mb-6">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{date}</span>
+                <div className="h-px flex-1 bg-slate-200" />
+             </div>
+             <div className="space-y-4">
+                {logs.map(log => {
+                    const matron = matrons.find(m => m.id === log.matron_id);
+                    return (
+                        <div key={log.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm">
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="flex items-center gap-3">
+                                 <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-coha-900">
+                                    {CATEGORIES.find(c => c.id === log.category)?.icon && React.createElement(CATEGORIES.find(c => c.id === log.category)!.icon, { size: 20 })}
+                                 </div>
+                                 <div>
+                                    <h4 className="font-black text-slate-900 uppercase tracking-tight text-sm">{log.category.replace('_', ' ')}</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Logged by {matron?.name || 'Unknown'}</p>
+                                 </div>
+                              </div>
+                              <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded">
+                                 {new Date(log.logged_at?.toDate ? log.logged_at.toDate() : log.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                           </div>
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {Object.entries(log.log_data).map(([key, value]: [string, any]) => (
+                                 <div key={key}>
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">{key.replace('_', ' ')}</span>
+                                    <span className="text-sm font-bold text-slate-700">
+                                       {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : Array.isArray(value) ? value.join(', ') : value}
+                                    </span>
+                                 </div>
+                              ))}
+                           </div>
+                        </div>
+                    );
+                })}
+             </div>
+          </div>
+       ))}
+       {allLogs.length === 0 && (
+          <div className="text-center py-20 bg-white rounded-[40px] border border-slate-100 border-dashed">
+             <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No care logs found for this student</p>
+          </div>
+       )}
+    </div>
+  );
+
+  return (
+    <div className="px-[10px] pb-20">
+      <div className="flex justify-between items-center mb-6">
+        <button onClick={() => navigate('/matron/students')} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-500 shadow-sm hover:text-coha-900 transition-colors">
+          <ChevronLeft size={24} />
+        </button>
+        {studentList.length > 0 && (
+          <div className="flex gap-2">
+            <button
+              disabled={currentIndex <= 0}
+              onClick={() => navigateStudent('prev')}
+              className="px-4 py-2 bg-white border border-slate-200 rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-30"
+            >
+              Prev
+            </button>
+            <button
+              disabled={currentIndex >= studentList.length - 1}
+              onClick={() => navigateStudent('next')}
+              className="px-4 py-2 bg-coha-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-30"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8 relative">
+        {student.profileImageBase64 ? (
+          <img src={student.profileImageBase64} alt={student.name} className="w-24 h-24 rounded-2xl object-cover" />
+        ) : (
+          <div className="w-24 h-24 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 text-3xl font-bold">
+            {student.name.charAt(0)}
+          </div>
+        )}
+        <div className="flex-1 text-center sm:text-left">
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">{student.name}</h1>
+          <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+            <p className="text-sm font-bold text-slate-500">Room: {student.assignedClass || 'N/A'}</p>
+            <span className="text-slate-300">|</span>
+            <span className="text-sm font-black text-coha-600 bg-coha-50 px-2 py-0.5 rounded">{student.dorm || 'No Dorm'}</span>
+          </div>
+          {student.medicalConditions && (
+            <div className="mt-2 flex items-center gap-2 text-red-600 bg-red-50 px-3 py-1 rounded-full w-fit mx-auto sm:mx-0">
+              <AlertCircle size={14} />
+              <span className="text-xs font-bold uppercase tracking-wider">{student.medicalConditions}</span>
+            </div>
+          )}
+        </div>
+        <div className="sm:absolute sm:top-6 sm:right-6 flex gap-2">
+            <button
+                onClick={() => setSearchParams({ tab: activeTab === 'log' ? 'records' : 'log' })}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'records' ? 'bg-coha-900 text-white shadow-lg' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}
+            >
+                <Clock size={14} />
+                {activeTab === 'records' ? 'Today\'s Log' : 'History'}
+            </button>
+        </div>
+      </div>
+
+      {activeTab === 'log' ? renderLogGrid() : renderHistory()}
     </div>
   );
 };
@@ -272,8 +362,9 @@ const CategoryModal: React.FC<{
   medications: StudentMedication[];
   administrations: MedicationAdministration[];
   onMarkMedicationGiven: (med: StudentMedication, time: string, sideEffects: string, notes: string) => void;
-}> = ({ category, studentName, onClose, onSave, saving, medications, administrations, onMarkMedicationGiven }) => {
-  const [formData, setFormData] = useState<any>({});
+  initialData?: any;
+}> = ({ category, studentName, onClose, onSave, saving, medications, administrations, onMarkMedicationGiven, initialData }) => {
+  const [formData, setFormData] = useState<any>(initialData || {});
   const [selectedMed, setSelectedMed] = useState<StudentMedication | null>(null);
   const [medForm, setMedForm] = useState({ time: new Date().getHours().toString().padStart(2, '0') + ":" + new Date().getMinutes().toString().padStart(2, '0'), sideEffects: '', notes: '' });
 

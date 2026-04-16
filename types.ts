@@ -115,6 +115,7 @@ export interface SystemSettings {
   
   lastStudentId?: number; 
   activeTermId?: string;
+  hostels?: string[];
 }
 
 // Assessment Specific Types
@@ -440,6 +441,7 @@ export interface Student extends Partial<Application> {
   receiptNumber?: string;
   receiptSubmissionDate?: any;
   paymentRejected?: boolean;
+  needsHostel?: boolean;
   academicYear?: string;
   
   assessment?: AssessmentData;

@@ -31,6 +31,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
   const [levelFilter, setLevelFilter] = useState('ALL');
   const [stageFilter, setStageFilter] = useState('ALL');
   const [dormFilter, setDormFilter] = useState('ALL');
+  const [hostelOnlyFilter, setHostelOnlyFilter] = useState(false);
   const [transferStudent, setTransferStudent] = useState<Student | null>(null);
   const [transferClass, setTransferClass] = useState('');
   const [transferTeacherId, setTransferTeacherId] = useState('');
@@ -40,6 +41,8 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
     surname: '',
     dob: '',
     targetClass: '',
+    needsHostel: false,
+    dorm: '',
   });
 
   const fetchStudents = async () => {
@@ -152,6 +155,8 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         (student.parentName && student.parentName.toLowerCase().includes(searchTerm.toLowerCase()));
     
+    const matchesHostelOnly = !hostelOnlyFilter || (student.needsHostel && student.dorm);
+
     let matchesDivision = true;
     if (divisionFilter === 'MAINSTREAM') matchesDivision = student.division !== Division.SPECIAL_NEEDS;
     if (divisionFilter === 'SPECIAL_NEEDS') matchesDivision = student.division === Division.SPECIAL_NEEDS;
@@ -171,7 +176,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
     let matchesDorm = true;
     if (dormFilter !== 'ALL') matchesDorm = student.dorm === dormFilter;
 
-    return matchesSearch && matchesDivision && matchesGrade && matchesLevel && matchesStage && matchesDorm;
+    return matchesSearch && matchesDivision && matchesGrade && matchesLevel && matchesStage && matchesDorm && matchesHostelOnly;
   });
 
   const classOptions = settings ? [...settings.grades, ...settings.specialNeedsLevels] : [];
@@ -229,7 +234,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
 
     setToast({ show: true, msg: `${result.student?.name || 'Student'} was added.` });
     setAddStudentOpen(false);
-    setNewStudentForm({ firstName: '', surname: '', dob: '', targetClass: '' });
+    setNewStudentForm({ firstName: '', surname: '', dob: '', targetClass: '', needsHostel: false, dorm: '' });
     fetchStudents();
   };
 
@@ -307,11 +312,21 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                 value={dormFilter}
                 onChange={(e) => setDormFilter(e.target.value)}
               >
-                <option value="ALL">All Dorms</option>
-                {Array.from(new Set(students.map(s => s.dorm).filter(Boolean))).map(d => (
+                <option value="ALL">All Hostels</option>
+                {(settings?.hostels || []).map(h => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+                {Array.from(new Set(students.map(s => s.dorm).filter(d => d && !(settings?.hostels || []).includes(d)))).map(d => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
+
+              <button
+                onClick={() => setHostelOnlyFilter(!hostelOnlyFilter)}
+                className={`p-2 text-sm font-black uppercase tracking-widest border transition-all ${hostelOnlyFilter ? 'bg-orange-600 text-white border-orange-700' : 'bg-gray-50 text-gray-500 border-gray-300'}`}
+              >
+                Hostel Only
+              </button>
 
               {divisionFilter === 'SPECIAL_NEEDS' && (
                 <>
@@ -508,47 +523,82 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
               <p className="text-sm text-gray-500 mt-1">Create a student record directly in the admin portal.</p>
             </div>
 
-            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Name</label>
-                <input
-                  value={newStudentForm.firstName}
-                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, firstName: e.target.value }))}
-                  className="w-full p-3 border border-gray-300 bg-white outline-none"
-                  placeholder="Student name"
-                />
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Name</label>
+                  <input
+                    value={newStudentForm.firstName}
+                    onChange={(e) => setNewStudentForm((prev) => ({ ...prev, firstName: e.target.value }))}
+                    className="w-full p-3 border border-gray-300 bg-white outline-none"
+                    placeholder="Student name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Surname</label>
+                  <input
+                    value={newStudentForm.surname}
+                    onChange={(e) => setNewStudentForm((prev) => ({ ...prev, surname: e.target.value }))}
+                    className="w-full p-3 border border-gray-300 bg-white outline-none"
+                    placeholder="Student surname"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={newStudentForm.dob}
+                    onChange={(e) => setNewStudentForm((prev) => ({ ...prev, dob: e.target.value }))}
+                    className="w-full p-3 border border-gray-300 bg-white outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Class</label>
+                  <select
+                    value={newStudentForm.targetClass}
+                    onChange={(e) => setNewStudentForm((prev) => ({ ...prev, targetClass: e.target.value }))}
+                    className="w-full p-3 border border-gray-300 bg-white outline-none"
+                  >
+                    <option value="">Select class</option>
+                    {classOptions.map((className) => (
+                      <option key={className} value={className}>{className}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Surname</label>
-                <input
-                  value={newStudentForm.surname}
-                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, surname: e.target.value }))}
-                  className="w-full p-3 border border-gray-300 bg-white outline-none"
-                  placeholder="Student surname"
-                />
+
+              <div className="border-t border-gray-100 pt-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newStudentForm.needsHostel}
+                    onChange={(e) => setNewStudentForm(prev => ({ ...prev, needsHostel: e.target.checked }))}
+                    className="w-5 h-5 accent-coha-900"
+                  />
+                  <span className="text-sm font-black uppercase tracking-widest text-coha-900">Requires Hostel Accommodation</span>
+                </label>
               </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Date of Birth</label>
-                <input
-                  type="date"
-                  value={newStudentForm.dob}
-                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, dob: e.target.value }))}
-                  className="w-full p-3 border border-gray-300 bg-white outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Class</label>
-                <select
-                  value={newStudentForm.targetClass}
-                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, targetClass: e.target.value }))}
-                  className="w-full p-3 border border-gray-300 bg-white outline-none"
-                >
-                  <option value="">Select class</option>
-                  {classOptions.map((className) => (
-                    <option key={className} value={className}>{className}</option>
-                  ))}
-                </select>
-              </div>
+
+              {newStudentForm.needsHostel && (
+                <div className="animate-fade-in">
+                  <label className="block text-xs font-black uppercase text-gray-400 tracking-widest mb-3">Select Hostel</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {(settings?.hostels || []).map(hostel => (
+                      <button
+                        key={hostel}
+                        type="button"
+                        onClick={() => setNewStudentForm(prev => ({ ...prev, dorm: hostel }))}
+                        className={`p-3 text-xs font-black uppercase tracking-widest border transition-all ${newStudentForm.dorm === hostel ? 'bg-coha-900 text-white border-coha-900' : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-coha-300'}`}
+                      >
+                        {hostel}
+                      </button>
+                    ))}
+                    {(!settings?.hostels || settings.hostels.length === 0) && (
+                      <p className="col-span-full text-xs text-gray-500 italic">No hostels configured in Settings.</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-5 border-t border-gray-200 flex justify-end gap-2">
