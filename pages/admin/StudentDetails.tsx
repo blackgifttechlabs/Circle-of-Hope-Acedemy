@@ -294,6 +294,7 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
         division: editForm.division || student.division,
         grade: editForm.grade || '',
         assignedClass: editForm.assignedClass || '',
+        dorm: editForm.dorm || '',
         parentName: editForm.parentName || '',
         fatherName: editForm.fatherName || '',
         fatherPhone: editForm.fatherPhone || '',
@@ -758,6 +759,7 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
                       <EditableField label="Division" field="division" value={student.division} type="select" options={['Mainstream', 'Special Needs']} />
                       <EditableField label="Grade" field="grade" value={student.grade} />
                       <EditableField label="Assigned Class" field="assignedClass" value={student.assignedClass} />
+                      <EditableField label="Hostel / Dorm" field="dorm" value={student.dorm} />
                     </>
                   ) : (
                     <>
@@ -765,6 +767,7 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
                       <DetailRow label="Initial Grade" value={student.grade} />
                       <DetailRow label="Current Status" value={student.studentStatus} />
                       <DetailRow label="Current Assignment" value={statusDisplay} />
+                      <DetailRow label="Hostel / Dorm" value={student.dorm} />
                     </>
                   )}
                 </div>
