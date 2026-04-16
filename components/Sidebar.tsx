@@ -25,6 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   const [vtcBadgeCount, setVtcBadgeCount] = useState(0);
   const [isCollapsed, setIsCollapsed]     = useState(false);
   const [studentDivision, setStudentDivision] = useState<string | null>(null);
+  const [studentStatus, setStudentStatus] = useState<string | null>(null);
 
   const getMillis = (value: any) => {
     if (!value) return 0;
@@ -122,7 +123,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     } else if (role === UserRole.PARENT && user?.id) {
       const fetchStudent = async () => {
         const student = await getStudentById(user.id);
-        if (student) setStudentDivision(student.division || null);
+        if (student) {
+          setStudentDivision(student.division || null);
+          setStudentStatus(student.studentStatus || null);
+        }
       };
       fetchStudent();
     }
@@ -162,7 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
 
   const parentLinks = [
     { label: 'Dashboard',            path: '/parent/dashboard',       icon: <LayoutDashboard size={17} strokeWidth={2.2} />, badge: 0 },
-    ...(studentDivision !== 'Mainstream'
+    ...(studentDivision !== 'Mainstream' && studentStatus !== 'ENROLLED'
       ? [{ label: 'Assessment Info', path: '/parent/assessment-form', icon: <ClipboardList   size={17} strokeWidth={2.2} />, badge: 0 }]
       : []),
     { label: 'Assessment Progress', path: '/parent/assessment',       icon: <Activity        size={17} strokeWidth={2.2} />, badge: 0 },

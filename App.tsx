@@ -78,7 +78,7 @@ const AppLayout: React.FC<{
         />
       </div>
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        <main className="flex-1 p-5 overflow-y-auto">
+        <main className="flex-1 px-[10px] py-5 sm:p-5 overflow-y-auto">
           {children}
         </main>
       </div>

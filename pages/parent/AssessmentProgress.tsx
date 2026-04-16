@@ -65,7 +65,7 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
     }
   };
 
-  if (student.division === 'Mainstream') {
+  if (student.division === 'Mainstream' || student.studentStatus === 'ENROLLED') {
       const prePrimaryRecords = assessmentRecords.filter((record) => /Grade 0/i.test(record.recordedClass || record.grade || ''));
       return (
         <div className="-m-5 min-h-screen bg-[#f7f8fa] text-slate-900">

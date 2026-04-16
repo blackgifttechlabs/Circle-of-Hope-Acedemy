@@ -327,7 +327,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                       className="!rounded-2xl !py-4 shadow-xl shadow-coha-900/20"
                       style={{ fontFamily: '"Google Sans", sans-serif' }}
                     >
-                      Login
+                      {!loading && <span>Login</span>}
                       {!loading && <ArrowLeft size={18} className="rotate-180" />}
                     </Button>
                   </form>
@@ -446,7 +446,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                           className="!rounded-2xl !py-4 shadow-xl shadow-coha-900/20"
                           style={{ fontFamily: '"Google Sans", sans-serif' }}
                         >
-                          Authenticate
+                          {!loading && <span>Authenticate</span>}
                           {!loading && <ArrowLeft size={18} className="rotate-180" />}
                         </Button>
                       </motion.div>

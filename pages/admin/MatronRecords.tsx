@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import {
   getMatronAlerts, getStudents, getMatrons, getSystemSettings,
   getAllMatronLogs, getAllStudentMedications, getMedicationAdministrations,
-  getAllHomeworkSubmissions, getHomeworkAssignmentsForClass
+  getAllHomeworkSubmissions, getHomeworkAssignmentsForClass, dismissMatronAlert
 } from '../../services/dataService';
 import { Student, MatronLog, Matron, SystemSettings, StudentMedication, MedicationAdministration, HomeworkSubmission, HomeworkAssignment } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import {
   AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Download,
-  FileText, Printer, User, Calendar, Filter, Clock, BookOpen, HeartPulse, Search, Activity
+  FileText, Printer, User, Calendar, Filter, Clock, BookOpen, HeartPulse, Search, Activity, X as XIcon
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import jsPDF from 'jspdf';
@@ -82,6 +82,13 @@ export const MatronRecords: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [dateRange]);
+
+  const handleDismissAlert = async (alertId: string) => {
+    const success = await dismissMatronAlert(alertId);
+    if (success) {
+      setAlerts(prev => prev.filter(a => a.id !== alertId));
+    }
+  };
 
   const setPresetRange = (type: 'today' | 'yesterday') => {
     const today = new Date().toISOString().split('T')[0];
@@ -334,12 +341,17 @@ export const MatronRecords: React.FC = () => {
       {alerts.length > 0 && (
         <div className="mb-8 space-y-2">
           {alerts.map((alert, i) => (
-            <div key={i} className={`p-4 rounded-2xl flex items-center gap-4 border-l-4 shadow-sm ${alert.type === 'MISSED' ? 'bg-red-50 border-red-500 text-red-800' : 'bg-amber-50 border-amber-500 text-amber-800'}`}>
-              <AlertTriangle className={alert.type === 'MISSED' ? 'text-red-500' : 'text-amber-500'} size={20} />
-              <span className="text-xs font-black uppercase tracking-wider">
-                {alert.type} MEDICATION — {alert.studentName} — {alert.medicineName} —
-                {alert.type === 'MISSED' ? ` was due ${alert.dueTime}` : ` given at ${alert.timeGiven}, was due ${alert.dueTime}, ${alert.minutesLate}m late`}
-              </span>
+            <div key={i} className={`p-4 rounded-2xl flex items-center justify-between border-l-4 shadow-sm ${alert.type === 'MISSED' ? 'bg-red-50 border-red-500 text-red-800' : 'bg-amber-50 border-amber-500 text-amber-800'}`}>
+              <div className="flex items-center gap-4">
+                <AlertTriangle className={alert.type === 'MISSED' ? 'text-red-500' : 'text-amber-500'} size={20} />
+                <span className="text-xs font-black uppercase tracking-wider">
+                  {alert.type} MEDICATION — {alert.studentName} — {alert.medicineName} —
+                  {alert.type === 'MISSED' ? ` was due ${alert.dueTime}` : ` given at ${alert.timeGiven}, was due ${alert.dueTime}, ${alert.minutesLate}m late`}
+                </span>
+              </div>
+              <button onClick={() => handleDismissAlert(alert.id)} className="p-1 hover:bg-black/5 rounded-full transition-colors text-current opacity-40 hover:opacity-100">
+                <XIcon size={18} />
+              </button>
             </div>
           ))}
         </div>

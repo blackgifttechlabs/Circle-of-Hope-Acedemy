@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getStudents, getMedicationAdministrationsToday, getStudentMedications } from '../../services/dataService';
+import { getStudents, getMedicationAdministrationsToday, getAllStudentMedications } from '../../services/dataService';
 import { Student } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { Search, ChevronRight, CheckCircle2, Filter, Home, LayoutGrid } from 'lucide-react';
@@ -18,15 +18,25 @@ export const MatronStudentList: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const studentsData = await getStudents();
+      const [studentsData, adminsToday, allMeds] = await Promise.all([
+        getStudents(),
+        getMedicationAdministrationsToday(),
+        getAllStudentMedications()
+      ]);
+
       sessionStorage.setItem('matron_student_context', JSON.stringify(studentsData.map(s => s.id)));
-      const adminsToday = await getMedicationAdministrationsToday();
 
       const status: Record<string, boolean> = {};
+      const adminsByStudent: Record<string, string[]> = {};
+      adminsToday.forEach(a => {
+        if (!adminsByStudent[a.student_id]) adminsByStudent[a.student_id] = [];
+        adminsByStudent[a.student_id].push(a.student_medication_id);
+      });
+
       for (const student of studentsData) {
-        const meds = await getStudentMedications(student.id);
-        const adminIds = adminsToday.filter(a => a.student_id === student.id).map(a => a.student_medication_id);
-        status[student.id] = meds.length > 0 && meds.every(m => adminIds.includes(m.id));
+        const studentMeds = allMeds.filter(m => m.student_id === student.id);
+        const adminIds = adminsByStudent[student.id] || [];
+        status[student.id] = studentMeds.length > 0 && studentMeds.every(m => adminIds.includes(m.id));
       }
 
       setStudents(studentsData);

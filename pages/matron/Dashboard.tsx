@@ -9,10 +9,11 @@ import {
 } from 'recharts';
 import {
   getMatronAlerts, getStudents, getAllMatronLogs,
-  getMedicationAdministrationsToday, getAllStudentMedications
+  getMedicationAdministrationsToday, getAllStudentMedications, dismissMatronAlert
 } from '../../services/dataService';
 import { Loader } from '../../components/ui/Loader';
 import { Link } from 'react-router-dom';
+import { X } from 'lucide-react';
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -32,6 +33,13 @@ export const MatronDashboard: React.FC<{ user: any }> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
+
+  const handleDismissAlert = async (alertId: string) => {
+    const success = await dismissMatronAlert(alertId);
+    if (success) {
+      setAlerts(prev => prev.filter(a => a.id !== alertId));
+    }
+  };
 
   const fetchData = async () => {
     const [alertsData, studentsData, logsData, adminsToday, allMeds] = await Promise.all([
@@ -155,9 +163,14 @@ export const MatronDashboard: React.FC<{ user: any }> = ({ user }) => {
                         {alert.type === 'MISSED' ? `Due between ${alert.dueTime}` : `Given at ${alert.timeGiven}, was due ${alert.dueTime}`}
                       </p>
                     </div>
-                    <Link to={`/matron/students`} className="text-slate-400 hover:text-slate-900 transition-colors">
-                      <ChevronRight size={20} />
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleDismissAlert(alert.id)} className="p-1 hover:bg-black/5 rounded-lg transition-colors text-current opacity-40 hover:opacity-100">
+                        <X size={18} />
+                      </button>
+                      <Link to={`/matron/students`} className="text-slate-400 hover:text-slate-900 transition-colors">
+                        <ChevronRight size={20} />
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -239,6 +239,41 @@ export const getLessonPlans = async (teacherId: string, classLevel: string) => {
   }
 };
 
+export const deleteHomeworkSubmissions = async (submissionIds: string[]) => {
+    try {
+        const batch = writeBatch(db);
+        submissionIds.forEach(id => {
+            batch.delete(doc(db, HOMEWORK_SUBMISSIONS_COLLECTION, id));
+        });
+        await batch.commit();
+        return true;
+    } catch (error) {
+        console.error("Error deleting homework submissions:", error);
+        return false;
+    }
+};
+
+export const dismissMatronAlert = async (alertId: string) => {
+  try {
+    const docRef = doc(db, 'alert_dismissals', alertId);
+    await setDoc(docRef, { dismissedAt: Timestamp.now() });
+    return true;
+  } catch (error) {
+    console.error("Error dismissing alert:", error);
+    return false;
+  }
+};
+
+export const getDismissedAlerts = async (): Promise<string[]> => {
+  try {
+    const q = query(collection(db, 'alert_dismissals'));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.id);
+  } catch (error) {
+    return [];
+  }
+};
+
 export const getMedicationAdministrations = async (startDate?: Date, endDate?: Date): Promise<MedicationAdministration[]> => {
   try {
     let q;
@@ -2844,10 +2879,11 @@ export const getAllStudentMedications = async (): Promise<StudentMedication[]> =
 };
 
 export const getMatronAlerts = async () => {
-  const [students, allMedications, adminsToday] = await Promise.all([
+  const [students, allMedications, adminsToday, dismissedIds] = await Promise.all([
       getStudents(),
       getAllStudentMedications(),
-      getMedicationAdministrationsToday()
+      getMedicationAdministrationsToday(),
+      getDismissedAlerts()
   ]);
 
   const alerts: any[] = [];
@@ -2858,10 +2894,15 @@ export const getMatronAlerts = async () => {
     const student = students.find(s => s.id === med.student_id);
     if (!student) continue;
 
+    const alertIdBase = `${new Date().toISOString().split('T')[0]}_${med.id}`;
+
     const admin = adminsToday.find(a => a.student_medication_id === med.id);
     if (!admin) {
       if (currentTimeStr > med.scheduled_time_to) {
+        const id = `${alertIdBase}_MISSED`;
+        if (dismissedIds.includes(id)) continue;
         alerts.push({
+          id,
           type: 'MISSED',
           studentName: student.name,
           medicineName: med.medicine_name,
@@ -2869,7 +2910,10 @@ export const getMatronAlerts = async () => {
         });
       }
     } else if (!admin.was_on_time) {
+      const id = `${alertIdBase}_LATE`;
+      if (dismissedIds.includes(id)) continue;
       alerts.push({
+        id,
         type: 'LATE',
         studentName: student.name,
         medicineName: med.medicine_name,

@@ -55,15 +55,18 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
 
   const fetchData = async () => {
     if (!id) return;
-    const studentData = await getStudentById(id);
+
+    const [studentData, medsData, adminsData, logsData] = await Promise.all([
+      getStudentById(id),
+      getStudentMedications(id),
+      getMedicationAdministrationsForStudent(id, new Date()),
+      getMatronLogsForStudent(id, new Date())
+    ]);
+
     const savedList = sessionStorage.getItem('matron_student_context');
     if (savedList) {
       setStudentList(JSON.parse(savedList));
     }
-
-    const medsData = await getStudentMedications(id);
-    const adminsData = await getMedicationAdministrationsForStudent(id, new Date());
-    const logsData = await getMatronLogsForStudent(id, new Date());
 
     const status: Record<string, boolean> = {};
     if (medsData.length > 0 && medsData.every(m => adminsData.some(a => a.student_medication_id === m.id))) {

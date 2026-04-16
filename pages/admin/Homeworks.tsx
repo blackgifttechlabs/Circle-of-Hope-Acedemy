@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Download, Image as ImageIcon, X } from 'lucide-react';
-import { getAllHomeworkSubmissions, markHomeworkSubmissionReviewed } from '../../services/dataService';
+import { CheckCircle2, Download, Image as ImageIcon, X, Trash2, CheckSquare, Square } from 'lucide-react';
+import { getAllHomeworkSubmissions, markHomeworkSubmissionReviewed, deleteHomeworkSubmissions } from '../../services/dataService';
 import { HomeworkSubmission } from '../../types';
 import { Loader } from '../../components/ui/Loader';
+import { Button } from '../../components/ui/Button';
 
 export const AdminHomeworksPage: React.FC = () => {
   const [submissions, setSubmissions] = useState<HomeworkSubmission[]>([]);
   const [selected, setSelected] = useState<HomeworkSubmission | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewNote, setReviewNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -25,6 +27,7 @@ export const AdminHomeworksPage: React.FC = () => {
     const data = await getAllHomeworkSubmissions();
     setSubmissions(data);
     if (!selected && data.length > 0) setSelected(data[0]);
+    setSelectedIds([]);
   };
 
   useEffect(() => {
@@ -48,6 +51,33 @@ export const AdminHomeworksPage: React.FC = () => {
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.length === 0 || !window.confirm(`Are you sure you want to delete ${selectedIds.length} submissions?`)) return;
+    setBusy(true);
+    try {
+      await deleteHomeworkSubmissions(selectedIds);
+      await load();
+      if (selected && selectedIds.includes(selected.id || '')) {
+        setSelected(null);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === submissions.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(submissions.map(s => s.id || '').filter(id => id !== ''));
+    }
+  };
+
+  const toggleSelect = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
   if (loading) return <Loader />;
@@ -89,24 +119,53 @@ export const AdminHomeworksPage: React.FC = () => {
           </div>
         </div>
       )}
-      <div>
-        <h2 className="text-2xl font-black text-coha-900">Homeworks</h2>
-        <p className="text-sm text-gray-500">View homework images uploaded by parents across the school.</p>
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-2xl font-black text-coha-900">Homeworks</h2>
+          <p className="text-sm text-gray-500">View homework images uploaded by parents across the school.</p>
+        </div>
+        {selectedIds.length > 0 && (
+          <Button variant="danger" onClick={handleDeleteSelected} disabled={busy} className="!rounded-xl !py-2 !text-xs font-black uppercase tracking-widest">
+            <Trash2 size={16} /> Delete Selected ({selectedIds.length})
+          </Button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6">
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-200">
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-gray-400">Submissions</p>
-          </div>
-          <div className="max-h-[70vh] overflow-y-auto">
-            {submissions.length === 0 && <p className="p-5 text-sm text-gray-500">No homework submissions yet.</p>}
-            {submissions.map((submission) => (
-              <button key={submission.id} onClick={() => setSelected(submission)} className={`w-full text-left px-5 py-4 border-b border-gray-100 hover:bg-gray-50 ${selected?.id === submission.id ? 'bg-blue-50' : 'bg-white'}`}>
-                <p className="font-bold text-gray-900">{submission.studentName}</p>
-                <p className="text-xs text-gray-500 mt-1">{submission.className || 'No class'} · {submission.parentName}</p>
-                <p className="text-xs text-gray-400 mt-1">{submission.submittedAt?.toDate ? submission.submittedAt.toDate().toLocaleDateString() : '-'}</p>
+      <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-gray-200 flex justify-between items-center bg-slate-50">
+            <div className="flex items-center gap-3">
+              <button onClick={toggleSelectAll} className="text-coha-900">
+                {selectedIds.length === submissions.length && submissions.length > 0 ? <CheckSquare size={20} /> : <Square size={20} />}
               </button>
+              <p className="text-xs font-black uppercase tracking-[0.25em] text-gray-400">Submissions</p>
+            </div>
+            <span className="text-[10px] font-black text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-full">{submissions.length}</span>
+          </div>
+          <div className="max-h-[70vh] overflow-y-auto divide-y divide-gray-100">
+            {submissions.length === 0 && <p className="p-10 text-center text-sm text-gray-500 italic">No homework submissions yet.</p>}
+            {submissions.map((submission) => (
+              <div
+                key={submission.id}
+                onClick={() => setSelected(submission)}
+                className={`w-full text-left px-5 py-4 hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-4 ${selected?.id === submission.id ? 'bg-blue-50/50' : 'bg-white'}`}
+              >
+                <button onClick={(e) => toggleSelect(e, submission.id || '')} className="text-slate-300 hover:text-coha-900 transition-colors">
+                  {selectedIds.includes(submission.id || '') ? <CheckSquare size={20} className="text-coha-900" /> : <Square size={20} />}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start">
+                    <p className="font-black text-slate-900 truncate">{submission.studentName}</p>
+                    <span className="text-[9px] font-bold text-slate-400">{submission.submittedAt?.toDate ? submission.submittedAt.toDate().toLocaleDateString() : '-'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[9px] font-black uppercase tracking-tighter text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">LVL: {submission.className || 'N/A'}</span>
+                    <span className={`text-[9px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded ${submission.matronName ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>
+                      BY: {submission.matronName || 'Parent'}
+                    </span>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -137,7 +196,7 @@ export const AdminHomeworksPage: React.FC = () => {
                 {selected.imageBase64 && (
                   <button
                     type="button"
-                    onClick={() => triggerImageDownload(selected.imageBase64, selected.fileName || `${selected.studentName}-homework.png`)}
+                    onClick={() => triggerImageDownload(selected.imageBase64 || '', selected.fileName || `${selected.studentName}-homework.png`)}
                     className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-coha-900 px-4 text-sm font-bold text-white"
                   >
                     <Download size={16} /> Download

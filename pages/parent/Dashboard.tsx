@@ -639,8 +639,10 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                   <div className="w-10 h-10 rounded-2xl bg-white/16 backdrop-blur flex items-center justify-center mb-3">
                     <FileText size={18} />
                   </div>
-                  <p className="text-[0.95rem] font-black tracking-[-0.02em]">View Reports</p>
-                  <p className="text-[11px] text-white/80 mt-1 font-semibold leading-tight">Assessment progress and report downloads</p>
+                  <p className="text-[0.95rem] font-black tracking-[-0.02em]">{student.studentStatus === 'ENROLLED' ? 'Academic Reports' : 'Assessment Info'}</p>
+                  <p className="text-[11px] text-white/80 mt-1 font-semibold leading-tight">
+                    {student.studentStatus === 'ENROLLED' ? 'View and download termly reports' : 'Assessment progress and report downloads'}
+                  </p>
                 </div>
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.18),transparent_38%)]" />
               </button>
@@ -929,32 +931,41 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
           </div>
 
           <div className="pt-6">
-            <SectionLabel icon={<Users size={14} />}>Daily Care (Matron Logs)</SectionLabel>
-            <div className="space-y-3">
-                {matronLogs.length === 0 && <p className="text-sm text-slate-500 italic">No daily care logs recorded yet.</p>}
+            <SectionLabel icon={<Users size={14} />}>Daily Care History</SectionLabel>
+            <div className="space-y-6 relative before:absolute before:inset-0 before:left-5 before:w-0.5 before:bg-slate-100">
+                {matronLogs.length === 0 && <p className="text-sm text-slate-500 italic px-4">No daily care logs recorded yet.</p>}
                 {matronLogs.map(log => (
-                    <div key={log.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-coha-100 text-coha-700">
-                                {log.category.replace('_', ' ')}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-bold">
-                                {fmtDate(log.logged_at)}
-                            </span>
-                        </div>
-                        <div className="text-sm text-slate-700 space-y-1">
-                            {Object.entries(log.log_data).map(([key, value]: [string, any]) => (
-                                <div key={key} className="flex gap-2">
-                                    <span className="font-bold capitalize">{key.replace('_', ' ')}:</span>
-                                    <span>{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : Array.isArray(value) ? value.join(', ') : value}</span>
+                    <div key={log.id} className="relative pl-12">
+                        <div className="absolute left-3 top-0 w-4 h-4 rounded-full border-2 border-white bg-coha-900 shadow-sm z-10" />
+                        <div className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-coha-50 text-coha-900 border border-coha-100">
+                                      {log.category.replace('_', ' ')}
+                                  </span>
+                                  <p className="text-[10px] font-bold text-slate-400 mt-2 flex items-center gap-1 uppercase tracking-tighter">
+                                    <Clock size={10} /> {fmtDate(log.logged_at)} at {new Date(log.logged_at?.toDate ? log.logged_at.toDate() : log.logged_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                  </p>
                                 </div>
-                            ))}
-                        </div>
-                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center gap-2">
-                            <User size={12} className="text-slate-400" />
-                            <span className="text-[10px] text-slate-500 font-bold uppercase">
-                                Logged by {matrons.find(m => m.id === log.matron_id)?.name || 'Matron'}
-                            </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                                {Object.entries(log.log_data).map(([key, value]: [string, any]) => (
+                                    <div key={key} className="flex flex-col">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{key.replace('_', ' ')}</span>
+                                        <span className="text-sm font-bold text-slate-700">{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : Array.isArray(value) ? value.join(', ') : value}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 font-black text-[10px]">
+                                    {(matrons.find(m => m.id === log.matron_id)?.name || 'M')[0]}
+                                  </div>
+                                  <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">
+                                      {matrons.find(m => m.id === log.matron_id)?.name || 'Matron'}
+                                  </span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 ))}
