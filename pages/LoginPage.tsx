@@ -200,7 +200,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
       </button>
 
       {/* Main Container */}
-      <div className="w-full max-w-5xl h-auto md:h-[650px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] flex flex-col md:flex-row z-10 relative border border-white/50">
+      <div className="w-full max-w-6xl h-auto md:h-[700px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] flex flex-col md:flex-row z-10 relative border border-white/50">
         
         <AnimatePresence mode="wait">
           {/* Step 0: Role Selection (Mobile) or Left Panel (Desktop) */}
@@ -320,15 +320,16 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                       />
                     </div>
                     {error && <p className="text-red-500 text-sm font-medium" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{error}</p>}
-                    <button 
+                    <Button
                       type="submit" 
-                      disabled={loading}
-                      className="w-full bg-coha-900 text-white hover:bg-coha-800 shadow-xl shadow-coha-900/20 font-bold py-4 px-6 rounded-2xl transition-all flex justify-center items-center gap-3 hover:-translate-y-1 active:translate-y-0"
+                      loading={loading}
+                      fullWidth
+                      className="!rounded-2xl !py-4 shadow-xl shadow-coha-900/20"
                       style={{ fontFamily: '"Google Sans", sans-serif' }}
                     >
-                      {loading ? 'Authenticating...' : 'Login'}
+                      Login
                       {!loading && <ArrowLeft size={18} className="rotate-180" />}
-                    </button>
+                    </Button>
                   </form>
                 )}
 
@@ -438,14 +439,16 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                           </div>
                         </div>
                         {error && <p className="text-red-500 text-sm font-medium" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{error}</p>}
-                        <button 
+                        <Button
                           type="submit" 
-                          className="w-full bg-coha-900 text-white hover:bg-coha-800 shadow-xl shadow-coha-900/20 font-bold py-4 px-6 rounded-2xl transition-all flex justify-center items-center gap-3 hover:-translate-y-1 active:translate-y-0"
+                          fullWidth
+                          loading={loading}
+                          className="!rounded-2xl !py-4 shadow-xl shadow-coha-900/20"
                           style={{ fontFamily: '"Google Sans", sans-serif' }}
                         >
                           Authenticate
-                          <ArrowLeft size={18} className="rotate-180" />
-                        </button>
+                          {!loading && <ArrowLeft size={18} className="rotate-180" />}
+                        </Button>
                       </motion.div>
                     )}
                   </form>

@@ -338,6 +338,7 @@ export interface Application {
   division: Division; 
   grade?: string; 
   level?: string; 
+  dorm?: string;
   
   isSpecialNeeds: boolean; 
   specialNeedsType?: string; 
@@ -424,6 +425,7 @@ export interface Student extends Partial<Application> {
   role?: UserRole;
   grade: string;
   level?: string;
+  dorm?: string;
   stage?: 1 | 2 | 3;
   assignedClass?: string;
   assignedTeacherId?: string;
@@ -525,6 +527,8 @@ export interface HomeworkSubmission {
   submittedAt: any;
   status: 'SUBMITTED' | 'REVIEWED';
   teacherId?: string;
+  matronId?: string;
+  matronName?: string;
   notes?: string;
 }
 

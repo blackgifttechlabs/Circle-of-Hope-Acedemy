@@ -152,6 +152,12 @@ export const AdminHomeworksPage: React.FC = () => {
                     <p className="text-sm font-bold text-gray-900">{selected.studentName}</p>
                     <p className="text-xs text-gray-500 mt-1">{selected.parentName}</p>
                     <p className="text-xs text-gray-500 mt-1">{selected.className || '-'}</p>
+                    {selected.matronName && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="text-[10px] font-black uppercase text-coha-600">Submitted by Matron</p>
+                        <p className="text-xs font-bold text-gray-700">{selected.matronName}</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">

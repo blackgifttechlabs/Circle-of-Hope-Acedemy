@@ -176,6 +176,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   const matronLinks = [
     { label: 'Dashboard', path: '/matron/dashboard', icon: <LayoutDashboard size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Students',  path: '/matron/students',  icon: <GraduationCap   size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Homeworks', path: '/matron/homeworks', icon: <BookOpen        size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Settings',  path: '/matron/settings',  icon: <Settings        size={17} strokeWidth={2.2} />, badge: 0 },
   ];
 

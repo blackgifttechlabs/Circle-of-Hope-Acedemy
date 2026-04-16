@@ -9,7 +9,7 @@ import { hashPin } from '../utils/crypto';
 
 // Collections
 const TEACHERS_COLLECTION = 'teachers';
-const STUDENTS_COLLECTION = 'students';
+export const STUDENTS_COLLECTION = 'students';
 const APPLICATIONS_COLLECTION = 'applications';
 const VTC_APPLICATIONS_COLLECTION = 'vtcApplications';
 const SETTINGS_COLLECTION = 'settings';
@@ -696,6 +696,23 @@ export const getStudentsByAssignedClass = async (className: string): Promise<Stu
     return all.filter((student) => matchesTeachingClass(student, className));
 };
 
+export const getStudentsByDorm = async (dorm: string): Promise<Student[]> => {
+    const q = query(collection(db, STUDENTS_COLLECTION), where("dorm", "==", dorm));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => normalizeStudentRecord({ id: doc.id, ...doc.data() } as Student));
+};
+
+export const updateStudentDorm = async (studentId: string, dorm: string) => {
+    try {
+        const docRef = doc(db, STUDENTS_COLLECTION, studentId);
+        await updateDoc(docRef, { dorm });
+        return true;
+    } catch (error) {
+        console.error("Error updating student dorm:", error);
+        return false;
+    }
+};
+
 export const getStudentById = async (id: string): Promise<Student | null> => {
   const docRef = doc(db, STUDENTS_COLLECTION, id);
   const docSnap = await getDoc(docRef);
@@ -724,8 +741,13 @@ export const getReceiptsForStudent = async (studentId: string): Promise<Receipt[
 
 export const addActivityLog = async (data: Omit<ActivityLog, 'id' | 'createdAt'>) => {
     try {
+        // Sanitize data to remove undefined values
+        const sanitizedData = Object.fromEntries(
+            Object.entries(data).filter(([_, v]) => v !== undefined)
+        );
+
         await addDoc(collection(db, ACTIVITY_LOGS_COLLECTION), {
-            ...data,
+            ...sanitizedData,
             createdAt: Timestamp.now(),
         });
         return true;
@@ -877,6 +899,29 @@ export const submitPaymentProof = async (
         return { success: true, id: docRef.id };
     } catch (error) {
         console.error('Error submitting payment proof:', error);
+        return { success: false, id: null };
+    }
+};
+
+export const submitHomeworkAsMatron = async (
+    data: Omit<HomeworkSubmission, 'id' | 'submittedAt' | 'status' | 'teacherId'>,
+    matronId: string,
+    matronName: string
+) => {
+    try {
+        const teacher = data.className ? await getTeacherByClass(data.className) : null;
+        const payload = JSON.parse(JSON.stringify({
+            ...data,
+            teacherId: teacher?.id || '',
+            matronId,
+            matronName,
+            submittedAt: Timestamp.now(),
+            status: 'SUBMITTED',
+        }));
+        const docRef = await addDoc(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), payload);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('Error submitting homework as matron:', error);
         return { success: false, id: null };
     }
 };
@@ -1996,6 +2041,10 @@ export const getAssessmentRecordsForStudent = async (grade: string, studentId: s
     console.error("Error getting assessment records for student:", error);
     return [];
   }
+};
+
+export const getMatronLogsByDateRange = async (start: Date, end: Date): Promise<MatronLog[]> => {
+    return getAllMatronLogs(start, end);
 };
 
 export const getAssessmentRecordsForStudentAcrossClasses = async (studentId: string): Promise<import('../types').TermAssessmentRecord[]> => {

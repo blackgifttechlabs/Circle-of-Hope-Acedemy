@@ -30,6 +30,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
   const [gradeFilter, setGradeFilter] = useState('ALL');
   const [levelFilter, setLevelFilter] = useState('ALL');
   const [stageFilter, setStageFilter] = useState('ALL');
+  const [dormFilter, setDormFilter] = useState('ALL');
   const [transferStudent, setTransferStudent] = useState<Student | null>(null);
   const [transferClass, setTransferClass] = useState('');
   const [transferTeacherId, setTransferTeacherId] = useState('');
@@ -167,7 +168,10 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
       if (stageFilter !== 'ALL') matchesStage = student.stage?.toString() === stageFilter;
     }
 
-    return matchesSearch && matchesDivision && matchesGrade && matchesLevel && matchesStage;
+    let matchesDorm = true;
+    if (dormFilter !== 'ALL') matchesDorm = student.dorm === dormFilter;
+
+    return matchesSearch && matchesDivision && matchesGrade && matchesLevel && matchesStage && matchesDorm;
   });
 
   const classOptions = settings ? [...settings.grades, ...settings.specialNeedsLevels] : [];
@@ -297,6 +301,17 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                   ))}
                 </select>
               )}
+
+              <select
+                className="p-2 border border-gray-300 outline-none bg-gray-50 text-sm font-medium"
+                value={dormFilter}
+                onChange={(e) => setDormFilter(e.target.value)}
+              >
+                <option value="ALL">All Dorms</option>
+                {Array.from(new Set(students.map(s => s.dorm).filter(Boolean))).map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
 
               {divisionFilter === 'SPECIAL_NEEDS' && (
                 <>
@@ -437,6 +452,15 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                     <option key={className} value={className}>{className}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Dorm</label>
+                <input
+                  value={(newStudentForm as any).dorm || ''}
+                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, dorm: e.target.value }))}
+                  className="w-full p-3 border border-gray-300 bg-white outline-none"
+                  placeholder="e.g. Blue House"
+                />
               </div>
 
               <div>

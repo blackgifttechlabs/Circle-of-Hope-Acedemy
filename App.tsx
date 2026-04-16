@@ -48,6 +48,7 @@ import { MatronDashboard } from './pages/matron/Dashboard';
 import { MatronStudentList } from './pages/matron/StudentList';
 import { MatronStudentProfile } from './pages/matron/StudentProfile';
 import { MatronSettings } from './pages/matron/Settings';
+import { MatronHomeworks } from './pages/matron/Homeworks';
 import { MatronRecords } from './pages/admin/MatronRecords';
 import { UserRole } from './types';
 import { seedAdminUser, getAdminProfile } from './services/dataService';
@@ -274,6 +275,7 @@ const App: React.FC = () => {
                       <Route path="dashboard" element={<MatronDashboard user={user} />} />
                       <Route path="students" element={<MatronStudentList />} />
                       <Route path="students/:id" element={<MatronStudentProfile user={user} />} />
+                      <Route path="homeworks" element={<MatronHomeworks user={user} />} />
                       <Route path="settings" element={<MatronSettings user={user} />} />
                       <Route path="*" element={<Navigate to="dashboard" />} />
                   </Routes>

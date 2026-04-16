@@ -21,8 +21,12 @@ import {
   ClipboardList,
   X,
   CheckCircle2,
-  Clock
+  Clock,
+  ChevronRight
 } from 'lucide-react';
+import { db } from '../../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { STUDENTS_COLLECTION } from '../../services/dataService';
 import { Button } from '../../components/ui/Button';
 
 const CATEGORIES = [
@@ -40,6 +44,7 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null>(null);
+  const [studentList, setStudentList] = useState<string[]>([]);
   const [medications, setMedications] = useState<StudentMedication[]>([]);
   const [administrations, setAdministrations] = useState<MedicationAdministration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +56,11 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
   const fetchData = async () => {
     if (!id) return;
     const studentData = await getStudentById(id);
+    const savedList = sessionStorage.getItem('matron_student_context');
+    if (savedList) {
+      setStudentList(JSON.parse(savedList));
+    }
+
     const medsData = await getStudentMedications(id);
     const adminsData = await getMedicationAdministrationsForStudent(id, new Date());
     const logsData = await getMatronLogsForStudent(id, new Date());
@@ -138,11 +148,46 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
     setSaving(false);
   };
 
+  const navigateStudent = (dir: 'next' | 'prev') => {
+    const currentIndex = studentList.indexOf(id || '');
+    if (currentIndex === -1) return;
+    const nextIndex = dir === 'next' ? currentIndex + 1 : currentIndex - 1;
+    if (nextIndex >= 0 && nextIndex < studentList.length) {
+      navigate(`/matron/students/${studentList[nextIndex]}`);
+    }
+  };
+
+  const currentIndex = studentList.indexOf(id || '');
+
   if (loading || !student) return <Loader />;
 
   return (
-    <div className="max-w-4xl mx-auto pb-20">
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 mb-8">
+    <div className="px-[10px] pb-20">
+      <div className="flex justify-between items-center mb-6">
+        <button onClick={() => navigate('/matron/students')} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-500 shadow-sm">
+          <ChevronRight size={24} className="rotate-180" />
+        </button>
+        {studentList.length > 0 && (
+          <div className="flex gap-2">
+            <button
+              disabled={currentIndex <= 0}
+              onClick={() => navigateStudent('prev')}
+              className="px-4 py-2 bg-white border border-slate-200 rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-30"
+            >
+              Prev
+            </button>
+            <button
+              disabled={currentIndex >= studentList.length - 1}
+              onClick={() => navigateStudent('next')}
+              className="px-4 py-2 bg-coha-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-30"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8 relative">
         {student.profileImageBase64 ? (
           <img src={student.profileImageBase64} alt={student.name} className="w-24 h-24 rounded-2xl object-cover" />
         ) : (
@@ -150,9 +195,22 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
             {student.name.charAt(0)}
           </div>
         )}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{student.name}</h1>
-          <p className="text-gray-500 font-medium">Room: {student.assignedClass || 'N/A'}</p>
+        <div className="flex-1 text-center sm:text-left">
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">{student.name}</h1>
+          <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+            <p className="text-sm font-bold text-slate-500">Room: {student.assignedClass || 'N/A'}</p>
+            <span className="text-slate-300">|</span>
+            <input
+              className="text-sm font-black text-coha-600 bg-coha-50 px-2 py-0.5 rounded outline-none w-24 text-center"
+              value={student.dorm || ''}
+              onChange={async (e) => {
+                const newDorm = e.target.value;
+                setStudent({ ...student, dorm: newDorm });
+                await updateDoc(doc(db, STUDENTS_COLLECTION, student.id), { dorm: newDorm });
+              }}
+              placeholder="Set Dorm"
+            />
+          </div>
           {student.medicalConditions && (
             <div className="mt-2 flex items-center gap-2 text-red-600 bg-red-50 px-3 py-1 rounded-full w-fit">
               <AlertCircle size={14} />
