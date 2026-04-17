@@ -5,6 +5,7 @@ import {
   getStudentMedications,
   getMedicationAdministrationsForStudent,
   addMatronLog,
+  updateMatronLog,
   addMedicationAdministration,
   getMatronLogsForStudent,
   getMatrons
@@ -23,13 +24,8 @@ import {
   X,
   CheckCircle2,
   Clock,
-  ChevronRight,
-  ArrowLeft,
   ChevronLeft
 } from 'lucide-react';
-import { db } from '../../firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-import { STUDENTS_COLLECTION } from '../../services/dataService';
 import { Button } from '../../components/ui/Button';
 
 const CATEGORIES = [
@@ -58,6 +54,7 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
   const [saving, setSaving] = useState(false);
   const [loggedToday, setLoggedToday] = useState<Record<string, boolean>>({});
   const [existingLogs, setExistingLogs] = useState<Record<string, any>>({});
+  const [existingTodayLogs, setExistingTodayLogs] = useState<Record<string, MatronLog>>({});
   const [allLogs, setAllLogs] = useState<MatronLog[]>([]);
   const [matrons, setMatrons] = useState<Matron[]>([]);
   const [medicationOverdue, setMedicationOverdue] = useState(false);
@@ -81,6 +78,7 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
 
     const status: Record<string, boolean> = {};
     const logData: Record<string, any> = {};
+    const logRecords: Record<string, MatronLog> = {};
     if (medsData.length > 0 && medsData.every(m => adminsData.some(a => a.student_medication_id === m.id))) {
         status['medication'] = true;
     }
@@ -95,6 +93,7 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
     logsData.forEach(log => {
         status[log.category] = true;
         logData[log.category] = log.log_data;
+        logRecords[log.category] = log;
     });
 
     setStudent(studentData);
@@ -102,6 +101,7 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
     setAdministrations(adminsData);
     setLoggedToday(status);
     setExistingLogs(logData);
+    setExistingTodayLogs(logRecords);
     setAllLogs(historyLogs.sort((a, b) => {
         const da = a.logged_at?.toDate ? a.logged_at.toDate() : new Date(a.logged_at);
         const db = b.logged_at?.toDate ? b.logged_at.toDate() : new Date(b.logged_at);
@@ -118,15 +118,18 @@ export const MatronStudentProfile: React.FC<{ user: any }> = ({ user }) => {
   const handleSaveLog = async (category: MatronLogCategory, data: any) => {
     if (!id || !user) return;
     setSaving(true);
-    const success = await addMatronLog({
-      student_id: id,
-      matron_id: user.id,
-      category,
-      log_data: data,
-      logged_at: new Date(),
-    });
+    const existingLog = existingTodayLogs[category];
+    const success = existingLog
+      ? await updateMatronLog(existingLog.id, { log_data: data })
+      : await addMatronLog({
+          student_id: id,
+          matron_id: user.id,
+          category,
+          log_data: data,
+          logged_at: new Date(),
+        });
     if (success) {
-      setLoggedToday(prev => ({ ...prev, [category]: true }));
+      await fetchData();
       setActiveModal(null);
     }
     setSaving(false);
@@ -821,7 +824,7 @@ const CategoryModal: React.FC<{
             onClick={() => category === 'medication' ? onClose() : onSave(formData)}
             disabled={saving}
           >
-            {category === 'medication' ? 'Done' : (saving ? 'Saving...' : 'Save Log')}
+            {category === 'medication' ? 'Done' : (saving ? 'Saving...' : initialData ? 'Update Today\'s Log' : 'Save Log')}
           </Button>
         </div>
       </div>

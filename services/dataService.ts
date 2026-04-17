@@ -754,6 +754,14 @@ export const getStudentsByStatus = async (status: string): Promise<Student[]> =>
     return querySnapshot.docs.map(doc => normalizeStudentRecord({ id: doc.id, ...doc.data() } as Student));
 };
 
+export const getHostelStudents = async (): Promise<Student[]> => {
+    const q = query(collection(db, STUDENTS_COLLECTION), where("needsHostel", "==", true));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs
+      .map(doc => normalizeStudentRecord({ id: doc.id, ...doc.data() } as Student))
+      .filter(student => !!student.dorm);
+};
+
 /**
  * Updated to support Stage-based fuzzy matching.
  * Teachers assigned to "Level 1B" will see "Level 1B - Stage 1", etc.
@@ -1324,6 +1332,25 @@ export const getHomeworkAssignmentsForClass = async (className: string): Promise
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 };
 
+export const getHomeworkAssignmentsForClasses = async (classNames: string[]): Promise<HomeworkAssignment[]> => {
+    const uniqueClasses = Array.from(new Set(classNames.filter(Boolean)));
+    if (uniqueClasses.length === 0) return [];
+
+    const chunks: string[][] = [];
+    for (let i = 0; i < uniqueClasses.length; i += 10) {
+      chunks.push(uniqueClasses.slice(i, i + 10));
+    }
+
+    const snapshots = await Promise.all(chunks.map((classChunk) => {
+      const q = query(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION), where('className', 'in', classChunk));
+      return getDocs(q);
+    }));
+
+    return snapshots
+      .flatMap((snap) => snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkAssignment)))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+};
+
 export const getHomeworkAssignmentsByTeacher = async (teacherId: string): Promise<HomeworkAssignment[]> => {
     const q = query(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION), where('teacherId', '==', teacherId));
     const snap = await getDocs(q);
@@ -1354,6 +1381,25 @@ export const getHomeworkSubmissionsForStudent = async (studentId: string): Promi
     const q = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), where('studentId', '==', studentId));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission))
+      .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+};
+
+export const getHomeworkSubmissionsForStudents = async (studentIds: string[]): Promise<HomeworkSubmission[]> => {
+    const uniqueStudentIds = Array.from(new Set(studentIds.filter(Boolean)));
+    if (uniqueStudentIds.length === 0) return [];
+
+    const chunks: string[][] = [];
+    for (let i = 0; i < uniqueStudentIds.length; i += 10) {
+      chunks.push(uniqueStudentIds.slice(i, i + 10));
+    }
+
+    const snapshots = await Promise.all(chunks.map((studentChunk) => {
+      const q = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), where('studentId', 'in', studentChunk));
+      return getDocs(q);
+    }));
+
+    return snapshots
+      .flatMap((snap) => snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission)))
       .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
 };
 
@@ -2790,6 +2836,19 @@ export const addMatronLog = async (log: Omit<MatronLog, 'id' | 'created_at'>) =>
   } catch (error) {
     console.error("Error adding matron log:", error);
     return null;
+  }
+};
+
+export const updateMatronLog = async (id: string, data: Pick<MatronLog, 'log_data'>) => {
+  try {
+    await updateDoc(doc(db, MATRON_LOGS_COLLECTION, id), {
+      ...data,
+      updated_at: Timestamp.now()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error updating matron log:", error);
+    return false;
   }
 };
 

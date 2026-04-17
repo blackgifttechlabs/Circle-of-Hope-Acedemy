@@ -1,20 +1,75 @@
 import React, { useEffect, useState } from 'react';
 import {
-  getMatronAlerts, getStudents, getMatrons, getSystemSettings,
+  getHostelStudents, getMatrons, getSystemSettings,
   getAllMatronLogs, getAllStudentMedications, getMedicationAdministrations,
-  getAllHomeworkSubmissions, getHomeworkAssignmentsForClass, dismissMatronAlert
+  getHomeworkSubmissionsForStudents, getHomeworkAssignmentsForClasses, dismissMatronAlert,
+  getDismissedAlerts
 } from '../../services/dataService';
 import { Student, MatronLog, Matron, SystemSettings, StudentMedication, MedicationAdministration, HomeworkSubmission, HomeworkAssignment } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import {
   AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Download,
-  FileText, Printer, User, Calendar, Filter, Clock, BookOpen, HeartPulse, Search, Activity, X as XIcon
+  FileText, Printer, User, Filter, Clock, BookOpen, HeartPulse, Search, Activity, X as XIcon
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+
+const buildMatronAlerts = (
+  students: Student[],
+  medications: StudentMedication[],
+  administrations: MedicationAdministration[],
+  dismissedIds: string[]
+) => {
+  const alerts: any[] = [];
+  const now = new Date();
+  const todayKey = now.toISOString().split('T')[0];
+  const currentTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  const todayAdministrations = administrations.filter((admin) => {
+    const timeGiven = admin.time_given?.toDate ? admin.time_given.toDate() : new Date(admin.time_given);
+    return timeGiven.toISOString().split('T')[0] === todayKey;
+  });
+
+  for (const med of medications) {
+    const student = students.find(s => s.id === med.student_id);
+    if (!student) continue;
+
+    const alertIdBase = `${todayKey}_${med.id}`;
+    const admin = todayAdministrations.find(a => a.student_medication_id === med.id);
+
+    if (!admin && currentTimeStr > med.scheduled_time_to) {
+      const id = `${alertIdBase}_MISSED`;
+      if (dismissedIds.includes(id)) continue;
+      alerts.push({
+        id,
+        type: 'MISSED',
+        studentName: student.name,
+        medicineName: med.medicine_name,
+        dueTime: `${med.scheduled_time_from} - ${med.scheduled_time_to}`,
+      });
+      continue;
+    }
+
+    if (admin && !admin.was_on_time) {
+      const id = `${alertIdBase}_LATE`;
+      if (dismissedIds.includes(id)) continue;
+      const timeGiven = admin.time_given?.toDate ? admin.time_given.toDate() : new Date(admin.time_given);
+      alerts.push({
+        id,
+        type: 'LATE',
+        studentName: student.name,
+        medicineName: med.medicine_name,
+        timeGiven: timeGiven.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        dueTime: `${med.scheduled_time_from} - ${med.scheduled_time_to}`,
+        minutesLate: admin.minutes_late,
+      });
+    }
+  }
+
+  return alerts;
+};
 
 export const MatronRecords: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -44,23 +99,30 @@ export const MatronRecords: React.FC = () => {
     const end = new Date(dateRange.end);
     end.setHours(23,59,59,999);
 
-    const [alertsData, studentsData, matronsData, settingsData, allLogs, allMeds, allAdmins, allSubs] = await Promise.all([
-      getMatronAlerts(),
-      getStudents(),
+    const [studentsData, matronsData, settingsData, allLogs, allMeds, allAdmins, dismissedAlertIds] = await Promise.all([
+      getHostelStudents(),
       getMatrons(),
       getSystemSettings(),
       getAllMatronLogs(start, end),
       getAllStudentMedications(),
       getMedicationAdministrations(start, end),
-      getAllHomeworkSubmissions()
+      getDismissedAlerts()
     ]);
 
-    setAlerts(alertsData);
+    const todayKey = new Date().toISOString().split('T')[0];
+    const rangeIncludesToday = dateRange.start <= todayKey && dateRange.end >= todayKey;
+    setAlerts(rangeIncludesToday ? buildMatronAlerts(studentsData, allMeds, allAdmins, dismissedAlertIds) : []);
     setStudents(studentsData);
     setMatrons(matronsData);
     setSettings(settingsData);
     setAllMedications(allMeds);
     setAllAdministrations(allAdmins);
+    const classNames = studentsData.map(student => student.assignedClass || student.grade || student.level || '').filter(Boolean);
+    const studentIds = studentsData.map(student => student.id).filter(Boolean);
+    const [allAssignments, allSubs] = await Promise.all([
+      getHomeworkAssignmentsForClasses(classNames),
+      getHomeworkSubmissionsForStudents(studentIds),
+    ]);
     setHomeworkSubmissions(allSubs);
 
     const logsMap: Record<string, MatronLog[]> = {};
@@ -70,12 +132,11 @@ export const MatronRecords: React.FC = () => {
     });
     setStudentLogs(logsMap);
 
-    // Fetch assignments for relevant classes
-    const classes = Array.from(new Set(studentsData.map(s => s.assignedClass).filter(Boolean))) as string[];
     const assignmentsMap: Record<string, HomeworkAssignment[]> = {};
-    for (const cls of classes) {
-      assignmentsMap[cls] = await getHomeworkAssignmentsForClass(cls);
-    }
+    allAssignments.forEach((assignment) => {
+      if (!assignmentsMap[assignment.className]) assignmentsMap[assignment.className] = [];
+      assignmentsMap[assignment.className].push(assignment);
+    });
     setHomeworkAssignments(assignmentsMap);
 
     setLoading(false);
@@ -420,32 +481,32 @@ export const MatronRecords: React.FC = () => {
         @keyframes flicker { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
       `}</style>
 
-      <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
+      <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-1">Matron Records</h1>
           <p className="text-sm font-bold text-slate-500">Comprehensive oversight of hostel care activities</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={downloadPDF} variant="outline" className="!rounded-xl !py-2 !text-xs font-black uppercase tracking-widest shadow-sm">
+          <Button onClick={downloadPDF} variant="outline" className="!rounded-[8px] !py-2 !text-xs font-black uppercase tracking-widest shadow-sm bg-white">
             <Download size={16} /> PDF
           </Button>
-          <Button onClick={downloadExcel} variant="outline" className="!rounded-xl !py-2 !text-xs font-black uppercase tracking-widest shadow-sm">
+          <Button onClick={downloadExcel} variant="outline" className="!rounded-[8px] !py-2 !text-xs font-black uppercase tracking-widest shadow-sm bg-white">
             <Download size={16} /> Excel
           </Button>
-          <Button onClick={printPDF} variant="outline" className="!rounded-xl !py-2 !text-xs font-black uppercase tracking-widest shadow-sm">
+          <Button onClick={printPDF} variant="outline" className="!rounded-[8px] !py-2 !text-xs font-black uppercase tracking-widest shadow-sm bg-white">
             <Printer size={16} /> Print
           </Button>
         </div>
       </div>
 
       {/* FILTERS PANEL */}
-      <div className="bg-white p-6 rounded-[24px] shadow-sm border border-slate-200 mb-8">
+      <div className="bg-white p-6 rounded-[10px] shadow-sm border border-slate-200 mb-6">
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-4">
             <div className="flex gap-2">
-              <button onClick={() => setPresetRange('today')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${dateRange.start === new Date().toISOString().split('T')[0] ? 'bg-coha-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Today</button>
-              <button onClick={() => setPresetRange('yesterday')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${dateRange.start !== new Date().toISOString().split('T')[0] ? 'bg-coha-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Yesterday</button>
-              <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
+              <button onClick={() => setPresetRange('today')} className={`px-4 py-2 rounded-[8px] text-[10px] font-black uppercase tracking-widest transition-all ${dateRange.start === new Date().toISOString().split('T')[0] ? 'bg-coha-900 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Today</button>
+              <button onClick={() => setPresetRange('yesterday')} className={`px-4 py-2 rounded-[8px] text-[10px] font-black uppercase tracking-widest transition-all ${dateRange.start !== new Date().toISOString().split('T')[0] ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Yesterday</button>
+              <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-[8px] border border-slate-200">
                 <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="bg-transparent text-[10px] font-black uppercase outline-none px-2" />
                 <span className="text-slate-300">-</span>
                 <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="bg-transparent text-[10px] font-black uppercase outline-none px-2" />
@@ -458,21 +519,21 @@ export const MatronRecords: React.FC = () => {
                 placeholder="Search student name..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-3 text-sm font-bold focus:bg-white transition-all outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-[8px] pl-12 pr-4 py-3 text-sm font-bold focus:bg-white focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 transition-all outline-none"
               />
             </div>
           </div>
           <div className="flex gap-4 items-end">
              <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Filter Class</label>
-                <select value={filters.class} onChange={e => setFilters(p => ({...p, class: e.target.value}))} className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-widest outline-none">
+                <select value={filters.class} onChange={e => setFilters(p => ({...p, class: e.target.value}))} className="bg-white border border-slate-200 rounded-[8px] px-4 py-2.5 text-xs font-black uppercase tracking-widest outline-none focus:border-coha-500">
                   <option value="ALL">All Classes</option>
                   {Array.from(new Set(students.map(s => s.assignedClass).filter(Boolean))).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
              </div>
              <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Filter Dorm</label>
-                <select value={filters.dorm} onChange={e => setFilters(p => ({...p, dorm: e.target.value}))} className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-widest outline-none">
+                <select value={filters.dorm} onChange={e => setFilters(p => ({...p, dorm: e.target.value}))} className="bg-white border border-slate-200 rounded-[8px] px-4 py-2.5 text-xs font-black uppercase tracking-widest outline-none focus:border-coha-500">
                   <option value="ALL">All Dorms</option>
                   {Array.from(new Set(students.map(s => s.dorm).filter(Boolean))).map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
@@ -482,19 +543,19 @@ export const MatronRecords: React.FC = () => {
       </div>
 
       {/* STATS STRIP */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'All Records', val: Object.values(studentLogs).flat().length, icon: <FileText />, color: 'blue' },
-          { label: 'Records Today', val: Object.values(studentLogs).flat().filter(l => new Date(l.logged_at?.toDate ? l.logged_at.toDate() : l.logged_at).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]).length, icon: <Clock />, color: 'green', dot: true },
-          { label: 'Pending Meds', val: alerts.filter(a => a.type === 'MISSED').length, icon: <HeartPulse />, color: 'red' },
-          { label: 'Total Students', val: filteredStudents.length, icon: <User />, color: 'indigo' },
+          { label: 'All Records', val: Object.values(studentLogs).flat().length, icon: <FileText />, card: 'bg-sky-50 border-sky-200', iconWrap: 'bg-sky-100 text-sky-700', text: 'text-sky-950' },
+          { label: 'Records Today', val: Object.values(studentLogs).flat().filter(l => new Date(l.logged_at?.toDate ? l.logged_at.toDate() : l.logged_at).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]).length, icon: <Clock />, card: 'bg-emerald-50 border-emerald-200', iconWrap: 'bg-emerald-100 text-emerald-700', text: 'text-emerald-950', dot: true },
+          { label: 'Pending Meds', val: alerts.filter(a => a.type === 'MISSED').length, icon: <HeartPulse />, card: 'bg-rose-50 border-rose-200', iconWrap: 'bg-rose-100 text-rose-700', text: 'text-rose-950' },
+          { label: 'Total Students', val: filteredStudents.length, icon: <User />, card: 'bg-amber-50 border-amber-200', iconWrap: 'bg-amber-100 text-amber-700', text: 'text-amber-950' },
         ].map((s, i) => (
-          <div key={i} className="bg-white p-4 rounded-[20px] shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-${s.color}-50 text-${s.color}-600`}>{s.icon}</div>
+          <div key={i} className={`p-4 rounded-[10px] shadow-sm border flex items-center gap-4 ${s.card}`}>
+            <div className={`w-10 h-10 rounded-[8px] flex items-center justify-center ${s.iconWrap}`}>{s.icon}</div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{s.label}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{s.label}</p>
               <div className="flex items-center gap-2">
-                <p className="text-xl font-black text-slate-800">{s.val}</p>
+                <p className={`text-xl font-black ${s.text}`}>{s.val}</p>
                 {s.dot && s.val > 0 && <div className="w-2 h-2 rounded-full flicker-green" />}
               </div>
             </div>
@@ -504,9 +565,9 @@ export const MatronRecords: React.FC = () => {
 
       {/* ALERTS PANEL */}
       {alerts.length > 0 && (
-        <div className="mb-8 space-y-2">
+        <div className="mb-6 space-y-2">
           {alerts.map((alert, i) => (
-            <div key={i} className={`p-4 rounded-2xl flex items-center justify-between border-l-4 shadow-sm ${alert.type === 'MISSED' ? 'bg-red-50 border-red-500 text-red-800' : 'bg-amber-50 border-amber-500 text-amber-800'}`}>
+            <div key={i} className={`p-4 rounded-[10px] flex items-center justify-between border-l-4 shadow-sm ${alert.type === 'MISSED' ? 'bg-red-50 border-red-500 text-red-800' : 'bg-amber-50 border-amber-500 text-amber-800'}`}>
               <div className="flex items-center gap-4">
                 <AlertTriangle className={alert.type === 'MISSED' ? 'text-red-500' : 'text-amber-500'} size={20} />
                 <span className="text-xs font-black uppercase tracking-wider">
@@ -514,7 +575,7 @@ export const MatronRecords: React.FC = () => {
                   {alert.type === 'MISSED' ? ` was due ${alert.dueTime}` : ` given at ${alert.timeGiven}, was due ${alert.dueTime}, ${alert.minutesLate}m late`}
                 </span>
               </div>
-              <button onClick={() => handleDismissAlert(alert.id)} className="p-1 hover:bg-black/5 rounded-full transition-colors text-current opacity-40 hover:opacity-100">
+              <button onClick={() => handleDismissAlert(alert.id)} className="p-1 hover:bg-black/5 rounded-[8px] transition-colors text-current opacity-40 hover:opacity-100">
                 <XIcon size={18} />
               </button>
             </div>
@@ -523,46 +584,48 @@ export const MatronRecords: React.FC = () => {
       )}
 
       {/* MAIN TABLE */}
-      <div className="bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 border-b border-slate-100">
+      <div className="bg-white rounded-[10px] shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[920px] text-left border-separate border-spacing-0">
+          <thead className="bg-coha-900 text-white border-b border-coha-900">
             <tr>
-              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Student & Room</th>
-              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Medication</th>
-              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Homework</th>
-              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Recent Log</th>
-              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Activity</th>
+              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Student & Room</th>
+              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Medication</th>
+              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Homework</th>
+              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Recent Log</th>
+              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right">Activity</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
-            {filteredStudents.map(student => {
+          <tbody>
+            {filteredStudents.map((student, index) => {
               const compliance = getCompliance(student.id);
               const logs = studentLogs[student.id] || [];
               const lastLog = logs[0];
               const hasMedication = allMedications.some(m => m.student_id === student.id);
-              const assignments = homeworkAssignments[student.assignedClass || ''] || [];
+              const studentClass = student.assignedClass || student.grade || student.level || '';
+              const assignments = homeworkAssignments[studentClass] || [];
               const submission = homeworkSubmissions.find(s => s.studentId === student.id && assignments.some(a => a.id === s.assignmentId));
 
               return (
                 <React.Fragment key={student.id}>
                   <tr
-                    className="hover:bg-slate-50/50 cursor-pointer transition-colors group"
+                    className={`cursor-pointer transition-colors group ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-sky-50/80`}
                     onClick={() => setExpandedStudentId(expandedStudentId === student.id ? null : student.id)}
                   >
-                    <td className="px-6 py-5">
+                    <td className="px-6 py-5 border-b border-slate-100">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-slate-400">
+                        <div className="w-10 h-10 rounded-[10px] bg-gradient-to-br from-emerald-500 via-sky-500 to-coha-700 flex items-center justify-center font-black text-white shadow-sm">
                           {student.name.charAt(0)}
                         </div>
                         <div>
                           <p className="font-black text-slate-900 leading-none mb-1">{student.name}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">RM: {student.assignedClass || 'N/A'} · {student.dorm || 'No Dorm'}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">RM: {student.assignedClass || 'N/A'} · <span className="text-amber-700">{student.dorm || 'No Dorm'}</span></p>
                         </div>
                       </div>
                     </td>
-                    <td className={`px-6 py-5 ${hasMedication ? 'bg-blue-50/30' : ''}`}>
+                    <td className={`px-6 py-5 border-b border-slate-100 ${hasMedication ? 'bg-sky-50/50' : ''}`}>
                       {hasMedication ? (
-                        <div className="flex items-center gap-2">
+                        <div className="inline-flex items-center gap-2 rounded-[8px] border border-sky-100 bg-white px-2.5 py-1">
                           {compliance.missed > 0 ? (
                             <div className="w-2.5 h-2.5 rounded-full flicker-red" title="Missed Doses" />
                           ) : compliance.given > 0 ? (
@@ -570,36 +633,36 @@ export const MatronRecords: React.FC = () => {
                           ) : (
                             <Clock size={16} className="text-blue-300" />
                           )}
-                          <span className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">
+                          <span className="text-[10px] font-black text-sky-800 uppercase tracking-tighter">
                             {compliance.given}/{compliance.due} Doses
                           </span>
                         </div>
-                      ) : <span className="text-[10px] font-bold text-slate-300 uppercase">None</span>}
+                      ) : <span className="inline-flex rounded-[6px] bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-400 uppercase">None</span>}
                     </td>
-                    <td className="px-6 py-5">
+                    <td className="px-6 py-5 border-b border-slate-100">
                       {assignments.length > 0 ? (
-                        <div className="flex items-center gap-2">
+                        <div className={`inline-flex items-center gap-2 rounded-[8px] border px-2.5 py-1 ${submission ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
                            {submission ? (
                              <CheckCircle size={16} className="text-green-500" />
                            ) : (
                              <div className="w-2.5 h-2.5 rounded-full flicker-orange" title="Pending Homework" />
                            )}
-                           <span className="text-[10px] font-black text-slate-600 uppercase">
+                           <span className={`text-[10px] font-black uppercase ${submission ? 'text-emerald-700' : 'text-amber-700'}`}>
                              {submission ? 'Submitted' : 'Pending'}
                            </span>
                         </div>
-                      ) : <span className="text-[10px] font-bold text-slate-300 uppercase">No Work</span>}
+                      ) : <span className="inline-flex rounded-[6px] bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-400 uppercase">No Work</span>}
                     </td>
-                    <td className="px-6 py-5">
+                    <td className="px-6 py-5 border-b border-slate-100">
                       {lastLog ? (
-                        <div>
-                          <p className="text-[10px] font-black text-slate-800 uppercase tracking-tighter mb-0.5">{lastLog.category.replace('_', ' ')}</p>
-                          <p className="text-[9px] font-bold text-slate-400">{new Date(lastLog.logged_at?.toDate ? lastLog.logged_at.toDate() : lastLog.logged_at).toLocaleTimeString()}</p>
+                        <div className="inline-flex flex-col rounded-[8px] border border-teal-100 bg-teal-50 px-2.5 py-1">
+                          <p className="text-[10px] font-black text-teal-800 uppercase tracking-tighter mb-0.5">{lastLog.category.replace('_', ' ')}</p>
+                          <p className="text-[9px] font-bold text-teal-600">{new Date(lastLog.logged_at?.toDate ? lastLog.logged_at.toDate() : lastLog.logged_at).toLocaleTimeString()}</p>
                         </div>
-                      ) : <span className="text-[10px] font-bold text-rose-400 uppercase tracking-widest font-black">No Records Today</span>}
+                      ) : <span className="inline-flex rounded-[6px] bg-rose-50 px-2.5 py-1 text-[10px] font-black text-rose-500 uppercase tracking-widest">No Records Today</span>}
                     </td>
-                    <td className="px-6 py-5 text-right">
-                       <button className="p-2 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-coha-900 group-hover:text-white transition-all">
+                    <td className="px-6 py-5 text-right border-b border-slate-100">
+                       <button className="p-2 bg-slate-50 text-slate-400 rounded-[8px] group-hover:bg-coha-900 group-hover:text-white transition-all">
                          {expandedStudentId === student.id ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                        </button>
                     </td>
@@ -617,14 +680,14 @@ export const MatronRecords: React.FC = () => {
                                <Button
                                 onClick={(e) => { e.stopPropagation(); handleViewAll(student.id); }}
                                 variant="outline"
-                                className="!py-1.5 !px-3 !text-[10px]"
+                                className="!py-1.5 !px-3 !text-[10px] !rounded-[8px] bg-white"
                                >
                                  View All Records
                                </Button>
                                <Button
                                 onClick={(e) => { e.stopPropagation(); downloadStudentReport(student, logs, 'Today'); }}
                                 variant="secondary"
-                                className="!py-1.5 !px-3 !text-[10px]"
+                                className="!py-1.5 !px-3 !text-[10px] !rounded-[8px]"
                                >
                                  <Download size={14} /> Report
                                </Button>
@@ -639,9 +702,9 @@ export const MatronRecords: React.FC = () => {
                                {logs.length > 0 ? (
                                  <div className="space-y-3">
                                    {logs.map(log => (
-                                     <div key={log.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative">
+                                     <div key={log.id} className="bg-white p-4 rounded-[10px] shadow-sm border border-slate-100 relative">
                                         <div className="flex justify-between items-start mb-2">
-                                          <span className="text-[10px] font-black uppercase tracking-widest text-coha-600 bg-coha-50 px-2 py-0.5 rounded">
+                                          <span className="text-[10px] font-black uppercase tracking-widest text-coha-600 bg-coha-50 px-2 py-0.5 rounded-[6px]">
                                             {log.category.replace('_', ' ')}
                                           </span>
                                           <span className="text-[9px] font-bold text-slate-300">
@@ -674,7 +737,7 @@ export const MatronRecords: React.FC = () => {
                                  {allAdministrations.filter(a => a.student_id === student.id).length > 0 ? (
                                    <div className="space-y-2">
                                       {allAdministrations.filter(a => a.student_id === student.id).map(admin => (
-                                        <div key={admin.id} className="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between">
+                                        <div key={admin.id} className="bg-white p-3 rounded-[8px] border border-slate-100 flex items-center justify-between">
                                            <div>
                                               <p className="text-xs font-black text-slate-800">{allMedications.find(m => m.id === admin.student_medication_id)?.medicine_name}</p>
                                               <p className="text-[9px] font-bold text-slate-400 uppercase">Given at {new Date(admin.time_given?.toDate ? admin.time_given.toDate() : admin.time_given).toLocaleTimeString()}</p>
@@ -695,7 +758,7 @@ export const MatronRecords: React.FC = () => {
                                  {homeworkSubmissions.filter(s => s.studentId === student.id).length > 0 ? (
                                    <div className="space-y-2">
                                       {homeworkSubmissions.filter(s => s.studentId === student.id).map(sub => (
-                                        <div key={sub.id} className="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between">
+                                        <div key={sub.id} className="bg-white p-3 rounded-[8px] border border-slate-100 flex items-center justify-between">
                                            <div className="flex items-center gap-3">
                                               <img src={sub.imageBase64} className="w-10 h-10 rounded-lg object-cover" />
                                               <div>
@@ -719,11 +782,12 @@ export const MatronRecords: React.FC = () => {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {showHistoryStudentId && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-           <div className="bg-white w-full max-w-4xl rounded-[40px] overflow-hidden shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
+           <div className="bg-white w-full max-w-4xl rounded-[10px] overflow-hidden shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
               <div className="p-8 bg-coha-900 text-white flex justify-between items-center shrink-0">
                  <div>
                     <h3 className="text-2xl font-black uppercase tracking-tight">Full History</h3>
@@ -735,11 +799,11 @@ export const MatronRecords: React.FC = () => {
                             const s = students.find(st => st.id === showHistoryStudentId);
                             if (s) downloadStudentReport(s, historyLogs, 'All Time');
                         }}
-                        className="bg-white/10 hover:bg-white/20 border border-white/20 !py-2"
+                        className="bg-white/10 hover:bg-white/20 border border-white/20 !py-2 !rounded-[8px]"
                     >
                         <Download size={18} /> Download All
                     </Button>
-                    <button onClick={() => setShowHistoryStudentId(null)} className="p-2 hover:bg-white/10 rounded-2xl transition-colors">
+                    <button onClick={() => setShowHistoryStudentId(null)} className="p-2 hover:bg-white/10 rounded-[8px] transition-colors">
                         <XIcon size={24} />
                     </button>
                  </div>
@@ -762,9 +826,9 @@ export const MatronRecords: React.FC = () => {
                            </div>
                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               {logs.map(log => (
-                                 <div key={log.id} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+                                 <div key={log.id} className="bg-white p-5 rounded-[10px] border border-slate-100 shadow-sm">
                                     <div className="flex justify-between items-start mb-3">
-                                       <span className="text-[10px] font-black uppercase tracking-widest text-coha-600 bg-coha-50 px-2 py-0.5 rounded">
+                                       <span className="text-[10px] font-black uppercase tracking-widest text-coha-600 bg-coha-50 px-2 py-0.5 rounded-[6px]">
                                           {log.category.replace('_', ' ')}
                                        </span>
                                        <span className="text-[9px] font-bold text-slate-300">

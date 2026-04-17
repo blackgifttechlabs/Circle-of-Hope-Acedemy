@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Users, GraduationCap, AlertCircle, Clock, CheckCircle,
   BarChart2, Activity, HeartPulse, ChevronRight, TrendingUp, Bell
@@ -8,12 +8,16 @@ import {
   ResponsiveContainer, Cell, PieChart, Pie
 } from 'recharts';
 import {
-  getMatronAlerts, getStudents, getAllMatronLogs,
-  getMedicationAdministrationsToday, getAllStudentMedications, dismissMatronAlert
+  getHostelStudents, getAllMatronLogs,
+  getMedicationAdministrationsToday, getAllStudentMedications, dismissMatronAlert,
+  getDismissedAlerts, getHomeworkAssignmentsForClasses, getHomeworkSubmissionsForStudents
 } from '../../services/dataService';
 import { Loader } from '../../components/ui/Loader';
 import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
+import { Student, StudentMedication, MedicationAdministration } from '../../types';
+
+const DASHBOARD_REFRESH_COOLDOWN_MS = 60_000;
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -29,10 +33,67 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+const buildDashboardAlerts = (
+  students: Student[],
+  medications: StudentMedication[],
+  administrations: MedicationAdministration[],
+  dismissedIds: string[]
+) => {
+  const alerts: any[] = [];
+  const now = new Date();
+  const todayKey = now.toISOString().split('T')[0];
+  const currentTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+  for (const med of medications) {
+    const student = students.find(s => s.id === med.student_id);
+    if (!student) continue;
+
+    const alertIdBase = `${todayKey}_${med.id}`;
+    const admin = administrations.find(a => a.student_medication_id === med.id);
+
+    if (!admin && currentTimeStr > med.scheduled_time_to) {
+      const id = `${alertIdBase}_MISSED`;
+      if (dismissedIds.includes(id)) continue;
+      alerts.push({
+        id,
+        type: 'MISSED',
+        studentName: student.name,
+        medicineName: med.medicine_name,
+        dueTime: `${med.scheduled_time_from} - ${med.scheduled_time_to}`
+      });
+      continue;
+    }
+
+    if (admin && !admin.was_on_time) {
+      const id = `${alertIdBase}_LATE`;
+      if (dismissedIds.includes(id)) continue;
+      const timeGiven = admin.time_given?.toDate ? admin.time_given.toDate() : new Date(admin.time_given);
+      alerts.push({
+        id,
+        type: 'LATE',
+        studentName: student.name,
+        medicineName: med.medicine_name,
+        timeGiven: timeGiven.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        dueTime: `${med.scheduled_time_from} - ${med.scheduled_time_to}`,
+        minutesLate: admin.minutes_late
+      });
+    }
+  }
+
+  return alerts;
+};
+
+const isHomeworkForToday = (assignment: any, todayKey: string) => {
+  if (assignment.dueDate) return assignment.dueDate === todayKey;
+  const created = assignment.createdAt?.toDate ? assignment.createdAt.toDate() : new Date(assignment.createdAt);
+  return !Number.isNaN(created.getTime()) && created.toISOString().split('T')[0] === todayKey;
+};
+
 export const MatronDashboard: React.FC<{ user: any }> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const lastFetchRef = useRef(0);
 
   const handleDismissAlert = async (alertId: string) => {
     const success = await dismissMatronAlert(alertId);
@@ -41,21 +102,44 @@ export const MatronDashboard: React.FC<{ user: any }> = ({ user }) => {
     }
   };
 
-  const fetchData = async () => {
-    const [alertsData, studentsData, logsData, adminsToday, allMeds] = await Promise.all([
-      getMatronAlerts(),
-      getStudents(),
+  const fetchData = useCallback(async () => {
+    const [studentsData, logsData, adminsToday, allMeds, dismissedAlertIds] = await Promise.all([
+      getHostelStudents(),
       getAllMatronLogs(new Date(new Date().setHours(0,0,0,0))),
       getMedicationAdministrationsToday(),
-      getAllStudentMedications()
+      getAllStudentMedications(),
+      getDismissedAlerts()
     ]);
 
+    const hostelStudentIds = new Set(studentsData.map(student => student.id));
+    const hostelMeds = allMeds.filter(med => hostelStudentIds.has(med.student_id));
+    const hostelAdminsToday = adminsToday.filter(admin => hostelStudentIds.has(admin.student_id));
+    const alertsData = buildDashboardAlerts(studentsData, hostelMeds, hostelAdminsToday, dismissedAlertIds);
     setAlerts(alertsData);
+
+    const classNames = studentsData.map(student => student.assignedClass || student.grade || student.level || '').filter(Boolean);
+    const studentIds = studentsData.map(student => student.id).filter(Boolean);
+    const [homeworkAssignments, homeworkSubmissions] = await Promise.all([
+      getHomeworkAssignmentsForClasses(classNames),
+      getHomeworkSubmissionsForStudents(studentIds),
+    ]);
+    const todayKey = new Date().toISOString().split('T')[0];
+    const todayAssignments = homeworkAssignments.filter((assignment) => isHomeworkForToday(assignment, todayKey));
+    const studentsWithHomeworkToday = new Set<string>();
+    studentsData.forEach((student) => {
+      const studentClass = student.assignedClass || student.grade || student.level || '';
+      const hasPendingToday = todayAssignments
+        .filter((assignment) => assignment.className === studentClass)
+        .some((assignment) => !homeworkSubmissions.some((submission) => (
+          submission.studentId === student.id && submission.assignmentId === assignment.id
+        )));
+      if (hasPendingToday) studentsWithHomeworkToday.add(student.id);
+    });
 
     // Process stats for charts
     const compliance = {
-      onTime: adminsToday.filter(a => a.was_on_time).length,
-      late: adminsToday.filter(a => !a.was_on_time).length,
+      onTime: hostelAdminsToday.filter(a => a.was_on_time).length,
+      late: hostelAdminsToday.filter(a => !a.was_on_time).length,
       missed: alertsData.filter(a => a.type === 'MISSED').length
     };
 
@@ -75,19 +159,37 @@ export const MatronDashboard: React.FC<{ user: any }> = ({ user }) => {
     setStats({
       totalStudents: studentsData.length,
       logsToday: logsData.length,
-      medsDue: allMeds.length,
-      medsGiven: adminsToday.length,
+      medsDue: hostelMeds.length,
+      medsGiven: hostelAdminsToday.length,
+      homeworkToday: studentsWithHomeworkToday.size,
       chartData,
       pieData
     });
+    lastFetchRef.current = Date.now();
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, []);
+
+    const refreshIfStale = () => {
+      if (Date.now() - lastFetchRef.current >= DASHBOARD_REFRESH_COOLDOWN_MS) {
+        fetchData();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshIfStale();
+    };
+
+    window.addEventListener('focus', refreshIfStale);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', refreshIfStale);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchData]);
 
   if (loading) return <Loader />;
 
@@ -124,23 +226,32 @@ export const MatronDashboard: React.FC<{ user: any }> = ({ user }) => {
         {/* LEFT COLUMN */}
         <div className="space-y-6">
           {/* STATS CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {[
-              { label: 'Total Students', val: stats.totalStudents, icon: <Users size={20} />, color: '#6366f1', bg: '#eef2ff' },
-              { label: 'Care Logs Today', val: stats.logsToday, icon: <Activity size={20} />, color: '#10b981', bg: '#f0fdf4' },
-              { label: 'Meds Compliance', val: `${Math.round((stats.medsGiven / (stats.medsDue || 1)) * 100)}%`, icon: <HeartPulse size={20} />, color: '#f43f5e', bg: '#fff1f2' }
-            ].map((s, i) => (
-              <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="p-3 rounded-xl" style={{ backgroundColor: s.bg, color: s.color }}>{s.icon}</div>
-                  <span className="text-[10px] font-black text-green-500 bg-green-50 px-2 py-1 rounded-full uppercase tracking-widest flex items-center gap-1">
-                    <TrendingUp size={10} /> Active
-                  </span>
-                </div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{s.label}</p>
-                <p className="text-3xl font-black text-slate-800 tracking-tighter leading-none">{s.val}</p>
-              </div>
-            ))}
+              { label: 'Total Students', val: stats.totalStudents, icon: <Users size={20} />, color: '#6366f1', bg: '#eef2ff', to: '' },
+              { label: 'Care Logs Today', val: stats.logsToday, icon: <Activity size={20} />, color: '#10b981', bg: '#f0fdf4', to: '' },
+              { label: 'Meds Compliance', val: `${Math.round((stats.medsGiven / (stats.medsDue || 1)) * 100)}%`, icon: <HeartPulse size={20} />, color: '#f43f5e', bg: '#fff1f2', to: '' },
+              { label: 'Homework Today', val: stats.homeworkToday, icon: <Clock size={20} />, color: '#f59e0b', bg: '#fffbeb', to: '/matron/homeworks' }
+            ].map((s, i) => {
+              const content = (
+                <>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 rounded-xl" style={{ backgroundColor: s.bg, color: s.color }}>{s.icon}</div>
+                    <span className="text-[10px] font-black text-green-500 bg-green-50 px-2 py-1 rounded-full uppercase tracking-widest flex items-center gap-1">
+                      <TrendingUp size={10} /> Active
+                    </span>
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{s.label}</p>
+                  <p className="text-3xl font-black text-slate-800 tracking-tighter leading-none">{s.val}</p>
+                </>
+              );
+              const className = "bg-white p-6 rounded-2xl shadow-sm border border-slate-100 block hover:border-coha-500 transition-colors";
+              return s.to ? (
+                <Link key={i} to={s.to} className={className}>{content}</Link>
+              ) : (
+                <div key={i} className={className}>{content}</div>
+              );
+            })}
           </div>
 
           {/* ALERTS */}
