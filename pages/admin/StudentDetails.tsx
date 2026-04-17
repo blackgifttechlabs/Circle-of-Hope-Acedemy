@@ -177,6 +177,10 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
     : student.studentStatus;
 
   const profileImage = profilePreview || editForm.profileImageBase64 || student.profileImageBase64 || '';
+  const hostelApplication = student.hostelApplication;
+  const showHostelProfile = !!student.needsHostel || !!hostelApplication;
+  const formatList = (items?: string[]) => (items && items.length > 0 ? items.join(', ') : '-');
+  const medicalAidSummary = [student.medicalAidName, student.medicalAidOption, student.medicalAidMemberID ? `Member ID: ${student.medicalAidMemberID}` : ''].filter(Boolean).join(' - ');
 
   const DetailRow = ({ label, value }: { label: string; value: any }) => (
     <div className="mb-4">
@@ -798,6 +802,77 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
                   )}
                 </div>
               </div>
+
+              {showHostelProfile && (
+                <div className="mt-10 rounded-lg border border-emerald-200 bg-emerald-50 p-6">
+                  <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.26em] text-emerald-700">Hostel Care Application</p>
+                      <h3 className="text-2xl font-black text-gray-900">Hostel Profile</h3>
+                    </div>
+                    <span className="w-fit rounded-lg bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-emerald-700 border border-emerald-200">
+                      {student.dorm || 'Dorm unassigned'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    <div className="rounded-lg border border-white bg-white p-4">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-700 mb-4">Birth & Development</p>
+                      <DetailRow label="Home Language" value={hostelApplication?.homeLanguage} />
+                      <DetailRow label="Born" value={hostelApplication?.birthTerm} />
+                      <DetailRow label="Delivery" value={hostelApplication?.deliveryType} />
+                      <DetailRow label="Birth Weight" value={hostelApplication?.birthWeightKg ? `${hostelApplication.birthWeightKg} kg` : ''} />
+                      <DetailRow label="Birth Complications" value={hostelApplication?.birthComplications} />
+                      <DetailRow label="Sat Alone" value={hostelApplication?.milestones?.satAlone} />
+                      <DetailRow label="Walked Alone" value={hostelApplication?.milestones?.walkedAlone} />
+                      <DetailRow label="First Words" value={hostelApplication?.milestones?.firstWords} />
+                      <DetailRow label="Toilet Trained" value={hostelApplication?.milestones?.toiletTrained} />
+                      <DetailRow label="Health History" value={formatList(hostelApplication?.medicalHistory)} />
+                    </div>
+
+                    <div className="rounded-lg border border-white bg-white p-4">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-700 mb-4">Medical & Support</p>
+                      <DetailRow label="Diagnosis" value={formatList(hostelApplication?.diagnosis)} />
+                      <DetailRow label="Other Diagnosis" value={hostelApplication?.diagnosisOther} />
+                      <DetailRow label="Diagnosis Date" value={hostelApplication?.diagnosisDate} />
+                      <DetailRow label="Diagnosed By" value={hostelApplication?.diagnosedBy} />
+                      <DetailRow label="Medication Currently Taken" value={hostelApplication?.medicationCurrentlyTaken} />
+                      <DetailRow label="Seizure History" value={hostelApplication?.seizureHistory} />
+                      <DetailRow label="Seizure Details" value={hostelApplication?.seizureDetails} />
+                      <DetailRow label="Allergies" value={hostelApplication?.allergies || student.medicalConditions} />
+                      <DetailRow label="Immunization Status" value={hostelApplication?.immunizationStatus} />
+                    </div>
+
+                    <div className="rounded-lg border border-white bg-white p-4">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700 mb-4">Daily Care</p>
+                      <DetailRow label="Communication Needs" value={formatList(hostelApplication?.communicationNeeds)} />
+                      <DetailRow label="Mobility" value={formatList(hostelApplication?.mobilityNeeds)} />
+                      <DetailRow label="Learning Support" value={formatList(hostelApplication?.learningSupport)} />
+                      <DetailRow label="Sensory Needs" value={formatList(hostelApplication?.sensoryNeeds)} />
+                      <DetailRow label="Other Sensory Needs" value={hostelApplication?.sensoryOther} />
+                      <DetailRow label="Daily Living Assistance" value={formatList(hostelApplication?.dailyLivingAssistance)} />
+                    </div>
+
+                    <div className="rounded-lg border border-white bg-white p-4 md:col-span-2 xl:col-span-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-700 mb-4">Guardian, Emergency & Hostel</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8">
+                        <DetailRow label="Guardian 1 Relationship" value={hostelApplication?.guardian1Relationship} />
+                        <DetailRow label="Guardian 1 ID / Passport" value={hostelApplication?.guardian1IdPassport} />
+                        <DetailRow label="Guardian 2 Relationship" value={hostelApplication?.guardian2Relationship} />
+                        <DetailRow label="Guardian 2 ID / Passport" value={hostelApplication?.guardian2IdPassport} />
+                        <DetailRow label="Alternative Emergency Number" value={hostelApplication?.emergencyAlternativeNumber} />
+                        <DetailRow label="Preferred Hospital / Clinic" value={hostelApplication?.preferredHospitalClinic} />
+                        <DetailRow label="Medical Aid / Insurance" value={hostelApplication?.medicalAidInsurance || medicalAidSummary} />
+                        <DetailRow label="Previously Stayed in Hostel" value={hostelApplication?.previouslyStayedInHostel} />
+                        <DetailRow label="Requires 24-Hour Assistance" value={hostelApplication?.requires24HourAssistance} />
+                        <DetailRow label="Special Dietary Requirements" value={hostelApplication?.specialDietaryRequirements} />
+                        <DetailRow label="Dietary Details" value={hostelApplication?.dietaryDetails} />
+                        <DetailRow label="Declaration Guardian" value={hostelApplication?.declarationGuardianName} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

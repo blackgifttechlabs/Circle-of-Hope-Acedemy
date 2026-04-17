@@ -211,6 +211,9 @@ export const ApplicationDetailsPage: React.FC = () => {
     </div>
   );
 
+  const formatList = (items?: string[]) => (items && items.length > 0 ? items.join(', ') : null);
+  const medicalAidSummary = [app.medicalAidName, app.medicalAidOption, app.medicalAidMemberID ? `Member ID: ${app.medicalAidMemberID}` : ''].filter(Boolean).join(' - ');
+
   const DocumentCard: React.FC<{ title: string; item?: any | null }> = ({ title, item }) => (
     <div className="border border-gray-200 rounded-2xl overflow-hidden bg-gray-50">
       <div className="p-5 border-b border-gray-200 flex items-center justify-between gap-3">
@@ -368,6 +371,7 @@ export const ApplicationDetailsPage: React.FC = () => {
                     <InfoRow label="Residential Address" value={app.address} />
                     <InfoRow label="Region" value={app.region} />
                     <InfoRow label="Special Needs" value={app.isSpecialNeeds ? `Yes - ${app.specialNeedsType}` : 'No'} />
+                    <InfoRow label="Hostel Care Requested" value={app.needsHostel ? 'Yes' : 'No'} />
                 </Section>
                 <Section title="Parent / Guardian Info">
                     <InfoRow label="Father Name" value={app.fatherName} />
@@ -415,6 +419,50 @@ export const ApplicationDetailsPage: React.FC = () => {
                          </>
                      )}
                 </Section>
+                {app.needsHostel && (
+                    <Section title="Hostel Care & Accommodation">
+                        <InfoRow label="Home Language" value={app.hostelApplication?.homeLanguage} />
+                        <InfoRow label="Born" value={app.hostelApplication?.birthTerm} />
+                        <InfoRow label="Delivery" value={app.hostelApplication?.deliveryType} />
+                        <InfoRow label="Birth Weight" value={app.hostelApplication?.birthWeightKg ? `${app.hostelApplication.birthWeightKg} kg` : null} />
+                        <InfoRow label="Birth Complications" value={app.hostelApplication?.birthComplications} />
+                        <InfoRow label="Sat Alone" value={app.hostelApplication?.milestones?.satAlone} />
+                        <InfoRow label="Walked Alone" value={app.hostelApplication?.milestones?.walkedAlone} />
+                        <InfoRow label="First Words" value={app.hostelApplication?.milestones?.firstWords} />
+                        <InfoRow label="Toilet Trained" value={app.hostelApplication?.milestones?.toiletTrained} />
+                        <InfoRow label="Health History" value={formatList(app.hostelApplication?.medicalHistory)} />
+                        <div className="md:col-span-2 border-t pt-2 mt-2"></div>
+                        <InfoRow label="Diagnosis" value={formatList(app.hostelApplication?.diagnosis)} />
+                        <InfoRow label="Other Diagnosis" value={app.hostelApplication?.diagnosisOther} />
+                        <InfoRow label="Diagnosis Date" value={app.hostelApplication?.diagnosisDate} />
+                        <InfoRow label="Diagnosed By" value={app.hostelApplication?.diagnosedBy} />
+                        <InfoRow label="Medication Currently Taken" value={app.hostelApplication?.medicationCurrentlyTaken} />
+                        <InfoRow label="Seizure History" value={app.hostelApplication?.seizureHistory} />
+                        <InfoRow label="Seizure Details" value={app.hostelApplication?.seizureDetails} />
+                        <InfoRow label="Allergies" value={app.hostelApplication?.allergies || app.medicalConditions} />
+                        <InfoRow label="Immunization Status" value={app.hostelApplication?.immunizationStatus} />
+                        <div className="md:col-span-2 border-t pt-2 mt-2"></div>
+                        <InfoRow label="Communication Needs" value={formatList(app.hostelApplication?.communicationNeeds)} />
+                        <InfoRow label="Mobility" value={formatList(app.hostelApplication?.mobilityNeeds)} />
+                        <InfoRow label="Learning Support" value={formatList(app.hostelApplication?.learningSupport)} />
+                        <InfoRow label="Sensory Needs" value={formatList(app.hostelApplication?.sensoryNeeds)} />
+                        <InfoRow label="Other Sensory Needs" value={app.hostelApplication?.sensoryOther} />
+                        <InfoRow label="Daily Living Assistance" value={formatList(app.hostelApplication?.dailyLivingAssistance)} />
+                        <div className="md:col-span-2 border-t pt-2 mt-2"></div>
+                        <InfoRow label="Guardian 1 Relationship" value={app.hostelApplication?.guardian1Relationship} />
+                        <InfoRow label="Guardian 1 ID / Passport" value={app.hostelApplication?.guardian1IdPassport} />
+                        <InfoRow label="Guardian 2 Relationship" value={app.hostelApplication?.guardian2Relationship} />
+                        <InfoRow label="Guardian 2 ID / Passport" value={app.hostelApplication?.guardian2IdPassport} />
+                        <InfoRow label="Alternative Emergency Number" value={app.hostelApplication?.emergencyAlternativeNumber} />
+                        <InfoRow label="Preferred Hospital / Clinic" value={app.hostelApplication?.preferredHospitalClinic} />
+                        <InfoRow label="Medical Aid / Insurance" value={app.hostelApplication?.medicalAidInsurance || medicalAidSummary} />
+                        <InfoRow label="Previously Stayed in Hostel" value={app.hostelApplication?.previouslyStayedInHostel} />
+                        <InfoRow label="Requires 24-Hour Assistance" value={app.hostelApplication?.requires24HourAssistance} />
+                        <InfoRow label="Special Dietary Requirements" value={app.hostelApplication?.specialDietaryRequirements} />
+                        <InfoRow label="Dietary Details" value={app.hostelApplication?.dietaryDetails} />
+                        <InfoRow label="Declaration Guardian" value={app.hostelApplication?.declarationGuardianName} />
+                    </Section>
+                )}
                 <Section title="Application Documents" className="md:col-span-2">
                     <div className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <DocumentCard title="Birth Certificate" item={app.birthCertificate} />

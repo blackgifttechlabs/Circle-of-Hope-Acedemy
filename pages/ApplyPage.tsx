@@ -4,16 +4,75 @@ import { submitApplication, getSystemSettings, determineSpecialNeedsLevel } from
 import { ArrowLeft, CheckCircle, ArrowRight, Check, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { CustomSelect } from '../components/ui/CustomSelect';
-import { ApplicationFileAttachment } from '../types';
+import { ApplicationFileAttachment, HostelApplicationDetails } from '../types';
 
-const STEPS = [
-  "Learner",
-  "Parents", 
-  "History",
-  "Medical",
-  "Documents",
-  "Consent"
+type ApplicationStepKey = 'learner' | 'parents' | 'history' | 'medical' | 'documents' | 'hostel' | 'consent';
+
+const BASE_STEPS: { key: ApplicationStepKey; label: string }[] = [
+  { key: 'learner', label: 'Learner' },
+  { key: 'parents', label: 'Parents' },
+  { key: 'history', label: 'History' },
+  { key: 'medical', label: 'Medical' },
+  { key: 'documents', label: 'Documents' },
+  { key: 'consent', label: 'Consent' },
 ];
+
+const DEFAULT_HOSTEL_APPLICATION: HostelApplicationDetails = {
+  homeLanguage: '',
+  birthTerm: '',
+  deliveryType: '',
+  birthWeightKg: '',
+  birthComplications: '',
+  milestones: {
+    satAlone: '',
+    walkedAlone: '',
+    firstWords: '',
+    toiletTrained: '',
+  },
+  medicalHistory: [],
+  diagnosis: [],
+  diagnosisOther: '',
+  diagnosisDate: '',
+  diagnosedBy: '',
+  medicationCurrentlyTaken: '',
+  seizureHistory: '',
+  seizureDetails: '',
+  allergies: '',
+  immunizationStatus: '',
+  communicationNeeds: [],
+  mobilityNeeds: [],
+  learningSupport: [],
+  sensoryNeeds: [],
+  sensoryOther: '',
+  dailyLivingAssistance: [],
+  guardian1Relationship: '',
+  guardian1IdPassport: '',
+  guardian2Relationship: '',
+  guardian2IdPassport: '',
+  emergencyAlternativeNumber: '',
+  preferredHospitalClinic: '',
+  medicalAidInsurance: '',
+  previouslyStayedInHostel: '',
+  requires24HourAssistance: '',
+  specialDietaryRequirements: '',
+  dietaryDetails: '',
+  declarationGuardianName: '',
+};
+
+const medicalHistoryOptions = [
+  'Frequent hospital admissions',
+  'Convulsions / seizures',
+  'Feeding difficulties',
+  'Hearing problems',
+  'Vision problems',
+];
+
+const diagnosisOptions = ['Autism', 'Down Syndrome', 'Learning Disability', 'Other'];
+const communicationOptions = ['Verbal', 'Non-verbal', 'Sign language', 'Communication device'];
+const mobilityOptions = ['Independent', 'Wheelchair', 'Needs assistance'];
+const learningSupportOptions = ['One-on-one', 'Small group', 'Occupational therapy', 'Speech therapy', 'Physiotherapy', 'Behavioral support'];
+const sensoryOptions = ['Noise sensitivity', 'Light sensitivity', 'Other'];
+const dailyLivingOptions = ['Feeding', 'Toileting', 'Dressing', 'Bathing'];
 
 // Enhanced Input for Validation Feedback
 const FormInput: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }> = ({ label, className = '', required, error, ...props }) => (
@@ -49,6 +108,8 @@ export const ApplyPage: React.FC = () => {
   const [formData, setFormData] = useState({
     surname: '', firstName: '', dob: '', citizenship: '', gender: 'Male', 
     address: '', region: '', grade: '', isSpecialNeeds: false, specialNeedsType: '',
+    needsHostel: false,
+    hostelApplication: DEFAULT_HOSTEL_APPLICATION,
     fatherName: '', fatherPhone: '', fatherEmail: '',
     motherName: '', motherPhone: '', motherEmail: '',
     emergencyName: '', emergencyRelationship: '', emergencyWork: '', emergencyCell: '', emergencyEmail: '',
@@ -69,6 +130,16 @@ export const ApplyPage: React.FC = () => {
     otherDocuments: [] as ApplicationFileAttachment[],
   });
 
+  const steps = formData.needsHostel
+    ? [
+        ...BASE_STEPS.slice(0, 5),
+        { key: 'hostel' as ApplicationStepKey, label: 'Hostel Care' },
+        BASE_STEPS[5],
+      ]
+    : BASE_STEPS;
+  const currentStepConfig = steps[currentStep] || steps[0];
+  const currentStepKey = currentStepConfig.key;
+
   const fileToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -88,6 +159,12 @@ export const ApplyPage: React.FC = () => {
     };
     fetchGrades();
   }, []);
+
+  useEffect(() => {
+    if (currentStep >= steps.length) {
+      setCurrentStep(steps.length - 1);
+    }
+  }, [currentStep, steps.length]);
 
   useEffect(() => {
     if (formData.isSpecialNeeds && formData.dob) {
@@ -123,10 +200,99 @@ export const ApplyPage: React.FC = () => {
     }
   };
 
-  const validateStep = (step: number): boolean => {
+  const clearFieldError = (name: string) => {
+    if (!errors[name]) return;
+    const newErrors = { ...errors };
+    delete newErrors[name];
+    setErrors(newErrors);
+    setStepError(null);
+  };
+
+  const updateHostelField = (name: keyof HostelApplicationDetails, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      hostelApplication: {
+        ...prev.hostelApplication,
+        [name]: value,
+      },
+    }));
+    clearFieldError(`hostelApplication.${String(name)}`);
+  };
+
+  const updateHostelMilestone = (name: keyof NonNullable<HostelApplicationDetails['milestones']>, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      hostelApplication: {
+        ...prev.hostelApplication,
+        milestones: {
+          ...prev.hostelApplication.milestones,
+          [name]: value,
+        },
+      },
+    }));
+  };
+
+  const toggleHostelList = (
+    name: keyof Pick<
+      HostelApplicationDetails,
+      'medicalHistory' | 'diagnosis' | 'communicationNeeds' | 'mobilityNeeds' | 'learningSupport' | 'sensoryNeeds' | 'dailyLivingAssistance'
+    >,
+    value: string
+  ) => {
+    setFormData(prev => {
+      const current = (prev.hostelApplication[name] || []) as string[];
+      return {
+        ...prev,
+        hostelApplication: {
+          ...prev.hostelApplication,
+          [name]: current.includes(value) ? current.filter(item => item !== value) : [...current, value],
+        },
+      };
+    });
+  };
+
+  const stripEmptyValues = (value: any): any => {
+    if (Array.isArray(value)) {
+      return value.length > 0 ? value : undefined;
+    }
+    if (value && typeof value === 'object') {
+      const cleaned = Object.entries(value).reduce<Record<string, any>>((acc, [key, item]) => {
+        const nextValue = stripEmptyValues(item);
+        if (nextValue !== undefined) acc[key] = nextValue;
+        return acc;
+      }, {});
+      return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed ? trimmed : undefined;
+    }
+    return value;
+  };
+
+  const buildHostelApplicationPayload = (): HostelApplicationDetails | undefined => {
+    if (!formData.needsHostel) return undefined;
+    const fallbackGuardianName = formData.hostelApplication.declarationGuardianName || formData.fatherName || formData.motherName || '';
+    const recordedMedicalAid = [
+      formData.medicalAidName,
+      formData.medicalAidOption,
+      formData.medicalAidMemberID ? `Member ID: ${formData.medicalAidMemberID}` : '',
+    ].filter(Boolean).join(' - ');
+    const fallbackMedicalAid = formData.hostelApplication.medicalAidInsurance || recordedMedicalAid;
+    const fallbackAllergies = formData.hostelApplication.allergies || formData.medicalConditions || '';
+
+    return stripEmptyValues({
+      ...formData.hostelApplication,
+      allergies: fallbackAllergies,
+      medicalAidInsurance: fallbackMedicalAid,
+      declarationGuardianName: fallbackGuardianName,
+    }) as HostelApplicationDetails;
+  };
+
+  const validateStep = (step: ApplicationStepKey): boolean => {
     const newErrors: Record<string, string> = {};
     
-    if (step === 0) {
+    if (step === 'learner') {
         if (!formData.surname.trim()) newErrors.surname = "Surname is required";
         if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
         if (!formData.dob) newErrors.dob = "Date of birth is required";
@@ -134,24 +300,37 @@ export const ApplyPage: React.FC = () => {
         if (!formData.address.trim()) newErrors.address = "Address is required";
         if (!formData.isSpecialNeeds && !formData.grade) newErrors.grade = "Grade selection is required";
         if (formData.isSpecialNeeds && !formData.specialNeedsType) newErrors.specialNeedsType = "Please select the type of special needs";
-    } else if (step === 1) {
+    } else if (step === 'parents') {
         if (!formData.fatherName.trim()) newErrors.fatherName = "Father/Guardian name is required";
         if (!formData.fatherPhone.trim()) newErrors.fatherPhone = "Phone number is required";
         if (!formData.fatherEmail.trim()) newErrors.fatherEmail = "Email is required";
         if (!formData.emergencyName.trim()) newErrors.emergencyName = "Emergency contact name is required";
         if (!formData.emergencyRelationship.trim()) newErrors.emergencyRelationship = "Relationship is required";
         if (!formData.emergencyCell.trim()) newErrors.emergencyCell = "Cell number is required";
-    } else if (step === 2) {
+    } else if (step === 'history') {
         if (formData.hasPreviousSchool) {
             if (!formData.previousSchool.trim()) newErrors.previousSchool = "Please provide the previous school name";
             if (!formData.highestGrade.trim()) newErrors.highestGrade = "Highest grade is required";
         }
-    } else if (step === 3) {
+    } else if (step === 'medical') {
         if (formData.hasMedicalAid) {
             if (!formData.medicalAidName?.trim()) newErrors.medicalAidName = "Medical aid name is required";
             if (!formData.medicalAidMemberID?.trim()) newErrors.medicalAidMemberID = "Member ID is required";
         }
-    } else if (step === 5) {
+    } else if (step === 'hostel') {
+        if (!formData.hostelApplication.birthTerm) newErrors['hostelApplication.birthTerm'] = "Select birth term";
+        if (!formData.hostelApplication.deliveryType) newErrors['hostelApplication.deliveryType'] = "Select delivery type";
+        if (!formData.hostelApplication.immunizationStatus) newErrors['hostelApplication.immunizationStatus'] = "Select immunization status";
+        if (!formData.hostelApplication.previouslyStayedInHostel) newErrors['hostelApplication.previouslyStayedInHostel'] = "Select an option";
+        if (!formData.hostelApplication.requires24HourAssistance) newErrors['hostelApplication.requires24HourAssistance'] = "Select an option";
+        if (!formData.hostelApplication.specialDietaryRequirements) newErrors['hostelApplication.specialDietaryRequirements'] = "Select an option";
+        if (formData.hostelApplication.specialDietaryRequirements === 'Yes' && !formData.hostelApplication.dietaryDetails?.trim()) {
+          newErrors['hostelApplication.dietaryDetails'] = "Please specify dietary requirements";
+        }
+        if (!(formData.hostelApplication.declarationGuardianName || formData.fatherName || formData.motherName).trim()) {
+          newErrors['hostelApplication.declarationGuardianName'] = "Guardian declaration name is required";
+        }
+    } else if (step === 'consent') {
         if (!formData.medicalConsent) newErrors.medicalConsent = "You must provide medical consent";
         if (!formData.agreed) newErrors.agreed = "You must agree to the terms";
     }
@@ -175,8 +354,8 @@ export const ApplyPage: React.FC = () => {
   };
 
   const handleNext = () => {
-    if (validateStep(currentStep)) {
-        if (currentStep < STEPS.length - 1) {
+    if (validateStep(currentStepKey)) {
+        if (currentStep < steps.length - 1) {
           setCurrentStep(prev => prev + 1);
           scrollToTop();
         }
@@ -193,10 +372,14 @@ export const ApplyPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateStep(currentStep)) return;
+    if (!validateStep(currentStepKey)) return;
 
     setLoading(true);
-    const success = await submitApplication(formData as any);
+    const payload = {
+      ...formData,
+      hostelApplication: buildHostelApplicationPayload(),
+    };
+    const success = await submitApplication(payload as any);
     if (success) {
       setSubmitted(true);
       scrollToTop();
@@ -229,6 +412,153 @@ export const ApplyPage: React.FC = () => {
       fileBase64: await fileToDataUrl(file),
     })));
     setFormData(prev => ({ ...prev, [bucket]: [...prev[bucket], ...next] }));
+  };
+
+  const HostelTextInput = ({
+    label,
+    field,
+    type = 'text',
+    required = false,
+    placeholder = '',
+    value,
+    onChange,
+  }: {
+    label: string;
+    field: keyof HostelApplicationDetails;
+    type?: string;
+    required?: boolean;
+    placeholder?: string;
+    value?: string;
+    onChange?: (value: string) => void;
+  }) => {
+    const errorKey = `hostelApplication.${String(field)}`;
+    return (
+      <div className="mb-5">
+        <label className="block text-gray-800 text-sm font-medium mb-2">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <input
+          type={type}
+          value={value ?? (formData.hostelApplication[field] as string) ?? ''}
+          onChange={(event) => (onChange ? onChange(event.target.value) : updateHostelField(field, event.target.value))}
+          placeholder={placeholder}
+          className={`w-full rounded-lg border px-3 py-3 text-sm font-semibold outline-none transition-colors ${
+            errors[errorKey] ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white focus:border-emerald-500'
+          }`}
+        />
+        {errors[errorKey] && <p className="mt-1 text-xs font-bold text-red-600">{errors[errorKey]}</p>}
+      </div>
+    );
+  };
+
+  const HostelTextarea = ({
+    label,
+    field,
+    required = false,
+    placeholder = '',
+  }: {
+    label: string;
+    field: keyof HostelApplicationDetails;
+    required?: boolean;
+    placeholder?: string;
+  }) => {
+    const errorKey = `hostelApplication.${String(field)}`;
+    return (
+      <div className="mb-5">
+        <label className="block text-gray-800 text-sm font-medium mb-2">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <textarea
+          value={(formData.hostelApplication[field] as string) || ''}
+          onChange={(event) => updateHostelField(field, event.target.value)}
+          placeholder={placeholder}
+          rows={3}
+          className={`w-full rounded-lg border px-3 py-3 text-sm font-semibold outline-none transition-colors ${
+            errors[errorKey] ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white focus:border-emerald-500'
+          }`}
+        />
+        {errors[errorKey] && <p className="mt-1 text-xs font-bold text-red-600">{errors[errorKey]}</p>}
+      </div>
+    );
+  };
+
+  const HostelChoiceGroup = ({
+    label,
+    field,
+    options,
+    required = false,
+  }: {
+    label: string;
+    field: keyof HostelApplicationDetails;
+    options: string[];
+    required?: boolean;
+  }) => {
+    const errorKey = `hostelApplication.${String(field)}`;
+    const currentValue = (formData.hostelApplication[field] as string) || '';
+    return (
+      <div className="mb-5">
+        <p className="block text-gray-800 text-sm font-medium mb-2">
+          {label} {required && <span className="text-red-500">*</span>}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {options.map(option => (
+            <button
+              type="button"
+              key={option}
+              onClick={() => updateHostelField(field, option)}
+              className={`rounded-lg border px-4 py-2 text-xs font-black uppercase tracking-wide transition-colors ${
+                currentValue === option
+                  ? 'border-emerald-600 bg-emerald-600 text-white'
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-emerald-300'
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+        {errors[errorKey] && <p className="mt-1 text-xs font-bold text-red-600">{errors[errorKey]}</p>}
+      </div>
+    );
+  };
+
+  const HostelCheckboxGrid = ({
+    label,
+    field,
+    options,
+  }: {
+    label: string;
+    field: keyof Pick<
+      HostelApplicationDetails,
+      'medicalHistory' | 'diagnosis' | 'communicationNeeds' | 'mobilityNeeds' | 'learningSupport' | 'sensoryNeeds' | 'dailyLivingAssistance'
+    >;
+    options: string[];
+  }) => {
+    const selected = (formData.hostelApplication[field] || []) as string[];
+    return (
+      <div className="mb-5">
+        <p className="block text-gray-800 text-sm font-medium mb-2">{label}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {options.map(option => (
+            <label
+              key={option}
+              className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 text-sm font-bold transition-colors ${
+                selected.includes(option)
+                  ? 'border-teal-400 bg-teal-50 text-teal-800'
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-teal-300'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(option)}
+                onChange={() => toggleHostelList(field, option)}
+                className="h-4 w-4 accent-teal-600"
+              />
+              {option}
+            </label>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   if (submitted) {
@@ -279,15 +609,15 @@ export const ApplyPage: React.FC = () => {
               <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 -z-10 transform -translate-y-1/2"></div>
               <div 
                 className="absolute top-1/2 left-0 h-0.5 bg-coha-500 -z-10 transform -translate-y-1/2 transition-all duration-300"
-                style={{ width: `${(currentStep / (STEPS.length - 1)) * 100}%` }}
+                style={{ width: `${steps.length > 1 ? (currentStep / (steps.length - 1)) * 100 : 0}%` }}
               ></div>
 
-              {STEPS.map((step, index) => {
+              {steps.map((step, index) => {
                 const isCompleted = index < currentStep;
                 const isCurrent = index === currentStep;
                 
                 return (
-                  <div key={index} className="flex flex-col items-center bg-white px-1">
+                  <div key={step.key} className="flex flex-col items-center bg-white px-1">
                     <div 
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300 ${
                         isCompleted ? 'bg-coha-500 border-coha-500 text-white' : 
@@ -302,7 +632,7 @@ export const ApplyPage: React.FC = () => {
               })}
             </div>
             <div className="text-center mt-2">
-              <span className="text-xs font-bold text-coha-900 uppercase tracking-wide">{STEPS[currentStep]}</span>
+              <span className="text-xs font-bold text-coha-900 uppercase tracking-wide">{currentStepConfig.label}</span>
             </div>
           </div>
         </div>
@@ -311,7 +641,7 @@ export const ApplyPage: React.FC = () => {
       <form onSubmit={handleSubmit} className="px-5 pt-8 max-w-5xl mx-auto">
         
         {/* Step 1: Learner */}
-        {currentStep === 0 && (
+        {currentStepKey === 'learner' && (
           <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div>
                 <FormInput name="surname" label="Surname" value={formData.surname} onChange={handleChange} required error={errors.surname} />
@@ -343,6 +673,27 @@ export const ApplyPage: React.FC = () => {
                       <p className="text-xs text-gray-500 mt-1">Select this if the learner requires Special Needs education.</p>
                     </div>
                   </label>
+                </div>
+
+                <div className="mb-6">
+                  <label className="flex items-start gap-3 cursor-pointer p-4 bg-emerald-50 border border-emerald-200 rounded-lg hover:border-emerald-400 transition-colors">
+                    <input
+                      type="checkbox"
+                      name="needsHostel"
+                      checked={formData.needsHostel}
+                      onChange={handleChange}
+                      className="mt-1 w-5 h-5 accent-emerald-600"
+                    />
+                    <div>
+                      <span className="font-bold text-gray-900 text-sm">Hostel Care & Accommodation</span>
+                      <p className="text-xs text-gray-600 mt-1">Select this if you want your child to apply for hostel care.</p>
+                    </div>
+                  </label>
+                  {formData.needsHostel && (
+                    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-100 px-4 py-3 text-sm font-bold text-emerald-800">
+                      At the end of this application you will complete the hostel care form. Details already entered here will be reused.
+                    </div>
+                  )}
                 </div>
 
                 {formData.isSpecialNeeds ? (
@@ -389,7 +740,7 @@ export const ApplyPage: React.FC = () => {
         )}
 
         {/* Step 2: Parents */}
-        {currentStep === 1 && (
+        {currentStepKey === 'parents' && (
           <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-6">Parent / Guardian Details</h3>
@@ -416,7 +767,7 @@ export const ApplyPage: React.FC = () => {
         )}
 
         {/* Step 3: History */}
-        {currentStep === 2 && (
+        {currentStepKey === 'history' && (
           <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-8">
              <div>
                  <h3 className="text-lg font-bold text-gray-900 mb-6">Educational History</h3>
@@ -465,7 +816,7 @@ export const ApplyPage: React.FC = () => {
         )}
 
         {/* Step 4: Medical */}
-        {currentStep === 3 && (
+        {currentStepKey === 'medical' && (
           <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-8">
              <div>
                  <h3 className="text-lg font-bold text-gray-900 mb-6">Medical Information</h3>
@@ -512,7 +863,7 @@ export const ApplyPage: React.FC = () => {
         )}
 
         {/* Step 5: Consent */}
-        {currentStep === 4 && (
+        {currentStepKey === 'documents' && (
           <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-3 gap-8">
              <div>
                  <h3 className="text-lg font-bold text-gray-900 mb-6">Birth Certificate</h3>
@@ -564,8 +915,131 @@ export const ApplyPage: React.FC = () => {
           </div>
         )}
 
+        {/* Hostel Care Form */}
+        {currentStepKey === 'hostel' && (
+          <div className="animate-fade-in space-y-8">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-700">Hostel Application Form</p>
+              <h3 className="mt-2 text-2xl font-black text-gray-900">Hostel Care & Accommodation</h3>
+              <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-gray-700">
+                We will reuse the learner, grade, parent, emergency, address, and medical aid details you already entered. Complete only the hostel care information below.
+              </p>
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-lg bg-white p-3 border border-emerald-100">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Learner</p>
+                  <p className="font-bold text-gray-900">{formData.firstName} {formData.surname}</p>
+                </div>
+                <div className="rounded-lg bg-white p-3 border border-emerald-100">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Class Applying For</p>
+                  <p className="font-bold text-gray-900">{formData.isSpecialNeeds ? autoLevel || 'Special Needs' : formData.grade || '-'}</p>
+                </div>
+                <div className="rounded-lg bg-white p-3 border border-emerald-100">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Primary Guardian</p>
+                  <p className="font-bold text-gray-900">{formData.fatherName || formData.motherName || '-'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+              <section className="rounded-lg border border-gray-200 bg-sky-50 p-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-700">A & B</p>
+                <h4 className="mt-1 mb-5 text-lg font-black text-gray-900">Birth & Development</h4>
+                <HostelTextInput label="Home Language" field="homeLanguage" placeholder="Language spoken most at home" />
+                <HostelChoiceGroup label="Born" field="birthTerm" options={['Full term', 'Premature', 'Post-term']} required />
+                <HostelChoiceGroup label="Delivery" field="deliveryType" options={['Normal', 'Caesarean', 'Assisted']} required />
+                <HostelTextInput label="Birth Weight (kg)" field="birthWeightKg" placeholder="e.g. 3.2" />
+                <HostelTextarea label="Complications at Birth" field="birthComplications" placeholder="Write none if there were no complications." />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                  <HostelTextInput label="Sat Alone" field="milestones" value={formData.hostelApplication.milestones?.satAlone || ''} onChange={(value) => updateHostelMilestone('satAlone', value)} placeholder="Age or notes" />
+                  <HostelTextInput label="Walked Alone" field="milestones" value={formData.hostelApplication.milestones?.walkedAlone || ''} onChange={(value) => updateHostelMilestone('walkedAlone', value)} placeholder="Age or notes" />
+                  <HostelTextInput label="Spoke First Words" field="milestones" value={formData.hostelApplication.milestones?.firstWords || ''} onChange={(value) => updateHostelMilestone('firstWords', value)} placeholder="Age or notes" />
+                  <HostelTextInput label="Toilet Trained" field="milestones" value={formData.hostelApplication.milestones?.toiletTrained || ''} onChange={(value) => updateHostelMilestone('toiletTrained', value)} placeholder="Age or notes" />
+                </div>
+                <HostelCheckboxGrid label="Health history" field="medicalHistory" options={medicalHistoryOptions} />
+              </section>
+
+              <section className="rounded-lg border border-gray-200 bg-rose-50 p-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-rose-700">C</p>
+                <h4 className="mt-1 mb-5 text-lg font-black text-gray-900">Medical & Special Needs</h4>
+                <HostelCheckboxGrid label="Diagnosis / condition" field="diagnosis" options={diagnosisOptions} />
+                {(formData.hostelApplication.diagnosis || []).includes('Other') && (
+                  <HostelTextInput label="Other Diagnosis" field="diagnosisOther" placeholder="Specify other diagnosis" />
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                  <HostelTextInput label="Date of Diagnosis" field="diagnosisDate" type="date" />
+                  <HostelTextInput label="Diagnosed By" field="diagnosedBy" placeholder="Doctor / specialist" />
+                </div>
+                <HostelTextarea label="Medication Currently Taken" field="medicationCurrentlyTaken" placeholder="Medicine name, dosage, and schedule" />
+                <HostelChoiceGroup label="Seizure History" field="seizureHistory" options={['Yes', 'No']} />
+                {formData.hostelApplication.seizureHistory === 'Yes' && (
+                  <HostelTextarea label="Seizure Type / Frequency" field="seizureDetails" placeholder="Describe type and frequency" />
+                )}
+                {formData.medicalConditions.trim() ? (
+                  <div className="mb-5 rounded-lg border border-rose-100 bg-white p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Allergies / Medical Conditions Already Captured</p>
+                    <p className="mt-2 text-sm font-bold text-gray-900">{formData.medicalConditions}</p>
+                  </div>
+                ) : (
+                  <HostelTextarea label="Allergies" field="allergies" placeholder="Food, medication, or environmental allergies" />
+                )}
+                <HostelChoiceGroup label="Immunization Status" field="immunizationStatus" options={['Up to Date', 'Not up to date']} required />
+              </section>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+              <section className="rounded-lg border border-gray-200 bg-amber-50 p-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-700">D</p>
+                <h4 className="mt-1 mb-5 text-lg font-black text-gray-900">Support Required</h4>
+                <HostelCheckboxGrid label="Communication needs" field="communicationNeeds" options={communicationOptions} />
+                <HostelCheckboxGrid label="Mobility" field="mobilityNeeds" options={mobilityOptions} />
+                <HostelCheckboxGrid label="Learning support required" field="learningSupport" options={learningSupportOptions} />
+                <HostelCheckboxGrid label="Sensory needs" field="sensoryNeeds" options={sensoryOptions} />
+                {(formData.hostelApplication.sensoryNeeds || []).includes('Other') && (
+                  <HostelTextInput label="Other Sensory Needs" field="sensoryOther" placeholder="Specify sensory need" />
+                )}
+                <HostelCheckboxGrid label="Assistance with daily living" field="dailyLivingAssistance" options={dailyLivingOptions} />
+              </section>
+
+              <section className="rounded-lg border border-gray-200 bg-teal-50 p-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-teal-700">E, F & G</p>
+                <h4 className="mt-1 mb-5 text-lg font-black text-gray-900">Guardian, Emergency & Hostel Details</h4>
+                <div className="mb-5 rounded-lg border border-teal-100 bg-white p-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Already Captured</p>
+                  <p className="mt-2 text-sm font-bold text-gray-900">Residential address: {formData.address || '-'}</p>
+                  <p className="text-sm font-bold text-gray-900">Emergency contact: {formData.emergencyName || '-'} {formData.emergencyCell ? `(${formData.emergencyCell})` : ''}</p>
+                  <p className="text-sm font-bold text-gray-900">Medical aid: {formData.hasMedicalAid ? formData.medicalAidName || 'Yes' : 'No'}</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                  <HostelTextInput label="Guardian 1 Relationship" field="guardian1Relationship" placeholder="e.g. Father" />
+                  <HostelTextInput label="Guardian 1 ID / Passport" field="guardian1IdPassport" />
+                  <HostelTextInput label="Guardian 2 Relationship" field="guardian2Relationship" placeholder="e.g. Mother" />
+                  <HostelTextInput label="Guardian 2 ID / Passport" field="guardian2IdPassport" />
+                </div>
+                <HostelTextInput label="Alternative Emergency Number" field="emergencyAlternativeNumber" />
+                <HostelTextInput label="Preferred Hospital / Clinic" field="preferredHospitalClinic" />
+                {!formData.hasMedicalAid && (
+                  <HostelTextInput label="Medical Aid / Insurance" field="medicalAidInsurance" placeholder="Name and member details if available" />
+                )}
+                <HostelChoiceGroup label="Previously Stayed in Hostel" field="previouslyStayedInHostel" options={['Yes', 'No']} required />
+                <HostelChoiceGroup label="Requires 24-Hour Assistance" field="requires24HourAssistance" options={['Yes', 'No']} required />
+                <HostelChoiceGroup label="Special Dietary Requirements" field="specialDietaryRequirements" options={['Yes', 'No']} required />
+                {formData.hostelApplication.specialDietaryRequirements === 'Yes' && (
+                  <HostelTextarea label="Dietary Details" field="dietaryDetails" required placeholder="Include prescribed diet details where applicable." />
+                )}
+                <HostelTextInput
+                  label="Declaration Guardian Name"
+                  field="declarationGuardianName"
+                  value={formData.hostelApplication.declarationGuardianName || formData.fatherName || formData.motherName || ''}
+                  onChange={(value) => updateHostelField('declarationGuardianName', value)}
+                  required
+                />
+              </section>
+            </div>
+          </div>
+        )}
+
         {/* Step 6: Consent */}
-        {currentStep === 5 && (
+        {currentStepKey === 'consent' && (
           <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-8">
              <div>
                  <h3 className="text-lg font-bold text-gray-900 mb-6">Consent & Declaration</h3>
@@ -634,7 +1108,7 @@ export const ApplyPage: React.FC = () => {
                 Back
               </Button>
               
-              {currentStep < STEPS.length - 1 ? (
+              {currentStep < steps.length - 1 ? (
                 <Button type="button" onClick={handleNext} className="flex-1 bg-coha-500 hover:bg-coha-600 border-none rounded-lg">
                   Next <ArrowRight size={18} />
                 </Button>

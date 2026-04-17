@@ -630,9 +630,16 @@ export const approveApplicationInitial = async (app: Application): Promise<{pin:
   try {
     const pin = Math.floor(1000 + Math.random() * 9000).toString();
     const customId = await generateStudentId();
+    const {
+      birthCertificate,
+      medicalDocuments,
+      otherDocuments,
+      id: applicationId,
+      ...applicationProfileData
+    } = app;
 
     const studentData: any = {
-        ...app,
+        ...applicationProfileData,
         name: `${app.firstName} ${app.surname}`,
         parentName: app.fatherName || app.motherName,
         parentPin: pin,
@@ -642,6 +649,9 @@ export const approveApplicationInitial = async (app: Application): Promise<{pin:
         division: app.division || (app.isSpecialNeeds ? Division.SPECIAL_NEEDS : Division.MAINSTREAM),
         level: app.level || (app.isSpecialNeeds ? determineSpecialNeedsLevel(app.dob) : ''),
         grade: app.grade || '',
+        needsHostel: !!app.needsHostel,
+        ...(app.needsHostel ? { hostelApplication: app.hostelApplication || {} } : {}),
+        sourceApplicationId: applicationId || '',
         assignedClass: normalizeClassLabel(app.isSpecialNeeds ? (app.level || '') : (app.grade || ''))
     };
     
@@ -660,20 +670,20 @@ export const approveApplicationInitial = async (app: Application): Promise<{pin:
     });
 
     const uploadedDocs = [
-      app.birthCertificate
+      birthCertificate
         ? [{
             studentId: customId,
             studentName: `${app.firstName} ${app.surname}`,
             parentName: app.fatherName || app.motherName || 'Parent',
             documentType: 'BIRTH_CERTIFICATE' as const,
-            title: app.birthCertificate.title || 'Birth Certificate',
-            fileName: app.birthCertificate.fileName,
-            mimeType: app.birthCertificate.mimeType,
-            fileBase64: app.birthCertificate.fileBase64,
+            title: birthCertificate.title || 'Birth Certificate',
+            fileName: birthCertificate.fileName,
+            mimeType: birthCertificate.mimeType,
+            fileBase64: birthCertificate.fileBase64,
             uploadedAt: Timestamp.now(),
           }]
         : [],
-      ...(app.medicalDocuments || []).map((item) => ({
+      ...(medicalDocuments || []).map((item) => ({
         studentId: customId,
         studentName: `${app.firstName} ${app.surname}`,
         parentName: app.fatherName || app.motherName || 'Parent',
@@ -684,7 +694,7 @@ export const approveApplicationInitial = async (app: Application): Promise<{pin:
         fileBase64: item.fileBase64,
         uploadedAt: Timestamp.now(),
       })),
-      ...(app.otherDocuments || []).map((item) => ({
+      ...(otherDocuments || []).map((item) => ({
         studentId: customId,
         studentName: `${app.firstName} ${app.surname}`,
         parentName: app.fatherName || app.motherName || 'Parent',

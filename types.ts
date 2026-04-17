@@ -320,6 +320,48 @@ export interface AssessmentData {
   parentSelfCareScore?: number; // Legacy/Quick access
 }
 
+export interface HostelApplicationDetails {
+  homeLanguage?: string;
+  birthTerm?: 'Full term' | 'Premature' | 'Post-term' | '';
+  deliveryType?: 'Normal' | 'Caesarean' | 'Assisted' | '';
+  birthWeightKg?: string;
+  birthComplications?: string;
+  milestones?: {
+    satAlone?: string;
+    walkedAlone?: string;
+    firstWords?: string;
+    toiletTrained?: string;
+  };
+  medicalHistory?: string[];
+  diagnosis?: string[];
+  diagnosisOther?: string;
+  diagnosisDate?: string;
+  diagnosedBy?: string;
+  medicationCurrentlyTaken?: string;
+  seizureHistory?: 'Yes' | 'No' | '';
+  seizureDetails?: string;
+  allergies?: string;
+  immunizationStatus?: 'Up to Date' | 'Not up to date' | '';
+  communicationNeeds?: string[];
+  mobilityNeeds?: string[];
+  learningSupport?: string[];
+  sensoryNeeds?: string[];
+  sensoryOther?: string;
+  dailyLivingAssistance?: string[];
+  guardian1Relationship?: string;
+  guardian1IdPassport?: string;
+  guardian2Relationship?: string;
+  guardian2IdPassport?: string;
+  emergencyAlternativeNumber?: string;
+  preferredHospitalClinic?: string;
+  medicalAidInsurance?: string;
+  previouslyStayedInHostel?: 'Yes' | 'No' | '';
+  requires24HourAssistance?: 'Yes' | 'No' | '';
+  specialDietaryRequirements?: 'Yes' | 'No' | '';
+  dietaryDetails?: string;
+  declarationGuardianName?: string;
+}
+
 export interface Application {
   id?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -343,6 +385,8 @@ export interface Application {
   
   isSpecialNeeds: boolean; 
   specialNeedsType?: string; 
+  needsHostel?: boolean;
+  hostelApplication?: HostelApplicationDetails;
   
   // Parent Details
   fatherName: string;
