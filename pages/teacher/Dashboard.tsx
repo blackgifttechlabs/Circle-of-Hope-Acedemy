@@ -17,21 +17,65 @@ import {
   getStudentsForTeacher,
   getTeacherById,
   getTeacherTeachingClasses,
+  getTopicAssessments,
   updateTeacher,
 } from '../../services/dataService';
-import { Student, TermCalendar } from '../../types';
+import { Student, TermCalendar, TopicAssessmentRecord } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 import { withTeachingClass, getSelectedTeachingClass, isSpecialNeedsClass, matchesTeachingClass } from '../../utils/teacherClassSelection';
-import { isGrade1To7Class } from '../../utils/assessmentWorkflow';
+import {
+  getAssessmentRecordKey,
+  getAssessmentSubjects,
+  getDefaultThemesForSubject,
+  getDefaultTopicsForTheme,
+  getSubjectLabel,
+  isGrade1To7Class,
+} from '../../utils/assessmentWorkflow';
 
 interface TeacherDashboardProps {
   user: any;
 }
 
 const CHART_WEEKS = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6'];
-const COMPLETED_POINTS = '0,128 110,104 220,92 330,70 440,66 550,48';
-const PROGRESS_POINTS = '0,150 110,142 220,136 330,124 440,120 550,112';
-const NOT_STARTED_POINTS = '0,88 110,106 220,126 330,138 440,148 550,150';
+const CHART_X_VALUES = [0, 110, 220, 330, 440, 550];
+
+type SubjectMetric = {
+  subjectId: string;
+  label: string;
+  totalTopics: number;
+  startedTopics: number;
+  completedTopics: number;
+  recordedMarks: number;
+  averageScore: number | null;
+  latestUpdatedAt: number;
+};
+
+const getMillis = (value: any) => {
+  if (!value) return 0;
+  if (typeof value?.toDate === 'function') return value.toDate().getTime();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+const getTermIdForAssessments = (termId: string) => (['term-1', 'term-2', 'term-3'].includes(termId) ? termId : 'term-1');
+
+const getDefaultTopicLabels = (className: string, termId: string, subjectId: string) => {
+  if (isGrade1To7Class(className)) {
+    return getDefaultTopicsForTheme(className, termId, subjectId, 'default').map((topic) => topic.label);
+  }
+
+  return getDefaultThemesForSubject(className, termId, subjectId).flatMap((_, index) =>
+    getDefaultTopicsForTheme(className, termId, subjectId, String(index)).map((topic) => topic.label)
+  );
+};
+
+const buildPolyline = (values: number[], maxValue: number) =>
+  values
+    .map((value, index) => {
+      const y = 150 - (value / Math.max(maxValue, 1)) * 118;
+      return `${CHART_X_VALUES[index]},${Number.isFinite(y) ? y.toFixed(1) : 150}`;
+    })
+    .join(' ');
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   const navigate = useNavigate();
@@ -42,6 +86,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   const [activeClass, setActiveClass] = useState('');
   const [activeTermId, setActiveTermId] = useState('');
   const [terms, setTerms] = useState<TermCalendar[]>([]);
+  const [assessmentRecords, setAssessmentRecords] = useState<TopicAssessmentRecord[]>([]);
+  const [assessmentsLoading, setAssessmentsLoading] = useState(false);
   const [summaryPickerOpen, setSummaryPickerOpen] = useState(false);
 
   useEffect(() => {
@@ -77,6 +123,33 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
     fetchData();
   }, [location.search, user]);
 
+  useEffect(() => {
+    const fetchAssessmentMetrics = async () => {
+      if (!activeClass) {
+        setAssessmentRecords([]);
+        return;
+      }
+
+      setAssessmentsLoading(true);
+      try {
+        const assessmentTermId = getTermIdForAssessments(activeTermId);
+        const recordKey = getAssessmentRecordKey(activeClass);
+        const subjects = getAssessmentSubjects(activeClass);
+        const records = await Promise.all(
+          subjects.map((subject) => getTopicAssessments(recordKey, assessmentTermId, subject.id))
+        );
+        setAssessmentRecords(records.flat());
+      } catch (error) {
+        console.error('Error fetching dashboard assessment metrics:', error);
+        setAssessmentRecords([]);
+      } finally {
+        setAssessmentsLoading(false);
+      }
+    };
+
+    fetchAssessmentMetrics();
+  }, [activeClass, activeTermId]);
+
   const classStudents = useMemo(() => {
     return students
       .filter((student) => matchesTeachingClass(student.assignedClass || student.grade || student.level || '', activeClass))
@@ -96,6 +169,79 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   const assessmentStudents = classStudents.filter((student) => student.studentStatus === 'ASSESSMENT');
   const classModeLabel = isSpecialNeedsClass(activeClass) ? 'Special Needs' : 'Mainstream';
   const classTemplateLabel = isGrade1To7Class(activeClass) ? 'Grade 1-7 Template' : 'Pre-Primary / Level Template';
+  const enrolledStudentIds = useMemo(() => new Set(enrolledStudents.map((student) => student.id)), [enrolledStudents]);
+  const filteredAssessmentRecords = useMemo(
+    () => assessmentRecords.filter((record) => enrolledStudentIds.has(record.studentId)),
+    [assessmentRecords, enrolledStudentIds]
+  );
+  const subjectMetrics = useMemo<SubjectMetric[]>(() => {
+    const assessmentTermId = getTermIdForAssessments(activeTermId);
+    const learnerCount = Math.max(enrolledStudents.length, 1);
+
+    return getAssessmentSubjects(activeClass)
+      .map((subject) => {
+        const records = filteredAssessmentRecords.filter((record) => record.subject === subject.id);
+        const topics = Array.from(new Set([...getDefaultTopicLabels(activeClass, assessmentTermId, subject.id), ...records.map((record) => record.topic)]));
+        const completedTopics = topics.filter((topic) => new Set(records.filter((record) => record.topic === topic).map((record) => record.studentId)).size >= learnerCount).length;
+        const startedTopics = topics.filter((topic) => records.some((record) => record.topic === topic)).length;
+        const maxMark = isGrade1To7Class(activeClass) ? 10 : 3;
+        const averageScore = records.length
+          ? Math.round((records.reduce((sum, record) => sum + record.mark, 0) / (records.length * maxMark)) * 100)
+          : null;
+
+        return {
+          subjectId: subject.id,
+          label: getSubjectLabel(subject.id, activeClass),
+          totalTopics: topics.length,
+          startedTopics,
+          completedTopics,
+          recordedMarks: records.length,
+          averageScore,
+          latestUpdatedAt: Math.max(0, ...records.map((record) => getMillis(record.updatedAt))),
+        };
+      })
+      .sort((a, b) => b.latestUpdatedAt - a.latestUpdatedAt);
+  }, [activeClass, activeTermId, enrolledStudents.length, filteredAssessmentRecords]);
+
+  const classOverview = useMemo(() => {
+    const totalTopics = subjectMetrics.reduce((sum, metric) => sum + metric.totalTopics, 0);
+    const completed = subjectMetrics.reduce((sum, metric) => sum + metric.completedTopics, 0);
+    const inProgress = subjectMetrics.reduce((sum, metric) => sum + Math.max(metric.startedTopics - metric.completedTopics, 0), 0);
+    const notStarted = Math.max(totalTopics - completed - inProgress, 0);
+    return { totalTopics, completed, inProgress, notStarted };
+  }, [subjectMetrics]);
+
+  const chartSeries = useMemo(() => {
+    const buckets = Array(6).fill(0) as number[];
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - 35);
+
+    filteredAssessmentRecords.forEach((record) => {
+      const millis = getMillis(record.updatedAt);
+      const index = millis ? Math.floor((millis - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) : 5;
+      if (index >= 0 && index < 6) buckets[index] += 1;
+    });
+
+    const completed = buckets.reduce<number[]>((acc, count, index) => {
+      acc.push((acc[index - 1] || 0) + count);
+      return acc;
+    }, []);
+    const started = completed.map((value) => Math.min(value + classOverview.inProgress, classOverview.totalTopics * Math.max(enrolledStudents.length, 1)));
+    const remaining = completed.map((value) => Math.max((classOverview.totalTopics * Math.max(enrolledStudents.length, 1)) - value, 0));
+    const maxValue = Math.max(1, ...completed, ...started, ...remaining);
+
+    return {
+      completed,
+      started,
+      remaining,
+      maxValue,
+      completedPoints: buildPolyline(completed, maxValue),
+      startedPoints: buildPolyline(started, maxValue),
+      remainingPoints: buildPolyline(remaining, maxValue),
+    };
+  }, [classOverview, enrolledStudents.length, filteredAssessmentRecords]);
 
   const handleClassSelect = async (className: string) => {
     setActiveClass(className);
@@ -249,22 +395,22 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                 </div>
               </div>
               <div className="mb-4 flex flex-wrap gap-5 text-xs font-bold text-slate-500">
-                <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-purple-700" /> Assessments Completed</span>
-                <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-orange-600" /> In Progress</span>
-                <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-slate-300" /> Not Started</span>
+                <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-purple-700" /> Recorded Marks</span>
+                <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-orange-600" /> Started Capacity</span>
+                <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-slate-300" /> Remaining Marks</span>
               </div>
               <div className="relative h-[250px] overflow-hidden">
                 <div className="absolute inset-x-10 top-0 h-full">
                   {[0, 1, 2, 3, 4].map((line) => <div key={line} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: `${line * 22}%` }} />)}
                 </div>
                 <svg viewBox="0 0 550 170" className="absolute inset-x-10 top-5 h-[170px] w-[calc(100%-5rem)] overflow-visible">
-                  <polyline fill="none" points={NOT_STARTED_POINTS} stroke="#cbd5e1" strokeWidth="3" />
-                  <polyline fill="none" points={PROGRESS_POINTS} stroke="#ff3b1f" strokeWidth="3" />
-                  <polyline fill="none" points={COMPLETED_POINTS} stroke="#a100ff" strokeWidth="4" />
-                  {[0, 110, 220, 330, 440, 550].map((x, index) => (
+                  <polyline fill="none" points={chartSeries.remainingPoints} stroke="#cbd5e1" strokeWidth="3" />
+                  <polyline fill="none" points={chartSeries.startedPoints} stroke="#ff3b1f" strokeWidth="3" />
+                  <polyline fill="none" points={chartSeries.completedPoints} stroke="#a100ff" strokeWidth="4" />
+                  {CHART_X_VALUES.map((x, index) => (
                     <React.Fragment key={x}>
-                      <circle cx={x} cy={COMPLETED_POINTS.split(' ')[index].split(',')[1]} r="4" fill="#a100ff" />
-                      <circle cx={x} cy={PROGRESS_POINTS.split(' ')[index].split(',')[1]} r="3.5" fill="#ff3b1f" />
+                      <circle cx={x} cy={chartSeries.completedPoints.split(' ')[index]?.split(',')[1] || 150} r="4" fill="#a100ff" />
+                      <circle cx={x} cy={chartSeries.startedPoints.split(' ')[index]?.split(',')[1] || 150} r="3.5" fill="#ff3b1f" />
                     </React.Fragment>
                   ))}
                 </svg>
@@ -273,9 +419,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                 </div>
               </div>
               <div className="grid border-t border-slate-100 pt-4 sm:grid-cols-3">
-                <div className="px-5 py-2"><p className="text-xs font-bold text-purple-700">Completed</p><p className="text-2xl font-black text-[#14002f]">8</p><p className="text-xs font-semibold text-slate-500">Assessments</p></div>
-                <div className="border-slate-100 px-5 py-2 sm:border-x"><p className="text-xs font-bold text-orange-600">In Progress</p><p className="text-2xl font-black text-[#14002f]">3</p><p className="text-xs font-semibold text-slate-500">Assessments</p></div>
-                <div className="px-5 py-2"><p className="text-xs font-bold text-slate-400">Not Started</p><p className="text-2xl font-black text-[#14002f]">1</p><p className="text-xs font-semibold text-slate-500">Assessments</p></div>
+                <div className="px-5 py-2"><p className="text-xs font-bold text-purple-700">Completed</p><p className="text-2xl font-black text-[#14002f]">{classOverview.completed}</p><p className="text-xs font-semibold text-slate-500">Topics</p></div>
+                <div className="border-slate-100 px-5 py-2 sm:border-x"><p className="text-xs font-bold text-orange-600">In Progress</p><p className="text-2xl font-black text-[#14002f]">{classOverview.inProgress}</p><p className="text-xs font-semibold text-slate-500">Topics</p></div>
+                <div className="px-5 py-2"><p className="text-xs font-bold text-slate-400">Not Started</p><p className="text-2xl font-black text-[#14002f]">{classOverview.notStarted}</p><p className="text-xs font-semibold text-slate-500">Topics</p></div>
               </div>
             </div>
 
@@ -297,14 +443,21 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="border-t border-slate-100">
-                      <td className="py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-700 text-white"><FileSpreadsheet size={15} /></span><div><p className="font-black text-[#14002f]">Mathematics Quiz 1</p><p className="text-xs font-semibold text-slate-500">Quiz</p></div></div></td>
-                      <td className="py-4 text-sm font-semibold text-slate-600">{activeClass}</td>
-                      <td className="py-4"><span className="rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-700">COMPLETED</span></td>
-                      <td className="py-4 text-sm font-semibold text-slate-600">85%</td>
-                      <td className="py-4 text-sm font-semibold text-slate-600">May 20, 2025</td>
-                      <td className="py-4 text-right"><ArrowRight size={16} className="ml-auto text-purple-700" /></td>
-                    </tr>
+                    {subjectMetrics.filter((metric) => metric.recordedMarks > 0).slice(0, 4).map((metric) => (
+                      <tr key={metric.subjectId} className="border-t border-slate-100">
+                        <td className="py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-700 text-white"><FileSpreadsheet size={15} /></span><div><p className="font-black text-[#14002f]">{metric.label}</p><p className="text-xs font-semibold text-slate-500">{metric.recordedMarks} marks recorded</p></div></div></td>
+                        <td className="py-4 text-sm font-semibold text-slate-600">{activeClass}</td>
+                        <td className="py-4"><span className={`rounded-md px-2 py-1 text-[10px] font-black ${metric.completedTopics >= metric.totalTopics && metric.totalTopics > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>{metric.completedTopics >= metric.totalTopics && metric.totalTopics > 0 ? 'COMPLETED' : 'IN PROGRESS'}</span></td>
+                        <td className="py-4 text-sm font-semibold text-slate-600">{metric.averageScore === null ? '-' : `${metric.averageScore}%`}</td>
+                        <td className="py-4 text-sm font-semibold text-slate-600">{metric.latestUpdatedAt ? new Date(metric.latestUpdatedAt).toLocaleDateString() : '-'}</td>
+                        <td className="py-4 text-right"><ArrowRight size={16} className="ml-auto text-purple-700" /></td>
+                      </tr>
+                    ))}
+                    {!assessmentsLoading && subjectMetrics.every((metric) => metric.recordedMarks === 0) && (
+                      <tr className="border-t border-slate-100">
+                        <td colSpan={6} className="py-8 text-center text-sm font-semibold text-slate-500">No assessment marks have been recorded for this term yet.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

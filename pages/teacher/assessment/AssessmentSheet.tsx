@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
-import { getCustomTopicEntries, getStudentsForTeacherByClass, getTopicAssessments, getTopicOverrides } from '../../../services/dataService';
+import { getCustomTopicEntries, getStudents, getStudentsForTeacherByClass, getTopicAssessments, getTopicOverrides } from '../../../services/dataService';
 import { CustomTopicEntry, Student, TopicAssessmentRecord, TopicOverride } from '../../../types';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -17,7 +17,7 @@ import {
 } from '../../../utils/assessmentWorkflow';
 import { getTopicHeaderHeight, getTopicHeaderLines, getTopicLabelParts } from '../../../utils/topicLabelFormat';
 import { navigateBackOr } from '../../../utils/navigation';
-import { getSelectedTeachingClass, withTeachingClass } from '../../../utils/teacherClassSelection';
+import { getSelectedTeachingClass, matchesTeachingClass, withTeachingClass } from '../../../utils/teacherClassSelection';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
@@ -78,10 +78,12 @@ export default function AssessmentSheet({
   user,
   backPath = '/teacher/classes',
   visibleTermIds,
+  adminMode = false,
 }: {
   user: any;
   backPath?: string;
   visibleTermIds?: string[];
+  adminMode?: boolean;
 }) {
   const { subject } = useParams<{ subject: string }>();
   const navigate = useNavigate();
@@ -147,7 +149,9 @@ export default function AssessmentSheet({
     if (className && subject) {
         setLoading(true);
       Promise.all([
-        getStudentsForTeacherByClass(user.id, className),
+        adminMode
+          ? getStudents().then((data) => data.filter((student) => matchesTeachingClass(student.assignedClass || student.grade || student.level || '', className)))
+          : getStudentsForTeacherByClass(user.id, className),
         getTopicAssessments(className, 'term-1', subject),
         getTopicAssessments(className, 'term-2', subject),
         getTopicAssessments(className, 'term-3', subject),
@@ -179,7 +183,7 @@ export default function AssessmentSheet({
           setLoading(false);
         });
     }
-  }, [className, subject]);
+  }, [adminMode, className, subject, user.id]);
 
   // ── Mark helpers ─────────────────────────────────────────────────────────
   const getStudentMark = (

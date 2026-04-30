@@ -40,6 +40,7 @@ export const AdminAssessmentSheetViewer: React.FC = () => {
       user={{ name: teacherName, assignedClass: className }}
       backPath="/admin/assessment-progress"
       visibleTermIds={termId ? [termId] : undefined}
+      adminMode
       key={`${className}-${subject}-${termId || 'all'}`}
     />
   );
