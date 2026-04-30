@@ -1,6 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BarChart3, BookOpen, Calendar as CalendarIcon, CheckCircle2, CheckSquare, ChevronRight, Clock, Download, Image as ImageIcon, Plus, PlusCircle, X } from 'lucide-react';
-import { createHomeworkAssignment, getHomeworkAssignmentsByTeacher, getHomeworkSubmissionsForClass, getTeacherById, markHomeworkSubmissionReviewed } from '../../services/dataService';
+import {
+  createHomeworkAssignment,
+  getHomeworkAssignmentsForClass,
+  getHomeworkSubmissionsForClass,
+  getTeacherById,
+  getTeacherTeachingClasses,
+  markHomeworkSubmissionReviewed,
+  updateTeacher,
+} from '../../services/dataService';
 import { HomeworkAssignment, HomeworkSubmission, Teacher } from '../../types';
 import { Loader } from '../../components/ui/Loader';
 
@@ -18,6 +26,8 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
     });
 
   const [teacher, setTeacher] = useState<Teacher | null>(null);
+  const [teachingClasses, setTeachingClasses] = useState<string[]>([]);
+  const [activeClass, setActiveClass] = useState('');
   const [assignments, setAssignments] = useState<HomeworkAssignment[]>([]);
   const [submissions, setSubmissions] = useState<HomeworkSubmission[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<HomeworkSubmission | null>(null);
@@ -44,33 +54,57 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
     document.body.removeChild(link);
   };
 
-  const load = async (teacherRecord?: Teacher | null) => {
-    const currentTeacher = teacherRecord || teacher;
-    if (!currentTeacher) return;
+  const load = async (className = activeClass) => {
+    if (!className) return;
     const [teacherAssignments, classSubmissions] = await Promise.all([
-      getHomeworkAssignmentsByTeacher(currentTeacher.id),
-      getHomeworkSubmissionsForClass(currentTeacher.assignedClass || ''),
+      getHomeworkAssignmentsForClass(className),
+      getHomeworkSubmissionsForClass(className),
     ]);
     setAssignments(teacherAssignments);
     setSubmissions(classSubmissions);
-    if (!selectedSubmission && classSubmissions.length > 0) setSelectedSubmission(classSubmissions[0]);
+    setSelectedSubmission((current) => {
+      if (current && classSubmissions.some((submission) => submission.id === current.id)) return current;
+      return classSubmissions[0] || null;
+    });
   };
 
   useEffect(() => {
     (async () => {
-      const teacherRecord = await getTeacherById(user.id);
+      const [teacherRecord, classes] = await Promise.all([
+        getTeacherById(user.id),
+        getTeacherTeachingClasses(user.id),
+      ]);
+      const nextClass = teacherRecord?.activeTeachingClass && classes.includes(teacherRecord.activeTeachingClass)
+        ? teacherRecord.activeTeachingClass
+        : classes[0] || teacherRecord?.assignedClass || '';
       setTeacher(teacherRecord);
-      await load(teacherRecord);
+      setTeachingClasses(classes);
+      setActiveClass(nextClass);
+      if (teacherRecord && nextClass) {
+        const [teacherAssignments, classSubmissions] = await Promise.all([
+          getHomeworkAssignmentsForClass(nextClass),
+          getHomeworkSubmissionsForClass(nextClass),
+        ]);
+        setAssignments(teacherAssignments);
+        setSubmissions(classSubmissions);
+        setSelectedSubmission(classSubmissions[0] || null);
+      }
       setLoading(false);
     })();
   }, [user.id]);
+
+  useEffect(() => {
+    if (!loading && activeClass) {
+      load(activeClass);
+    }
+  }, [activeClass, loading]);
 
   useEffect(() => {
     setReviewNote(selectedSubmission?.notes || '');
   }, [selectedSubmission?.id]);
 
   const handleCreate = async () => {
-    if (!teacher || !title.trim() || !description.trim()) return;
+    if (!teacher || !activeClass || !title.trim() || !description.trim()) return;
     setBusy(true);
     try {
       const imageAttachments = await Promise.all(
@@ -87,7 +121,7 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
         description: description.trim(),
         teacherId: teacher.id,
         teacherName: teacher.name,
-        className: teacher.assignedClass || '',
+        className: activeClass,
         dueDate,
         subject,
         imageAttachments,
@@ -100,7 +134,7 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
       setImageError('');
       if (imageInputRef.current) imageInputRef.current.value = '';
       window.dispatchEvent(new CustomEvent('coha-homework-assignment-update'));
-      await load(teacher);
+      await load(activeClass);
     } finally {
       setBusy(false);
     }
@@ -127,13 +161,23 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
     try {
       await markHomeworkSubmissionReviewed(selectedSubmission.id, reviewNote);
       window.dispatchEvent(new CustomEvent('coha-homework-submission-update'));
-      await load(teacher);
+      await load(activeClass);
     } finally {
       setBusy(false);
     }
   };
 
   if (loading) return <Loader />;
+
+  const handleClassChange = async (className: string) => {
+    setActiveClass(className);
+    setAssignments([]);
+    setSubmissions([]);
+    setSelectedSubmission(null);
+    if (teacher?.id) {
+      await updateTeacher(teacher.id, { activeTeachingClass: className });
+    }
+  };
 
   const submittedCount = submissions.length;
   const pendingReviewCount = submissions.filter((submission) => submission.status !== 'REVIEWED').length;
@@ -183,7 +227,7 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-3xl font-black tracking-tight text-[#14002f]">Homework</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-500">Post homework for your class and review parent uploads for {teacher?.assignedClass || 'your class'}.</p>
+          <p className="mt-1 text-sm font-semibold text-slate-500">Post homework and review parent uploads for {activeClass || 'your class'}.</p>
         </div>
         <div className="flex gap-3">
           <button onClick={() => setViewMode('POST')} className={`inline-flex h-12 items-center justify-center gap-2 rounded-lg px-5 text-xs font-black uppercase tracking-widest shadow-sm transition-all ${viewMode === 'POST' ? 'bg-purple-800 text-white' : 'border border-slate-200 bg-white text-slate-600'}`}>
@@ -194,6 +238,33 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
           </button>
         </div>
       </div>
+
+      {teachingClasses.length > 1 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Active Class</p>
+              <p className="mt-1 text-lg font-black text-[#14002f]">{activeClass}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {teachingClasses.map((className) => (
+                <button
+                  key={className}
+                  type="button"
+                  onClick={() => handleClassChange(className)}
+                  className={`rounded-xl px-4 py-2 text-xs font-black transition ${
+                    className === activeClass
+                      ? 'bg-purple-800 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-purple-50 hover:text-purple-700'
+                  }`}
+                >
+                  {className}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {viewMode === 'POST' ? (
         <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6 animate-fade-in">
@@ -309,7 +380,7 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
                       <BookOpen size={38} />
                     </div>
                     <p className="font-black text-[#14002f]">No homework posted yet.</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-500">Post your first homework for {teacher?.assignedClass || 'your class'}.</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-500">Post your first homework for {activeClass || 'your class'}.</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100">
@@ -347,7 +418,7 @@ export const TeacherHomeworkPage: React.FC<TeacherHomeworkPageProps> = ({ user }
               <p className="text-xs font-black uppercase tracking-[0.25em] text-gray-400">Student Submissions</p>
             </div>
             <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
-              {submissions.length === 0 && <p className="p-10 text-center text-sm text-gray-500 italic">No parent uploads for your class yet.</p>}
+              {submissions.length === 0 && <p className="p-10 text-center text-sm text-gray-500 italic">No parent uploads for {activeClass || 'this class'} yet.</p>}
               {submissions.map((submission) => (
                 <button
                   key={submission.id}
