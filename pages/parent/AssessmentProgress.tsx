@@ -28,10 +28,10 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
         setStudent(data);
         setSettings(setts);
         
-        if (data && data.division === 'Mainstream') {
+        if (data && (data.division === 'Mainstream' || data.studentStatus === 'ENROLLED')) {
             const [records, gradeCards] = await Promise.all([
               getAssessmentRecordsForStudentAcrossClasses(user.id),
-              getGrade1To7ReportCards(data, setts),
+              data.division === 'Mainstream' ? getGrade1To7ReportCards(data, setts) : Promise.resolve([]),
             ]);
             setAssessmentRecords(records);
             setGradeReports(gradeCards);

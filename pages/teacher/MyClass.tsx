@@ -55,6 +55,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
   const [activeTermId, setActiveTermId] = useState('');
   const [teachingClasses, setTeachingClasses] = useState<string[]>([]);
   const [activeClass, setActiveClass] = useState('');
+  const [studentMode, setStudentMode] = useState<'ENROLLED' | 'ASSESSMENT'>('ENROLLED');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -98,7 +99,9 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
   }, [activeClass, students]);
 
   const enrolledStudents = classStudents.filter((student) => student.studentStatus === 'ENROLLED');
-  const filteredStudents = enrolledStudents.filter((student) => student.name.toLowerCase().includes(search.toLowerCase()));
+  const assessmentStudents = classStudents.filter((student) => student.studentStatus === 'ASSESSMENT');
+  const visibleStudents = studentMode === 'ASSESSMENT' ? assessmentStudents : enrolledStudents;
+  const filteredStudents = visibleStudents.filter((student) => student.name.toLowerCase().includes(search.toLowerCase()));
   const isGradeWorkflow = isGrade1To7Class(activeClass);
   const currentColor = TAB_COLORS[Math.max(0, teachingClasses.indexOf(activeClass)) % TAB_COLORS.length] || '#2563eb';
   const enrolledStudentIds = useMemo(() => enrolledStudents.map((student) => student.id).join('|'), [enrolledStudents]);
@@ -231,6 +234,8 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
         .bo:hover{border-color:#334155;transform:translateY(-1px)}
         .si{width:100%;padding:11px 12px 11px 38px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:12px;outline:none;background:white;font-family:inherit;transition:border-color .15s}
         .si:focus{border-color:#0f172a}
+        .mode-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:14px;font-weight:900;font-size:11px;letter-spacing:.08em;text-transform:uppercase;border:1.5px solid transparent;transition:transform .12s,border-color .15s,background .15s}
+        .mode-btn:hover{transform:translateY(-1px)}
         th.rth{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:#94a3b8;padding:10px 14px;border-bottom:1px solid #f1f5f9;white-space:nowrap;text-align:left}
         td.rtd{padding:12px 14px}
         @media(max-width:700px){.hm{display:none}th.rth,td.rtd{padding:8px 8px;font-size:11px}}
@@ -292,13 +297,40 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
         })}
       </div>
 
+      <div style={{ padding: '0 24px 18px', display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        <button
+          type="button"
+          onClick={() => setStudentMode('ENROLLED')}
+          className="mode-btn"
+          style={{
+            background: studentMode === 'ENROLLED' ? '#16a34a' : '#ecfdf5',
+            color: studentMode === 'ENROLLED' ? 'white' : '#166534',
+            borderColor: studentMode === 'ENROLLED' ? '#16a34a' : '#bbf7d0',
+          }}
+        >
+          <CheckCircle size={14} /> Enrolled ({enrolledStudents.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setStudentMode('ASSESSMENT')}
+          className="mode-btn"
+          style={{
+            background: studentMode === 'ASSESSMENT' ? '#ea580c' : '#fff7ed',
+            color: studentMode === 'ASSESSMENT' ? 'white' : '#c2410c',
+            borderColor: studentMode === 'ASSESSMENT' ? '#ea580c' : '#fed7aa',
+          }}
+        >
+          <Clock size={14} /> Under Assessment ({assessmentStudents.length})
+        </button>
+      </div>
+
       <div style={{ padding: '0 24px 48px' }}>
         <div style={{ background: 'white', borderRadius: 24, boxShadow: '0 1px 4px rgba(0,0,0,.05), 0 6px 20px rgba(0,0,0,.04)', overflow: 'hidden' }}>
           <div style={{ padding: '18px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase', color: '#94a3b8', margin: '0 0 3px' }}>Class Register</p>
               <p style={{ fontSize: 11, color: '#64748b', fontWeight: 600, margin: 0 }}>
-                {activeClass} · {filteredStudents.length} learner{filteredStudents.length !== 1 ? 's' : ''} enrolled
+                {activeClass} · {filteredStudents.length} learner{filteredStudents.length !== 1 ? 's' : ''} {studentMode === 'ASSESSMENT' ? 'under assessment' : 'enrolled'}
               </p>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
@@ -311,9 +343,15 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
               <button className="bo" onClick={() => navigate(withTeachingClass('/teacher/summary-form', activeClass))}>
                 Summary Form
               </button>
-              <button className="bp" style={{ background: currentColor }} onClick={() => navigate(withTeachingClass('/teacher/assess', activeClass))}>
-                <ClipboardList size={13} /> Assess Students
-              </button>
+              {studentMode === 'ASSESSMENT' ? (
+                <button className="bp" style={{ background: '#ea580c' }} onClick={() => filteredStudents[0] && navigate(withTeachingClass(`/teacher/assessment/${filteredStudents[0].id}`, activeClass))}>
+                  <ClipboardList size={13} /> Start Observation
+                </button>
+              ) : (
+                <button className="bp" style={{ background: currentColor }} onClick={() => navigate(withTeachingClass('/teacher/assess', activeClass))}>
+                  <ClipboardList size={13} /> Assess Students
+                </button>
+              )}
               <div style={{ position: 'relative', minWidth: 180 }}>
                 <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
                 <input className="si" placeholder="Search learners…" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -334,8 +372,20 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
               </thead>
               <tbody>
                 {filteredStudents.map((student) => {
-                  const progress = progressMap[student.id] || { done: 0, total: 0, percent: 0, label: 'Not Started' };
-                  const isComplete = records[student.id]?.isComplete || progress.percent >= 100;
+                  const observationDone = student.assessment?.teacherAssessments
+                    ? Object.values(student.assessment.teacherAssessments).filter((day: any) => day?.completed).length
+                    : 0;
+                  const progress = studentMode === 'ASSESSMENT'
+                    ? {
+                        done: observationDone,
+                        total: 14,
+                        percent: Math.round((observationDone / 14) * 100),
+                        label: observationDone > 0 ? 'In Progress' : 'Not Started',
+                      }
+                    : (progressMap[student.id] || { done: 0, total: 0, percent: 0, label: 'Not Started' });
+                  const isComplete = studentMode === 'ASSESSMENT'
+                    ? !!student.assessment?.isComplete
+                    : records[student.id]?.isComplete || progress.percent >= 100;
 
                   return (
                     <tr key={student.id} className="hrow" style={{ borderBottom: '1px solid #f8fafc' }}>
@@ -351,8 +401,17 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                         </div>
                       </td>
                       <td className="rtd hm">
-                        <span style={{ background: '#dcfce7', color: '#16a34a', padding: '3px 10px', borderRadius: 999, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                          Enrolled
+                        <span style={{
+                          background: studentMode === 'ASSESSMENT' ? '#ffedd5' : '#dcfce7',
+                          color: studentMode === 'ASSESSMENT' ? '#c2410c' : '#16a34a',
+                          padding: '3px 10px',
+                          borderRadius: 999,
+                          fontSize: 10,
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '.06em'
+                        }}>
+                          {studentMode === 'ASSESSMENT' ? 'Under Assessment' : 'Enrolled'}
                         </span>
                       </td>
                       <td className="rtd hm">
@@ -376,11 +435,11 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                       </td>
                       <td className="rtd" style={{ textAlign: 'right' }}>
                         <button
-                          onClick={() => navigate(withTeachingClass(`/teacher/assess/student/${student.id}`, activeClass))}
+                          onClick={() => navigate(withTeachingClass(studentMode === 'ASSESSMENT' ? `/teacher/assessment/${student.id}` : `/teacher/assess/student/${student.id}`, activeClass))}
                           className="bp"
-                          style={{ background: currentColor, padding: '7px 14px' }}
+                          style={{ background: studentMode === 'ASSESSMENT' ? '#ea580c' : currentColor, padding: '7px 14px' }}
                         >
-                          <Edit2 size={12} /> Record
+                          <Edit2 size={12} /> {studentMode === 'ASSESSMENT' ? 'Assess' : 'Record'}
                         </button>
                       </td>
                     </tr>
@@ -389,7 +448,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
                 {filteredStudents.length === 0 && (
                   <tr>
                     <td colSpan={5} style={{ padding: '40px 16px', textAlign: 'center', color: '#cbd5e1', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.1em' }}>
-                      No learners found for this class
+                      No {studentMode === 'ASSESSMENT' ? 'under-assessment' : 'enrolled'} learners found for this class
                     </td>
                   </tr>
                 )}
@@ -400,7 +459,7 @@ export const MyClass: React.FC<MyClassProps> = ({ user }) => {
           {filteredStudents.length > 0 && (
             <div style={{ padding: '10px 20px', borderTop: '1px solid #f8fafc', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.08em' }}>
-                Showing {filteredStudents.length} of {enrolledStudents.length}
+                Showing {filteredStudents.length} of {visibleStudents.length}
               </span>
               <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.08em' }}>
                 Active Term: {terms.find((term) => term.id === activeTermId)?.termName || activeTermId}

@@ -160,6 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Dashboard', path: '/teacher/dashboard', icon: <LayoutDashboard size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'My Class',  path: '/teacher/classes',   icon: <GraduationCap   size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Register',  path: '/teacher/register',  icon: <ClipboardList   size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Lesson Plan', path: '/teacher/lesson-plan', icon: <FileText    size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Homework',  path: '/teacher/homework',  icon: <BookOpen        size={17} strokeWidth={2.2} />, badge: homeworkBadgeCount },
     { label: 'Settings',  path: '/teacher/settings',  icon: <Settings        size={17} strokeWidth={2.2} />, badge: 0 },
   ];

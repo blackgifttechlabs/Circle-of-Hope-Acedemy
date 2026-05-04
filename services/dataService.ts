@@ -380,8 +380,8 @@ export const getStudentsForTeacher = async (teacherId: string): Promise<Student[
   return students.filter((student) => {
     if (student.assignedTeacherId === teacherId) return true;
     if (assignedStudentIds.has(student.id)) return true;
-    if (!assignedStudentIds.size && assignedClasses.size) {
-      return assignedClasses.has(getStudentDisplayClass(student));
+    if (assignedClasses.size) {
+      return Array.from(assignedClasses).some((className) => matchesTeachingClass(student, className));
     }
     return false;
   });

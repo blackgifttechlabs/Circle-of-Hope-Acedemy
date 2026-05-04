@@ -5,7 +5,7 @@ import { Teacher, WeeklyLessonPlan, SystemSettings } from '../../types';
 import { uploadLessonPlan, getLessonPlans, getSystemSettings } from '../../services/dataService';
 import { CLASS_LIST_SKILLS } from '../../utils/classListSkills';
 import { CustomSelect } from '../../components/ui/CustomSelect';
-import { getSelectedTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
+import { getSelectedTeachingClass, getTeacherAssignedClasses, withTeachingClass } from '../../utils/teacherClassSelection';
 
 interface LessonPlanProps {
   user: Teacher | null;
@@ -98,6 +98,7 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const selectedClass = getSelectedTeachingClass(user, location.search);
+  const teacherClasses = getTeacherAssignedClasses(user);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [uploadedPlans, setUploadedPlans] = useState<WeeklyLessonPlan[]>([]);
@@ -106,7 +107,6 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
   const [activeTermId, setActiveTermId] = useState<string>('term-1');
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [availableThemes, setAvailableThemes] = useState<string[]>([]);
-  const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
   
   const [activeTab, setActiveTab] = useState<'core' | 'extended'>('core');
 
@@ -169,6 +169,13 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
     });
   };
 
+  const themeOptions = [
+    ...availableThemes.map(t => ({ label: t, value: t })),
+    { label: 'Custom Theme', value: '__custom__' },
+  ];
+
+  const levelOptions = Array.from(new Set([selectedClass, ...teacherClasses, formData.grade].filter(Boolean)));
+
   const handleCellChange = (day: string, subject: string, value: string, isCore: boolean) => {
     setFormData(prev => {
       const target = isCore ? 'coreSubjects' : 'extendedSubjects';
@@ -192,7 +199,7 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
     try {
       const newPlan: Omit<WeeklyLessonPlan, 'id' | 'uploadedAt'> = {
         teacherId: user.id,
-        classLevel: selectedClass,
+        classLevel: formData.grade || selectedClass,
         termId: activeTermId,
         ...formData
       };
@@ -344,22 +351,51 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
                     <CustomSelect
                       value={formData.theme}
                       onChange={(val) => setFormData(prev => ({ ...prev, theme: val }))}
-                      options={availableThemes.map(t => ({ label: t, value: t }))}
+                      options={themeOptions}
                       className="!mb-0"
+                    />
+                  )}
+                  {!selectedPlan && (!availableThemes.includes(formData.theme) || formData.theme === '__custom__') && (
+                    <input
+                      name="theme"
+                      value={formData.theme === '__custom__' ? '' : formData.theme}
+                      onChange={handleHeaderChange}
+                      placeholder="Type custom theme"
+                      className="mt-2 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900 outline-none focus:border-blue-500"
                     />
                   )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Week</label>
-                  <div className="text-sm font-semibold text-gray-900 border-b border-transparent pb-1">
-                    {selectedPlan ? selectedPlan.weekNumber : formData.weekNumber}
-                  </div>
+                  {selectedPlan ? (
+                    <div className="text-sm font-semibold text-gray-900 border-b border-transparent pb-1">{selectedPlan.weekNumber}</div>
+                  ) : (
+                    <input
+                      name="weekNumber"
+                      type="number"
+                      min={1}
+                      value={formData.weekNumber}
+                      onChange={handleHeaderChange}
+                      className="w-24 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 outline-none focus:border-blue-500"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Grade / Level</label>
-                  <div className="text-sm font-semibold text-gray-900 border-b border-transparent pb-1">
-                    {selectedPlan ? selectedPlan.grade : selectedClass}
-                  </div>
+                  {selectedPlan ? (
+                    <div className="text-sm font-semibold text-gray-900 border-b border-transparent pb-1">{selectedPlan.grade}</div>
+                  ) : (
+                    <select
+                      name="grade"
+                      value={formData.grade}
+                      onChange={handleHeaderChange}
+                      className="min-w-40 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 outline-none focus:border-blue-500"
+                    >
+                      {levelOptions.map((level) => (
+                        <option key={level} value={level}>{level}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
               <div>

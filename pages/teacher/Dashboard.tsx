@@ -277,11 +277,25 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
   }
 
   const dashboardCards = [
-    { label: 'Enrolled Students', value: enrolledStudents.length, note: `${classModeLabel} class`, icon: <Users size={17} /> },
-    { label: 'Under Assessment', value: assessmentStudents.length, note: assessmentStudents.length ? 'Needs admission review' : 'Not yet enrolled', icon: <FileSpreadsheet size={17} /> },
-    { label: 'Classes I Teach', value: teachingClasses.length, note: `${teachingClasses.length} active classes`, icon: <Layers3 size={17} /> },
-    { label: 'Teaching Template', value: classTemplateLabel, note: 'Used for lesson plans and summaries', icon: <ClipboardList size={17} /> },
+    { label: 'Enrolled Students', value: enrolledStudents.length, note: `${classModeLabel} class`, icon: <Users size={17} />, tone: 'emerald', action: null },
+    {
+      label: 'Under Assessment',
+      value: assessmentStudents.length,
+      note: assessmentStudents.length ? '14-day observation active' : 'No learners waiting',
+      icon: <FileSpreadsheet size={17} />,
+      tone: 'orange',
+      action: assessmentStudents[0] ? () => navigate(withTeachingClass(`/teacher/assessment/${assessmentStudents[0].id}`, activeClass)) : null,
+    },
+    { label: 'Classes I Teach', value: teachingClasses.length, note: `${teachingClasses.length} active classes`, icon: <Layers3 size={17} />, tone: 'sky', action: null },
+    { label: 'Teaching Template', value: classTemplateLabel, note: 'Used for lesson plans and summaries', icon: <ClipboardList size={17} />, tone: 'violet', action: null },
   ];
+
+  const toneClasses: Record<string, { card: string; icon: string; label: string; button: string }> = {
+    emerald: { card: 'border-emerald-200 bg-emerald-50/60', icon: 'bg-emerald-600 text-white', label: 'text-emerald-700', button: 'bg-emerald-600 text-white hover:bg-emerald-700' },
+    orange: { card: 'border-orange-200 bg-orange-50/70', icon: 'bg-orange-600 text-white', label: 'text-orange-700', button: 'bg-orange-600 text-white hover:bg-orange-700' },
+    sky: { card: 'border-sky-200 bg-sky-50/70', icon: 'bg-sky-600 text-white', label: 'text-sky-700', button: 'bg-sky-600 text-white hover:bg-sky-700' },
+    violet: { card: 'border-violet-200 bg-violet-50/70', icon: 'bg-violet-600 text-white', label: 'text-violet-700', button: 'bg-violet-600 text-white hover:bg-violet-700' },
+  };
 
   return (
     <div className="-m-5 min-h-full bg-[#f8fafc] p-5 md:p-8">
@@ -374,14 +388,26 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {dashboardCards.map((card) => (
-            <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-700">{card.icon}</div>
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">{card.label}</p>
+          {dashboardCards.map((card) => {
+            const tone = toneClasses[card.tone] || toneClasses.violet;
+            return (
+            <div key={card.label} className={`rounded-2xl border p-5 shadow-sm ${tone.card}`}>
+              <div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-xl ${tone.icon}`}>{card.icon}</div>
+              <p className={`text-[10px] font-black uppercase tracking-[0.24em] ${tone.label}`}>{card.label}</p>
               <p className="mt-3 break-words text-3xl font-black text-[#14002f]">{card.value}</p>
               <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{card.note}</p>
+              {card.action && (
+                <button
+                  type="button"
+                  onClick={card.action}
+                  className={`mt-4 inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-black uppercase tracking-widest ${tone.button}`}
+                >
+                  <ClipboardList size={14} /> Assess
+                </button>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="grid gap-5 xl:grid-cols-[1.75fr_0.95fr]">
