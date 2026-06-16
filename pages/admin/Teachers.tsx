@@ -18,6 +18,7 @@ import {
   Eye,
   Repeat,
   X,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -631,14 +632,20 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
                       key={option.value}
                       type="button"
                       onClick={() => toggleClass(option.value)}
-                      className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold border transition-colors ${
+                      className={`relative inline-flex min-h-14 items-center gap-3 border px-4 py-3 pr-12 text-left text-sm font-bold transition-colors ${
                         selected
                           ? theme.active
                           : `${theme.bg} ${theme.text} ${theme.border} hover:brightness-95`
                       }`}
+                      aria-pressed={selected}
                     >
                       <Icon size={16} />
-                      {option.label}
+                      <span>{option.label}</span>
+                      {selected && (
+                        <span className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white text-green-600 shadow-sm ring-2 ring-white/70">
+                          <CheckCircle2 size={25} strokeWidth={3.2} />
+                        </span>
+                      )}
                     </button>
                   );
                 })}
