@@ -4,7 +4,6 @@ import { ArrowLeft, Upload, FileText, Download, Eye, ChevronLeft, ChevronRight, 
 import { Teacher, WeeklyLessonPlan, SystemSettings } from '../../types';
 import { uploadLessonPlan, getLessonPlans, getSystemSettings } from '../../services/dataService';
 import { CLASS_LIST_SKILLS } from '../../utils/classListSkills';
-import { CustomSelect } from '../../components/ui/CustomSelect';
 import { getSelectedTeachingClass, getTeacherAssignedClasses, withTeachingClass } from '../../utils/teacherClassSelection';
 
 interface LessonPlanProps {
@@ -169,11 +168,6 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
       return newData;
     });
   };
-
-  const themeOptions = [
-    ...availableThemes.map(t => ({ label: t, value: t })),
-    { label: 'Custom Theme', value: '__custom__' },
-  ];
 
   const levelOptions = Array.from(new Set([selectedClass, ...teacherClasses, formData.grade].filter(Boolean)));
 
@@ -375,21 +369,21 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
                   {selectedPlan ? (
                     <div className="text-sm font-semibold text-gray-900 border-b border-transparent pb-1">{selectedPlan.theme}</div>
                   ) : (
-                    <CustomSelect
-                      value={formData.theme}
-                      onChange={(val) => setFormData(prev => ({ ...prev, theme: val }))}
-                      options={themeOptions}
-                      className="!mb-0"
-                    />
-                  )}
-                  {!selectedPlan && (!availableThemes.includes(formData.theme) || formData.theme === '__custom__') && (
                     <input
                       name="theme"
-                      value={formData.theme === '__custom__' ? '' : formData.theme}
+                      value={formData.theme}
                       onChange={handleHeaderChange}
-                      placeholder="Type custom theme"
-                      className="mt-2 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900 outline-none focus:border-blue-500"
+                      list="lesson-plan-theme-options"
+                      placeholder="Type theme"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 outline-none focus:border-blue-500"
                     />
+                  )}
+                  {!selectedPlan && availableThemes.length > 0 && (
+                    <datalist id="lesson-plan-theme-options">
+                      {availableThemes.map((theme) => (
+                        <option key={theme} value={theme} />
+                      ))}
+                    </datalist>
                   )}
                 </div>
                 <div>
