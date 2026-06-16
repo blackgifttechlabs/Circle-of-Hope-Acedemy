@@ -1,0 +1,24 @@
+{
+  "name": "Circle of Hope Academy",
+  "short_name": "COHA",
+  "description": "Inclusive private school and vocational training centre in Namibia.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#001d64",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "702x644",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "702x644",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

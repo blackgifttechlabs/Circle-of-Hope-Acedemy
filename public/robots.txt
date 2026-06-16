@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /teacher/
+Disallow: /parent/
+Disallow: /matron/
+Disallow: /vtc/
+
+Sitemap: https://www.coha-academy.com/sitemap.xml
