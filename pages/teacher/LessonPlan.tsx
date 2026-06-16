@@ -5,6 +5,7 @@ import { Teacher, WeeklyLessonPlan, SystemSettings } from '../../types';
 import { uploadLessonPlan, getLessonPlans, getSystemSettings } from '../../services/dataService';
 import { CLASS_LIST_SKILLS } from '../../utils/classListSkills';
 import { getSelectedTeachingClass, getTeacherAssignedClasses, withTeachingClass } from '../../utils/teacherClassSelection';
+import { printLessonPlanPDF } from '../../utils/printLessonPlan';
 
 interface LessonPlanProps {
   user: Teacher | null;
@@ -238,8 +239,18 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
     }
   };
 
-  const handleDownloadPDF = (plan: WeeklyLessonPlan) => {
-    alert("PDF generation would trigger here for: " + plan.theme);
+  const handleDownloadPDF = async (plan: WeeklyLessonPlan) => {
+    await printLessonPlanPDF({
+      plan,
+      teacher: user,
+      settings,
+      days: DAYS,
+      competencyLabels: plan.competencyLabels,
+      sections: [
+        { title: 'Core Subjects', subjects: CORE_SUBJECTS, data: plan.coreSubjects || {} },
+        { title: 'Extended Subjects', subjects: EXTENDED_SUBJECTS, data: plan.extendedSubjects || {} },
+      ],
+    });
   };
 
   const renderTable = (isCore: boolean) => {
@@ -279,16 +290,23 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
                     ? (selectedPlan.competencyLabels?.[day]?.[subject] || defaultSubHeading)
                     : (formData.competencyLabels?.[day]?.[subject] ?? defaultSubHeading);
                   const value = data?.[day]?.[subject] || '';
+                  const hasValue = value.trim().length > 0;
                   
                   return (
                     <td key={`${day}-${subject}`} className="p-3 align-top border-l border-gray-100/50">
                       <div className="flex flex-col gap-1 min-h-[80px]">
                         {selectedPlan ? (
                           <>
-                            {subHeading && (
+                            {hasValue && subHeading && (
                               <span className="text-xs font-bold text-gray-800">{subHeading}</span>
                             )}
-                            <div className="text-sm text-gray-700 whitespace-pre-wrap">{value}</div>
+                            {hasValue ? (
+                              <div className="text-sm text-gray-700 whitespace-pre-wrap">{value}</div>
+                            ) : (
+                              <div className="flex min-h-[58px] items-center justify-center text-gray-300">
+                                <FileText size={22} aria-label="No record" />
+                              </div>
+                            )}
                           </>
                         ) : (
                           <>

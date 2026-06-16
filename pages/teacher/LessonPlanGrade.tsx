@@ -5,12 +5,22 @@ import { Teacher, WeeklyLessonPlan, SystemSettings } from '../../types';
 import { uploadLessonPlan, getLessonPlans, getSystemSettings } from '../../services/dataService';
 import { getPromotionalSubjects, getNonPromotionalSubjects } from '../../utils/subjects';
 import { getSelectedTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
+import { printLessonPlanPDF } from '../../utils/printLessonPlan';
 
 interface LessonPlanProps {
   user: Teacher | null;
 }
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+
+const getLessonPlanGradeSubjects = (grade: string) => ({
+  promotionalSubjects: getPromotionalSubjects(grade).map(s => {
+    if (s === 'Environmental Studies') return 'ENV. STUDIES';
+    if (s === 'Religious Education') return 'REL. ED.';
+    return s.toUpperCase();
+  }),
+  nonPromotionalSubjects: getNonPromotionalSubjects(grade).map(s => s.toUpperCase()),
+});
 
 const getWeekNumber = (startDateStr: string | undefined, currentDate: Date) => {
   if (!startDateStr) return 1;
@@ -164,18 +174,23 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
     }
   };
 
-  const handleDownloadPDF = (plan: WeeklyLessonPlan) => {
-    alert("PDF generation would trigger here for week: " + plan.weekNumber);
+  const handleDownloadPDF = async (plan: WeeklyLessonPlan) => {
+    const { promotionalSubjects, nonPromotionalSubjects } = getLessonPlanGradeSubjects(selectedClass || plan.classLevel || plan.grade || '');
+    await printLessonPlanPDF({
+      plan,
+      teacher: user,
+      settings,
+      days: DAYS,
+      sections: [
+        { title: 'Promotional Subjects', subjects: promotionalSubjects, data: plan.coreSubjects || {} },
+        { title: 'Non-Promotional Subjects', subjects: nonPromotionalSubjects, data: plan.extendedSubjects || {} },
+      ],
+    });
   };
 
   const renderTable = (isPromotional: boolean) => {
     const grade = selectedClass || '';
-    const promotionalSubjects = getPromotionalSubjects(grade).map(s => {
-      if (s === 'Environmental Studies') return 'ENV. STUDIES';
-      if (s === 'Religious Education') return 'REL. ED.';
-      return s.toUpperCase();
-    });
-    const nonPromotionalSubjects = getNonPromotionalSubjects(grade).map(s => s.toUpperCase());
+    const { promotionalSubjects, nonPromotionalSubjects } = getLessonPlanGradeSubjects(grade);
 
     const subjects = isPromotional ? promotionalSubjects : nonPromotionalSubjects;
     const data = selectedPlan ? (isPromotional ? selectedPlan.coreSubjects : selectedPlan.extendedSubjects) : (isPromotional ? formData.coreSubjects : formData.extendedSubjects);
@@ -210,12 +225,19 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
                 <td className="p-3 text-sm font-bold text-gray-600 align-top pt-6">{day}</td>
                 {subjects.map(subject => {
                   const value = data?.[day]?.[subject] || '';
+                  const hasValue = value.trim().length > 0;
                   
                   return (
                     <td key={`${day}-${subject}`} className="p-3 align-top border-l border-gray-100/50">
                       <div className="flex flex-col gap-1 min-h-[80px]">
                         {selectedPlan ? (
-                          <div className="text-sm text-gray-700 whitespace-pre-wrap">{value}</div>
+                          hasValue ? (
+                            <div className="text-sm text-gray-700 whitespace-pre-wrap">{value}</div>
+                          ) : (
+                            <div className="flex min-h-[58px] items-center justify-center text-gray-300">
+                              <FileText size={22} aria-label="No record" />
+                            </div>
+                          )
                         ) : (
                           <textarea
                             value={value}
