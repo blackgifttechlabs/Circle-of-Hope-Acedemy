@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, FileText, Download, Eye, ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { Teacher, WeeklyLessonPlan, SystemSettings } from '../../types';
 import { uploadLessonPlan, getLessonPlans, getSystemSettings } from '../../services/dataService';
 import { getPromotionalSubjects, getNonPromotionalSubjects } from '../../utils/subjects';
-import { getSelectedTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
+import { getSelectedTeachingClass, getTeacherAssignedClasses, getTeachingClassStageOptions, withTeachingClass } from '../../utils/teacherClassSelection';
 import { printLessonPlanPDF } from '../../utils/printLessonPlan';
 
 interface LessonPlanProps {
@@ -55,6 +55,15 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const selectedClass = getSelectedTeachingClass(user, location.search);
+  const teacherClasses = getTeacherAssignedClasses(user);
+  const lessonPlanClassOptions = useMemo(
+    () => getTeachingClassStageOptions(teacherClasses.length ? teacherClasses : [selectedClass]),
+    [selectedClass, teacherClasses]
+  );
+  const lessonPlanLoadClasses = useMemo(
+    () => getTeachingClassStageOptions(selectedClass ? [selectedClass] : []),
+    [selectedClass]
+  );
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [uploadedPlans, setUploadedPlans] = useState<WeeklyLessonPlan[]>([]);
@@ -97,7 +106,12 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
           grade: selectedClass || '0'
         }));
 
-        const plans = await getLessonPlans(user.id, selectedClass);
+        const planGroups = await Promise.all(
+          lessonPlanLoadClasses.map((className) => getLessonPlans(user.id, className))
+        );
+        const plans = Array.from(
+          new Map(planGroups.flat().map((plan) => [plan.id || `${plan.classLevel}-${plan.uploadedAt}`, plan])).values()
+        );
         setUploadedPlans(plans.sort((a: WeeklyLessonPlan, b: WeeklyLessonPlan) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()));
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -107,7 +121,7 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
     };
 
     fetchData();
-  }, [selectedClass, user]);
+  }, [lessonPlanLoadClasses, selectedClass, user]);
 
   const handleHeaderChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -143,7 +157,7 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
     try {
       const newPlan: Omit<WeeklyLessonPlan, 'id' | 'uploadedAt'> = {
         teacherId: user.id,
-        classLevel: selectedClass,
+        classLevel: formData.grade || selectedClass,
         termId: activeTermId,
         ...formData
       };
@@ -323,10 +337,23 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Grade / Level</label>
-                  <div className="text-sm font-semibold text-gray-900 border-b border-transparent pb-1">
-                    {selectedPlan ? selectedPlan.grade : selectedClass}
-                  </div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Selected Class</label>
+                  {selectedPlan ? (
+                    <div className="text-sm font-semibold text-gray-900 border-b border-transparent pb-1">
+                      {selectedPlan.grade}
+                    </div>
+                  ) : (
+                    <select
+                      name="grade"
+                      value={formData.grade}
+                      onChange={handleHeaderChange}
+                      className="min-w-44 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 outline-none focus:border-blue-500"
+                    >
+                      {Array.from(new Set([...lessonPlanClassOptions, formData.grade].filter(Boolean))).map((className) => (
+                        <option key={className} value={className}>{className}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
               <div>

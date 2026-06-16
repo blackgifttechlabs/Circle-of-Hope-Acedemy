@@ -33,6 +33,25 @@ export const withTeachingClass = (path: string, className: string): string => {
 
 export const isSpecialNeedsClass = (className: string): boolean => className.startsWith('Level ');
 
+export const getTeachingClassStageOptions = (classes: string[]): string[] => {
+  const options: string[] = [];
+
+  classes
+    .map((className) => className.trim())
+    .filter(Boolean)
+    .forEach((className) => {
+      if (!options.includes(className)) options.push(className);
+      if (!/\s-\sStage\s+\d+$/i.test(className)) {
+        [1, 2, 3].forEach((stage) => {
+          const stageClass = `${className} - Stage ${stage}`;
+          if (!options.includes(stageClass)) options.push(stageClass);
+        });
+      }
+    });
+
+  return options;
+};
+
 export const matchesTeachingClass = (studentClass: string, className: string): boolean => {
   const normalizedStudentClass = studentClass.trim();
   const normalizedClass = className.trim();

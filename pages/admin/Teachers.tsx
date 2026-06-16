@@ -376,7 +376,7 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-coha-900">Teachers</h2>
-          <p className="text-gray-600">Manage teaching allocations across mainstream and special-needs programmes, with clear class and learner assignment for every educator.</p>
+          <p className="text-gray-600">Teacher allocations</p>
         </div>
         <Button onClick={() => (showForm ? handleFormClose() : setShowForm(true))}>
           <Plus size={20} /> {editingId ? 'Edit Teacher' : 'Add Teacher'}
@@ -599,7 +599,7 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
         <div className="bg-white p-6 mb-8 border-t-4 border-coha-500 shadow-lg animate-fade-in space-y-6">
           <div>
             <h3 className="text-lg font-bold">{editingId ? 'Edit Teacher Details' : 'Add New Teacher'}</h3>
-            <p className="text-sm text-gray-500 mt-1">Configure each teacher's workload professionally by assigning the classes they cover and the learners they are directly responsible for.</p>
+            <p className="text-sm text-gray-500 mt-1">Class assignments</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
