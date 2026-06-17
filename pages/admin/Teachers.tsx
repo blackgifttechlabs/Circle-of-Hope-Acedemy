@@ -16,6 +16,8 @@ import {
   PencilRuler,
   HeartHandshake,
   Eye,
+  EyeOff,
+  LockKeyhole,
   Repeat,
   X,
   CheckCircle2,
@@ -34,6 +36,7 @@ import {
   syncTeacherAssignments,
   transferStudentToTeacherAndClass,
   updateTeacher,
+  verifyAdminPin,
 } from '../../services/dataService';
 import { Student, SystemSettings, Teacher } from '../../types';
 import { getTeacherAssignedClasses } from '../../utils/teacherClassSelection';
@@ -74,6 +77,11 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
+  const [revealedTeacherIds, setRevealedTeacherIds] = useState<Set<string>>(new Set());
+  const [passwordRevealTeacher, setPasswordRevealTeacher] = useState<Teacher | null>(null);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPasswordError, setAdminPasswordError] = useState('');
+  const [adminPasswordLoading, setAdminPasswordLoading] = useState(false);
 
   const fetchData = async () => {
     const [teachersData, settingsData, studentsData] = await Promise.all([
@@ -173,6 +181,54 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
     setAssignedStudentIds([]);
     setClassSearchMap({});
     setEditingId(null);
+  };
+
+  const openPasswordReveal = (teacher: Teacher) => {
+    if (revealedTeacherIds.has(teacher.id)) {
+      setRevealedTeacherIds((prev) => {
+        const next = new Set(prev);
+        next.delete(teacher.id);
+        return next;
+      });
+      return;
+    }
+
+    setPasswordRevealTeacher(teacher);
+    setAdminPassword('');
+    setAdminPasswordError('');
+  };
+
+  const closePasswordReveal = () => {
+    if (adminPasswordLoading) return;
+    setPasswordRevealTeacher(null);
+    setAdminPassword('');
+    setAdminPasswordError('');
+  };
+
+  const confirmPasswordReveal = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!passwordRevealTeacher) return;
+
+    setAdminPasswordLoading(true);
+    setAdminPasswordError('');
+
+    try {
+      const adminUser = await verifyAdminPin(adminPassword);
+      if (!adminUser) {
+        setAdminPasswordError('Incorrect admin password.');
+        return;
+      }
+
+      setRevealedTeacherIds((prev) => new Set(prev).add(passwordRevealTeacher.id));
+      setPasswordRevealTeacher(null);
+      setAdminPassword('');
+      setAdminPasswordError('');
+    } catch (error) {
+      console.error('Could not verify admin password:', error);
+      setAdminPasswordError('Could not confirm your password. Please try again.');
+    } finally {
+      setAdminPasswordLoading(false);
+    }
   };
 
   const toggleClass = (className: string) => {
@@ -391,6 +447,49 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
         message={`Are you sure you want to delete ${teacherToDelete?.name}? This action cannot be undone.`}
         isLoading={loading}
       />
+
+      {passwordRevealTeacher && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={confirmPasswordReveal}
+            className="w-full max-w-md border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+            <div className="mb-5 flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center bg-coha-900 text-white">
+                <LockKeyhole size={22} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-950">Confirm Admin Access</h3>
+                <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
+                  Enter admin password to perform this action.
+                </p>
+              </div>
+            </div>
+
+            <Input
+              label="Admin Password"
+              type="password"
+              value={adminPassword}
+              onChange={(event) => setAdminPassword(event.target.value)}
+              placeholder="Enter admin password"
+              required
+            />
+
+            {adminPasswordError && (
+              <p className="mt-3 text-sm font-bold text-red-600">{adminPasswordError}</p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={closePasswordReveal} disabled={adminPasswordLoading}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={adminPasswordLoading} loading={adminPasswordLoading}>
+                View Password
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {studentModalTeacher && (
         <div className="fixed inset-0 z-50 bg-black/55 p-4">
@@ -838,7 +937,23 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
                       </div>
                     </td>
                     <td className="px-6 py-4 bg-white">
-                      <span className="font-mono font-black text-coha-900 tracking-[0.2em]">{teacher.pin}</span>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`min-w-[120px] select-none font-mono font-black tracking-[0.2em] text-coha-900 transition ${
+                            revealedTeacherIds.has(teacher.id) ? '' : 'blur-sm'
+                          }`}
+                        >
+                          {teacher.pin}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => openPasswordReveal(teacher)}
+                          className="inline-flex h-9 w-9 items-center justify-center border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-coha-500 hover:text-coha-700"
+                          title={revealedTeacherIds.has(teacher.id) ? 'Hide password' : 'View password'}
+                        >
+                          {revealedTeacherIds.has(teacher.id) ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right bg-gray-50">
                       <div className="flex justify-end gap-2">

@@ -57,6 +57,7 @@ import { Toast } from './components/ui/Toast';
 import { InactivityLock } from './components/InactivityLock';
 import { isGrade1To7Class } from './utils/assessmentWorkflow';
 import { getSelectedTeachingClass } from './utils/teacherClassSelection';
+import { getFriendlyErrorMessage } from './utils/friendlyErrors';
 
 // Layout Component to wrap protected routes
 const AppLayout: React.FC<{ 
@@ -168,6 +169,24 @@ const App: React.FC = () => {
     setToastVariant(variant);
     window.setTimeout(() => setToastVisible(true), 0);
   };
+
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      showToast(getFriendlyErrorMessage(event.reason), 'error');
+    };
+
+    const handleWindowError = (event: ErrorEvent) => {
+      showToast(getFriendlyErrorMessage(event.error || event.message), 'error');
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleWindowError);
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('error', handleWindowError);
+    };
+  }, []);
 
   const isSubAdmin = role === UserRole.ADMIN && !!user && (user.adminRole === 'sub_admin' || user.id !== 'admin');
 
