@@ -17,11 +17,12 @@ import {
   updateAdminAccount,
   deleteSubAdmin,
   addMatron,
+  getMatrons,
 } from '../../services/dataService';
 import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { ActivityLog, SystemSettings } from '../../types';
+import { ActivityLog, Matron, SystemSettings } from '../../types';
 import { isStrongStaffPassword, STAFF_PASSWORD_REQUIREMENTS } from '../../utils/credentials';
 
 /* ─── Avatar ─── */
@@ -102,6 +103,7 @@ export const AdminDashboard: React.FC = () => {
   const [showCreateAdmin, setShowCreateAdmin] = useState(false);
   const [showAdmins, setShowAdmins] = useState(false);
   const [adminSettings, setAdminSettings] = useState<SystemSettings | null>(null);
+  const [matrons, setMatrons] = useState<Matron[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [editAdmin, setEditAdmin] = useState<{ id: string; name: string; pin: string; roleLabel: string } | null>(null);
   const [deleteAdmin, setDeleteAdmin] = useState<{ id: string; name: string } | null>(null);
@@ -130,12 +132,14 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const loadAdminData = async () => {
-    const [settingsData, logsData] = await Promise.all([
+    const [settingsData, logsData, matronsData] = await Promise.all([
       getSystemSettings(),
       getActivityLogs(2000),
+      getMatrons(),
     ]);
     setAdminSettings(settingsData);
     setActivityLogs(logsData);
+    setMatrons(matronsData);
   };
 
   useEffect(() => {
@@ -202,6 +206,7 @@ export const AdminDashboard: React.FC = () => {
         setShowCreateMatron(false);
         setCreateMatronSuccess('');
       }, 2000);
+      await loadAdminData();
     } else {
       setCreateMatronError('Failed to create matron.');
     }
@@ -248,6 +253,7 @@ export const AdminDashboard: React.FC = () => {
       name: adminSettings?.adminName || 'Main Admin',
       pin: adminSettings?.adminPin || '',
       roleLabel: 'Main Admin',
+      canEdit: true,
       canDelete: false,
     },
     ...((adminSettings?.admins || []).map((admin) => ({
@@ -255,8 +261,17 @@ export const AdminDashboard: React.FC = () => {
       name: admin.name,
       pin: admin.pin,
       roleLabel: 'Sub Admin',
+      canEdit: true,
       canDelete: true,
     }))),
+    ...matrons.map((matron) => ({
+      id: matron.id,
+      name: matron.name,
+      pin: 'Protected',
+      roleLabel: 'Matron',
+      canEdit: false,
+      canDelete: false,
+    })),
   ];
 
   const getLogsForAdmin = (admin: { id: string; name: string }) => (
@@ -1028,8 +1043,16 @@ export const AdminDashboard: React.FC = () => {
                         </td>
                         <td className="atd" style={{ textAlign:'right' }}>
                           <div style={{ display:'flex', gap:8, justifyContent:'flex-end', flexWrap:'wrap' }}>
-                            <button className="abo" onClick={() => openEditAdmin(admin)}
-                              style={{ padding:'7px 10px' }}>
+                            <button
+                              className="abo"
+                              disabled={!admin.canEdit}
+                              onClick={() => admin.canEdit && openEditAdmin(admin)}
+                              style={{
+                                padding:'7px 10px',
+                                color: admin.canEdit ? undefined : '#cbd5e1',
+                                cursor: admin.canEdit ? 'pointer' : 'not-allowed',
+                              }}
+                            >
                               <Edit2 size={13}/> Edit
                             </button>
                             <button

@@ -72,8 +72,26 @@ service cloud.firestore {
         && request.auth.token.assignedClasses.hasAny([className]);
     }
 
+    function isTeacherForStudentRecord() {
+      return isTeacher()
+        && (
+          (
+            request.auth.token.assignedStudentIds is list
+            && request.auth.token.assignedStudentIds.hasAny([resource.id])
+          )
+          || (
+            request.auth.token.assignedClasses is list
+            && (
+              request.auth.token.assignedClasses.hasAny([resource.data.assignedClass])
+              || request.auth.token.assignedClasses.hasAny([resource.data.grade])
+              || request.auth.token.assignedClasses.hasAny([resource.data.level])
+            )
+          )
+        );
+    }
+
     function canReadStudent(studentId) {
-      return isAnyAdmin() || hasStudent(studentId) || isAssignedTeacher(studentId) || isMatron();
+      return isAnyAdmin() || hasStudent(studentId) || isAssignedTeacher(studentId) || isTeacherForStudentRecord() || isMatron();
     }
 
     function canWriteStudent(studentId) {
@@ -120,12 +138,12 @@ service cloud.firestore {
     }
 
     match /teachers/{teacherId} {
-      allow read: if isAnyAdmin() || (isTeacher() && request.auth.token.teacherId == teacherId);
+      allow read: if signedIn();
       allow create, update, delete: if isAdmin();
     }
 
     match /students/{studentId} {
-      allow read: if canReadStudent(studentId);
+      allow read: if canReadStudent(studentId) || isTeacher();
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
         || isAssignedTeacher(studentId)
@@ -157,7 +175,7 @@ service cloud.firestore {
     }
 
     match /receipts/{receiptId} {
-      allow read: if isAnyAdmin() || hasStudent(resource.data.usedByStudentId);
+      allow read: if isAnyAdmin() || hasStudent(resource.data.usedByStudentId) || isTeacher() || isMatron();
       allow create, update, delete: if isAnyAdmin();
     }
 
@@ -169,7 +187,7 @@ service cloud.firestore {
           || isAnyAdmin()
         )
         && request.resource.data.status == 'PENDING';
-      allow read: if isAnyAdmin() || hasStudent(resource.data.studentId);
+      allow read: if isAnyAdmin() || hasStudent(resource.data.studentId) || isTeacher() || isMatron();
       allow update: if isAnyAdmin();
       allow delete: if isAdmin();
     }
@@ -178,7 +196,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.studentId is string
         && (isAnyAdmin() || hasStudent(request.resource.data.studentId));
-      allow read: if isAnyAdmin() || hasStudent(resource.data.studentId) || isAssignedTeacher(resource.data.studentId) || isMatron();
+      allow read: if isAnyAdmin() || hasStudent(resource.data.studentId) || isAssignedTeacher(resource.data.studentId) || isTeacher() || isMatron();
       allow update, delete: if isAnyAdmin();
     }
 
@@ -242,7 +260,8 @@ service cloud.firestore {
     match /topic_assessments/{assessmentId} {
       allow read: if isAnyAdmin()
         || hasStudent(resource.data.studentId)
-        || isAssignedTeacher(resource.data.studentId);
+        || isAssignedTeacher(resource.data.studentId)
+        || isTeacher();
       allow create, update: if isAnyAdmin()
         || (
           request.resource.data.studentId is string
@@ -268,7 +287,7 @@ service cloud.firestore {
     }
 
     match /matrons/{matronId} {
-      allow read: if isAnyAdmin() || (isMatron() && request.auth.token.matronId == matronId);
+      allow read: if signedIn();
       allow create, update, delete: if isAdmin();
     }
 

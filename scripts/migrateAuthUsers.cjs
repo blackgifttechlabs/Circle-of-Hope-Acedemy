@@ -65,22 +65,50 @@ async function writeLoginIndex({ role, targetId, name, subtitle }) {
 }
 
 async function migrateAdmin() {
+  const settingsSnap = await db.collection('settings').doc('general').get();
+  const settings = settingsSnap.exists ? settingsSnap.data() : {};
   await upsertAuthUser({
     email: 'admin@coha.com',
     password: DEFAULT_ADMIN_AUTH_PASSWORD,
-    displayName: 'Circle of Hope Academy Admin',
+    displayName: settings.adminName || 'Circle of Hope Academy Admin',
     claims: { role: UserRole.ADMIN, adminRole: 'super_admin' },
   });
-  console.log('Admin Auth account ready.');
+
+  for (const subAdmin of settings.admins || []) {
+    if (!subAdmin.pin) continue;
+    await upsertAuthUser({
+      email: authEmailFor(UserRole.ADMIN, subAdmin.id),
+      password: authPasswordFor(subAdmin.pin),
+      displayName: subAdmin.name || 'Sub Admin',
+      claims: { role: 'SUB_ADMIN', adminId: subAdmin.id, adminRole: 'sub_admin' },
+    });
+  }
+
+  console.log(`Admin Auth accounts ready: ${1 + ((settings.admins || []).length)}`);
 }
 
 async function migrateTeachers() {
-  const snap = await db.collection('teachers').get();
+  const [snap, studentsSnap] = await Promise.all([
+    db.collection('teachers').get(),
+    db.collection('students').get(),
+  ]);
+  const students = studentsSnap.docs.map((item) => ({ id: item.id, ...item.data() }));
+
   for (const doc of snap.docs) {
     const teacher = doc.data();
     const password = teacher.pin || DEFAULT_TEACHER_PASSWORD;
     const assignedClasses = teacher.assignedClasses || (teacher.assignedClass ? [teacher.assignedClass] : []);
-    const assignedStudentIds = teacher.assignedStudentIds || [];
+    const assignedStudentIds = Array.from(new Set([
+      ...(teacher.assignedStudentIds || []),
+      ...students
+        .filter((student) => (
+          student.assignedTeacherId === doc.id
+          || assignedClasses.includes(student.assignedClass)
+          || assignedClasses.includes(student.grade)
+          || assignedClasses.includes(student.level)
+        ))
+        .map((student) => student.id),
+    ]));
 
     await upsertAuthUser({
       email: authEmailFor(UserRole.TEACHER, doc.id),
@@ -159,9 +187,11 @@ async function migrateVtcStudents() {
 }
 
 async function migrateMatrons() {
-  const snap = await db.collection('matrons').where('is_active', '==', true).get();
+  const snap = await db.collection('matrons').get();
+  let count = 0;
   for (const doc of snap.docs) {
     const matron = doc.data();
+    if (matron.is_active === false) continue;
     await upsertAuthUser({
       email: authEmailFor(UserRole.MATRON, doc.id),
       password: TEMP_MATRON_PASSWORD,
@@ -179,8 +209,9 @@ async function migrateMatrons() {
       name: matron.name || 'Matron',
       subtitle: 'Care & medication',
     });
+    count += 1;
   }
-  console.log(`Matron Auth accounts ready: ${snap.size}. Temporary password: ${TEMP_MATRON_PASSWORD}`);
+  console.log(`Matron Auth accounts ready: ${count}. Temporary password: ${TEMP_MATRON_PASSWORD}`);
 }
 
 async function main() {

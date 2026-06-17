@@ -8,7 +8,6 @@ import {
   searchTeachers,
   searchStudents,
   searchVtcStudents,
-  getMatrons,
   searchLoginIndex,
   signInPortalAccount,
   getTeacherById,
@@ -125,12 +124,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
         }
       } else if (activeTab === 'MATRON') {
         const indexResults = await searchLoginIndex(UserRole.MATRON, term);
-        if (indexResults.length) {
-          setSearchResults(indexResults);
-        } else {
-          const results = await getMatrons();
-          setSearchResults(results.filter(m => m.name.toLowerCase().includes(term.toLowerCase())));
-        }
+        setSearchResults(indexResults);
       }
     } else {
       setSearchResults([]);
