@@ -114,6 +114,53 @@ service cloud.firestore {
         && request.resource.data.cellNo is string;
     }
 
+    function validFileChunkShape() {
+      return request.resource.data.fileId is string
+        && request.resource.data.index is int
+        && request.resource.data.chunkCount is int
+        && request.resource.data.data is string
+        && request.resource.data.parentCollection is string
+        && request.resource.data.parentId is string
+        && request.resource.data.fieldName is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.index >= 0
+        && request.resource.data.chunkCount > 0
+        && request.resource.data.chunkCount <= 30;
+    }
+
+    function publicApplicationChunkCreate() {
+      return validFileChunkShape()
+        && request.resource.data.publicUpload == true
+        && request.resource.data.parentCollection in ['applications', 'vtcApplications'];
+    }
+
+    function canReadFileChunk() {
+      return isAnyAdmin()
+        || (
+          resource.data.parentCollection in ['payment_proofs', 'student_documents', 'homework_submissions']
+          && resource.data.studentId is string
+          && (
+            hasStudent(resource.data.studentId)
+            || isAssignedTeacher(resource.data.studentId)
+            || isTeacher()
+            || isMatron()
+          )
+        )
+        || (
+          resource.data.parentCollection == 'homework_assignments'
+          && (
+            isAssignedClass(resource.data.className)
+            || isParent()
+            || isMatron()
+          )
+        )
+        || (
+          resource.data.parentCollection == 'vtcApplications'
+          && isVtcStudent()
+          && request.auth.token.applicationId == resource.data.parentId
+        );
+    }
+
     function parentMutableStudentFieldsOnly() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'parentPin',
@@ -198,6 +245,13 @@ service cloud.firestore {
         && (isAnyAdmin() || hasStudent(request.resource.data.studentId));
       allow read: if isAnyAdmin() || hasStudent(resource.data.studentId) || isAssignedTeacher(resource.data.studentId) || isTeacher() || isMatron();
       allow update, delete: if isAnyAdmin();
+    }
+
+    match /file_chunks/{chunkId} {
+      allow create: if (signedIn() && validFileChunkShape()) || publicApplicationChunkCreate();
+      allow read: if canReadFileChunk();
+      allow update: if false;
+      allow delete: if isAdmin();
     }
 
     match /homework_assignments/{assignmentId} {

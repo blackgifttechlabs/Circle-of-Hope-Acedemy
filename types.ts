@@ -540,6 +540,9 @@ export interface PaymentProof {
   termId: string;
   amountClaimed?: string;
   imageBase64: string;
+  fileChunkId?: string;
+  fileChunkCount?: number;
+  fileSize?: number;
   fileName: string;
   mimeType: string;
   submittedAt: any;
@@ -571,6 +574,9 @@ export interface HomeworkSubmission {
   parentName: string;
   className?: string;
   imageBase64: string;
+  fileChunkId?: string;
+  fileChunkCount?: number;
+  fileSize?: number;
   fileName: string;
   mimeType: string;
   submittedAt: any;
@@ -591,6 +597,9 @@ export interface UploadedDocument {
   fileName: string;
   mimeType: string;
   fileBase64: string;
+  fileChunkId?: string;
+  fileChunkCount?: number;
+  fileSize?: number;
   uploadedAt: any;
 }
 
@@ -599,6 +608,9 @@ export interface ApplicationFileAttachment {
   fileName: string;
   mimeType: string;
   fileBase64: string;
+  fileChunkId?: string;
+  fileChunkCount?: number;
+  fileSize?: number;
 }
 
 export interface VtcApplication {

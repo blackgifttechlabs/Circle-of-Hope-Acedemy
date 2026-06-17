@@ -5,5 +5,16 @@ dist/
 .env
 .env.*
 !.env.example
+.vercel/
+migrated_prompt_history/
+test-results/
 scripts/serviceAccount.json
 servicekey.json
+service-account*.json
+*service*key*.json
+*service*account*.json
+firebase-adminsdk*.json
+*.pem
+*.p12
+*.p8
+*.key

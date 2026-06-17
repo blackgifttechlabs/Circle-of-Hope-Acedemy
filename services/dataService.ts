@@ -1,7 +1,7 @@
 import { db, auth } from '../firebase';
 import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 import { getPaymentOptionLabel, isRegistrationFeeOption } from '../utils/paymentOptions';
@@ -26,6 +26,12 @@ const STUDENT_MEDICATIONS_COLLECTION = 'student_medications';
 const MATRON_LOGS_COLLECTION = 'matron_logs';
 const MEDICATION_ADMINISTRATIONS_COLLECTION = 'medication_administrations';
 const LOGIN_INDEX_COLLECTION = 'login_index';
+const FILE_CHUNKS_COLLECTION = 'file_chunks';
+
+const MAX_INLINE_DATA_URL_LENGTH = 700_000;
+const MAX_CHUNKED_DATA_URL_LENGTH = 15_000_000;
+const FILE_CHUNK_SIZE = 650_000;
+const FILE_CHUNKS_PER_BATCH = 8;
 
 // Admin Auth Configuration
 const ADMIN_EMAIL = "admin@coha.com";
@@ -114,6 +120,162 @@ export const signInPortalAccount = async (role: UserRole, targetId: string, pass
 export const logoutAuthSession = async () => {
   await signOut(auth);
 };
+
+type ChunkableRecord = Record<string, any> & {
+  fileChunkId?: string;
+  fileChunkCount?: number;
+  fileSize?: number;
+};
+
+type FileChunkOwner = {
+  parentCollection: string;
+  parentId: string;
+  fieldName: string;
+  studentId?: string;
+  className?: string;
+  publicUpload?: boolean;
+};
+
+const writeLargeFileChunks = async (dataUrl: string, owner: FileChunkOwner) => {
+  if (dataUrl.length > MAX_CHUNKED_DATA_URL_LENGTH) {
+    throw new Error('This file is too large. Please upload a file up to 10MB.');
+  }
+
+  if (dataUrl.length <= MAX_INLINE_DATA_URL_LENGTH) {
+    return null;
+  }
+
+  const fileId = `${owner.parentCollection}_${owner.parentId}_${owner.fieldName}_${Date.now()}`;
+  const totalChunks = Math.ceil(dataUrl.length / FILE_CHUNK_SIZE);
+  let batch = writeBatch(db);
+  let batchCount = 0;
+
+  for (let index = 0; index < totalChunks; index += 1) {
+    const start = index * FILE_CHUNK_SIZE;
+    const chunkRef = doc(db, FILE_CHUNKS_COLLECTION, `${fileId}_${String(index).padStart(4, '0')}`);
+    batch.set(chunkRef, {
+      fileId,
+      index,
+      chunkCount: totalChunks,
+      data: dataUrl.slice(start, start + FILE_CHUNK_SIZE),
+      parentCollection: owner.parentCollection,
+      parentId: owner.parentId,
+      fieldName: owner.fieldName,
+      studentId: owner.studentId || '',
+      className: owner.className || '',
+      publicUpload: owner.publicUpload === true,
+      createdAt: Timestamp.now(),
+    });
+    batchCount += 1;
+
+    if (batchCount >= FILE_CHUNKS_PER_BATCH) {
+      await batch.commit();
+      batch = writeBatch(db);
+      batchCount = 0;
+    }
+  }
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  return {
+    fileChunkId: fileId,
+    fileChunkCount: totalChunks,
+    fileSize: dataUrl.length,
+  };
+};
+
+const prepareChunkedDataUrlField = async <T extends ChunkableRecord>(
+  item: T,
+  fieldName: string,
+  owner: FileChunkOwner
+): Promise<T> => {
+  const dataUrl = item[fieldName];
+  if (!dataUrl || typeof dataUrl !== 'string') return item;
+
+  const chunkMeta = await writeLargeFileChunks(dataUrl, owner);
+  if (!chunkMeta) return item;
+
+  return {
+    ...item,
+    [fieldName]: '',
+    ...chunkMeta,
+  };
+};
+
+const hydrateChunkedDataUrlField = async <T extends ChunkableRecord>(
+  item: T,
+  fieldName: string
+): Promise<T> => {
+  if (!item?.fileChunkId || item[fieldName]) return item;
+
+  const chunksSnap = await getDocs(query(
+    collection(db, FILE_CHUNKS_COLLECTION),
+    where('fileId', '==', item.fileChunkId),
+    orderBy('index', 'asc')
+  ));
+
+  return {
+    ...item,
+    [fieldName]: chunksSnap.docs.map((chunkDoc) => chunkDoc.data().data || '').join(''),
+  };
+};
+
+const hydrateAttachment = (attachment: ApplicationFileAttachment) => (
+  hydrateChunkedDataUrlField(attachment, 'fileBase64')
+);
+
+const prepareApplicationAttachments = async <T extends Record<string, any>>(
+  applicationData: T,
+  parentCollection: string,
+  parentId: string
+): Promise<T> => {
+  const prepared: Record<string, any> = { ...applicationData };
+
+  if (prepared.birthCertificate) {
+    prepared.birthCertificate = await prepareChunkedDataUrlField(prepared.birthCertificate, 'fileBase64', {
+      parentCollection,
+      parentId,
+      fieldName: 'birthCertificate',
+      publicUpload: true,
+    });
+  }
+
+  prepared.medicalDocuments = await Promise.all((prepared.medicalDocuments || []).map((item: ApplicationFileAttachment, index: number) => (
+    prepareChunkedDataUrlField(item, 'fileBase64', {
+      parentCollection,
+      parentId,
+      fieldName: `medicalDocuments_${index}`,
+      publicUpload: true,
+    })
+  )));
+
+  prepared.otherDocuments = await Promise.all((prepared.otherDocuments || []).map((item: ApplicationFileAttachment, index: number) => (
+    prepareChunkedDataUrlField(item, 'fileBase64', {
+      parentCollection,
+      parentId,
+      fieldName: `otherDocuments_${index}`,
+      publicUpload: true,
+    })
+  )));
+
+  return prepared as T;
+};
+
+const hydrateApplicationAttachments = async <T extends Record<string, any>>(application: T): Promise<T> => ({
+  ...application,
+  birthCertificate: application.birthCertificate
+    ? await hydrateAttachment(application.birthCertificate)
+    : application.birthCertificate,
+  medicalDocuments: await Promise.all((application.medicalDocuments || []).map(hydrateAttachment)),
+  otherDocuments: await Promise.all((application.otherDocuments || []).map(hydrateAttachment)),
+});
+
+const hydrateHomeworkAssignment = async (assignment: HomeworkAssignment): Promise<HomeworkAssignment> => ({
+  ...assignment,
+  imageAttachments: await Promise.all((assignment.imageAttachments || []).map(hydrateAttachment)),
+});
 
 const calculateAge = (dobString: string): number => {
   const today = new Date();
@@ -1102,12 +1264,18 @@ export const submitPaymentProof = async (
 ) => {
     try {
         const student = await getStudentById(data.studentId);
-        const payload = JSON.parse(JSON.stringify({
+        const docRef = doc(collection(db, PAYMENT_PROOFS_COLLECTION));
+        const payload = await prepareChunkedDataUrlField(JSON.parse(JSON.stringify({
             ...data,
             submittedAt: Timestamp.now(),
             status: 'PENDING'
-        }));
-        const docRef = await addDoc(collection(db, PAYMENT_PROOFS_COLLECTION), payload);
+        })), 'imageBase64', {
+            parentCollection: PAYMENT_PROOFS_COLLECTION,
+            parentId: docRef.id,
+            fieldName: 'imageBase64',
+            studentId: data.studentId,
+        });
+        await setDoc(docRef, payload);
 
         const isRegistrationProof = isRegistrationFeeOption(data.termId);
         const nextStatus = isRegistrationProof
@@ -1151,15 +1319,21 @@ export const submitHomeworkAsMatron = async (
 ) => {
     try {
         const teacher = data.className ? await getTeacherByClass(data.className) : null;
-        const payload = JSON.parse(JSON.stringify({
+        const docRef = doc(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION));
+        const payload = await prepareChunkedDataUrlField(JSON.parse(JSON.stringify({
             ...data,
             teacherId: teacher?.id || '',
             matronId,
             matronName,
             submittedAt: Timestamp.now(),
             status: 'SUBMITTED',
-        }));
-        const docRef = await addDoc(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), payload);
+        })), 'imageBase64', {
+            parentCollection: HOMEWORK_SUBMISSIONS_COLLECTION,
+            parentId: docRef.id,
+            fieldName: 'imageBase64',
+            studentId: data.studentId,
+        });
+        await setDoc(docRef, payload);
         return { success: true, id: docRef.id };
     } catch (error) {
         console.error('Error submitting homework as matron:', error);
@@ -1170,13 +1344,15 @@ export const submitHomeworkAsMatron = async (
 export const getPaymentProofs = async (): Promise<PaymentProof[]> => {
     const q = query(collection(db, PAYMENT_PROOFS_COLLECTION), orderBy('submittedAt', 'desc'));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentProof));
+    const records = snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentProof));
+    return Promise.all(records.map((record) => hydrateChunkedDataUrlField(record, 'imageBase64')));
 };
 
 export const getPaymentProofsForStudent = async (studentId: string): Promise<PaymentProof[]> => {
     const q = query(collection(db, PAYMENT_PROOFS_COLLECTION), where('studentId', '==', studentId));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentProof))
+    const records = await Promise.all(snap.docs.map(d => hydrateChunkedDataUrlField({ id: d.id, ...d.data() } as PaymentProof, 'imageBase64')));
+    return records
       .sort((a, b) => {
         const aTime = a.submittedAt?.seconds || 0;
         const bTime = b.submittedAt?.seconds || 0;
@@ -1477,11 +1653,21 @@ export const createHomeworkAssignment = async (
     data: Omit<HomeworkAssignment, 'id' | 'createdAt'>
 ) => {
     try {
-        const payload = JSON.parse(JSON.stringify({
+        const docRef = doc(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION));
+        const basePayload = JSON.parse(JSON.stringify({
             ...data,
             createdAt: Timestamp.now(),
         }));
-        const docRef = await addDoc(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION), payload);
+        const imageAttachments = await Promise.all((basePayload.imageAttachments || []).map((item: ApplicationFileAttachment, index: number) => (
+            prepareChunkedDataUrlField(item, 'fileBase64', {
+                parentCollection: HOMEWORK_ASSIGNMENTS_COLLECTION,
+                parentId: docRef.id,
+                fieldName: `imageAttachments_${index}`,
+                className: data.className,
+            })
+        )));
+        const payload = { ...basePayload, imageAttachments };
+        await setDoc(docRef, payload);
         return { success: true, id: docRef.id };
     } catch (error) {
         console.error('Error creating homework assignment:', error);
@@ -1492,7 +1678,8 @@ export const createHomeworkAssignment = async (
 export const getHomeworkAssignmentsForClass = async (className: string): Promise<HomeworkAssignment[]> => {
     const q = query(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION), where('className', '==', className));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkAssignment))
+    const records = await Promise.all(snap.docs.map(d => hydrateHomeworkAssignment({ id: d.id, ...d.data() } as HomeworkAssignment)));
+    return records
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 };
 
@@ -1510,15 +1697,19 @@ export const getHomeworkAssignmentsForClasses = async (classNames: string[]): Pr
       return getDocs(q);
     }));
 
-    return snapshots
+    const records = await Promise.all(snapshots
       .flatMap((snap) => snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkAssignment)))
+      .map(hydrateHomeworkAssignment));
+
+    return records
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 };
 
 export const getHomeworkAssignmentsByTeacher = async (teacherId: string): Promise<HomeworkAssignment[]> => {
     const q = query(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION), where('teacherId', '==', teacherId));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkAssignment))
+    const records = await Promise.all(snap.docs.map(d => hydrateHomeworkAssignment({ id: d.id, ...d.data() } as HomeworkAssignment)));
+    return records
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 };
 
@@ -1527,13 +1718,19 @@ export const submitHomeworkSubmission = async (
 ) => {
     try {
         const teacher = data.className ? await getTeacherByClass(data.className) : null;
-        const payload = JSON.parse(JSON.stringify({
+        const docRef = doc(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION));
+        const payload = await prepareChunkedDataUrlField(JSON.parse(JSON.stringify({
             ...data,
             teacherId: teacher?.id || '',
             submittedAt: Timestamp.now(),
             status: 'SUBMITTED',
-        }));
-        const docRef = await addDoc(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), payload);
+        })), 'imageBase64', {
+            parentCollection: HOMEWORK_SUBMISSIONS_COLLECTION,
+            parentId: docRef.id,
+            fieldName: 'imageBase64',
+            studentId: data.studentId,
+        });
+        await setDoc(docRef, payload);
         return { success: true, id: docRef.id };
     } catch (error) {
         console.error('Error submitting homework:', error);
@@ -1544,7 +1741,8 @@ export const submitHomeworkSubmission = async (
 export const getHomeworkSubmissionsForStudent = async (studentId: string): Promise<HomeworkSubmission[]> => {
     const q = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), where('studentId', '==', studentId));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission))
+    const records = await Promise.all(snap.docs.map(d => hydrateChunkedDataUrlField({ id: d.id, ...d.data() } as HomeworkSubmission, 'imageBase64')));
+    return records
       .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
 };
 
@@ -1562,28 +1760,34 @@ export const getHomeworkSubmissionsForStudents = async (studentIds: string[]): P
       return getDocs(q);
     }));
 
-    return snapshots
+    const records = await Promise.all(snapshots
       .flatMap((snap) => snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission)))
+      .map((record) => hydrateChunkedDataUrlField(record, 'imageBase64')));
+
+    return records
       .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
 };
 
 export const getHomeworkSubmissionsForClass = async (className: string): Promise<HomeworkSubmission[]> => {
     const q = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), where('className', '==', className));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission))
+    const records = await Promise.all(snap.docs.map(d => hydrateChunkedDataUrlField({ id: d.id, ...d.data() } as HomeworkSubmission, 'imageBase64')));
+    return records
       .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
 };
 
 export const getAllHomeworkSubmissions = async (): Promise<HomeworkSubmission[]> => {
     const q = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), orderBy('submittedAt', 'desc'));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission));
+    const records = snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkSubmission));
+    return Promise.all(records.map((record) => hydrateChunkedDataUrlField(record, 'imageBase64')));
 };
 
 export const getAllHomeworkAssignments = async (): Promise<HomeworkAssignment[]> => {
     const q = query(collection(db, HOMEWORK_ASSIGNMENTS_COLLECTION));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkAssignment));
+    const records = snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkAssignment));
+    return Promise.all(records.map(hydrateHomeworkAssignment));
 };
 
 export const markHomeworkSubmissionReviewed = async (submissionId: string, notes?: string) => {
@@ -1603,11 +1807,17 @@ export const uploadStudentDocument = async (
     data: Omit<UploadedDocument, 'id' | 'uploadedAt'>
 ) => {
     try {
-        const payload = JSON.parse(JSON.stringify({
+        const docRef = doc(collection(db, STUDENT_DOCUMENTS_COLLECTION));
+        const payload = await prepareChunkedDataUrlField(JSON.parse(JSON.stringify({
             ...data,
             uploadedAt: Timestamp.now(),
-        }));
-        const docRef = await addDoc(collection(db, STUDENT_DOCUMENTS_COLLECTION), payload);
+        })), 'fileBase64', {
+            parentCollection: STUDENT_DOCUMENTS_COLLECTION,
+            parentId: docRef.id,
+            fieldName: 'fileBase64',
+            studentId: data.studentId,
+        });
+        await setDoc(docRef, payload);
         return { success: true, id: docRef.id };
     } catch (error) {
         console.error('Error uploading student document:', error);
@@ -1618,7 +1828,8 @@ export const uploadStudentDocument = async (
 export const getStudentDocuments = async (studentId: string): Promise<UploadedDocument[]> => {
     const q = query(collection(db, STUDENT_DOCUMENTS_COLLECTION), where('studentId', '==', studentId));
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as UploadedDocument))
+    const records = await Promise.all(snap.docs.map(d => hydrateChunkedDataUrlField({ id: d.id, ...d.data() } as UploadedDocument, 'fileBase64')));
+    return records
       .sort((a, b) => (b.uploadedAt?.seconds || 0) - (a.uploadedAt?.seconds || 0));
 };
 
@@ -2012,9 +2223,14 @@ export const submitApplication = async (applicationData: Partial<Application>) =
     }
 
     // Sanitize input to remove any undefined properties from the spread
-    const sanitizedData = JSON.parse(JSON.stringify(applicationData));
+    const docRef = doc(collection(db, APPLICATIONS_COLLECTION));
+    const sanitizedData = await prepareApplicationAttachments(
+      JSON.parse(JSON.stringify(applicationData)),
+      APPLICATIONS_COLLECTION,
+      docRef.id
+    );
 
-    await addDoc(collection(db, APPLICATIONS_COLLECTION), {
+    await setDoc(docRef, {
       ...sanitizedData,
       division,
       level,
@@ -2032,14 +2248,15 @@ export const submitApplication = async (applicationData: Partial<Application>) =
 export const getApplications = async (): Promise<Application[]> => {
   const q = query(collection(db, APPLICATIONS_COLLECTION), orderBy('submissionDate', 'desc'));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application));
+  const records = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application));
+  return Promise.all(records.map(hydrateApplicationAttachments));
 };
 
 export const getApplicationById = async (id: string): Promise<Application | null> => {
   const docRef = doc(db, APPLICATIONS_COLLECTION, id);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as Application;
+    return hydrateApplicationAttachments({ id: docSnap.id, ...docSnap.data() } as Application);
   }
   return null;
 };
@@ -2057,8 +2274,13 @@ export const updateApplication = async (id: string, data: Partial<Application>) 
 
 export const submitVtcApplication = async (applicationData: any) => {
   try {
-    const sanitizedData = JSON.parse(JSON.stringify(applicationData));
-    await addDoc(collection(db, VTC_APPLICATIONS_COLLECTION), {
+    const docRef = doc(collection(db, VTC_APPLICATIONS_COLLECTION));
+    const sanitizedData = await prepareApplicationAttachments(
+      JSON.parse(JSON.stringify(applicationData)),
+      VTC_APPLICATIONS_COLLECTION,
+      docRef.id
+    );
+    await setDoc(docRef, {
       ...sanitizedData,
       status: 'PENDING',
       submissionDate: Timestamp.now()
@@ -2073,14 +2295,15 @@ export const submitVtcApplication = async (applicationData: any) => {
 export const getVtcApplications = async (): Promise<any[]> => {
   const q = query(collection(db, VTC_APPLICATIONS_COLLECTION), orderBy('submissionDate', 'desc'));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const records = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return Promise.all(records.map(hydrateApplicationAttachments));
 };
 
 export const getVtcApplicationById = async (id: string): Promise<any | null> => {
   const docRef = doc(db, VTC_APPLICATIONS_COLLECTION, id);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() };
+    return hydrateApplicationAttachments({ id: docSnap.id, ...docSnap.data() });
   }
   return null;
 };
