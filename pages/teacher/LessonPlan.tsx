@@ -230,9 +230,10 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
     try {
       const selectedPlanClass = formData.grade || selectedClass;
       const classParts = getTeachingClassParts(selectedPlanClass);
+      const authorizedClassLevel = classParts.stage ? classParts.level : selectedPlanClass;
       const newPlan: Omit<WeeklyLessonPlan, 'id' | 'uploadedAt'> = {
         teacherId: user.id,
-        classLevel: selectedPlanClass,
+        classLevel: authorizedClassLevel,
         termId: activeTermId,
         ...formData,
         grade: selectedPlanClass,
@@ -274,7 +275,7 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
       setResultModal({
         status: 'error',
         title: editingPlan ? 'Update failed' : 'Upload failed',
-        message: 'The lesson plan could not be submitted. Please check your connection and try again.',
+        message: 'The lesson plan could not be submitted. Please confirm the selected class is assigned to your teacher account and try again.',
       });
     } finally {
       setIsSubmitting(false);
