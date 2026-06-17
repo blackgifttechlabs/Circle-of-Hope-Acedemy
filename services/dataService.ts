@@ -1590,17 +1590,19 @@ export const calculateFinalStage = async (studentId: string): Promise<{ success:
 
 export const verifyAdminPin = async (pin: string): Promise<any | null> => {
   let authSessionReady = false;
-  for (const password of [ADMIN_AUTH_PASSWORD, LEGACY_ADMIN_AUTH_PASSWORD]) {
+  let authSessionError: unknown = null;
+  for (const password of [LEGACY_ADMIN_AUTH_PASSWORD, ADMIN_AUTH_PASSWORD]) {
     try {
       await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
       authSessionReady = true;
       break;
     } catch (error) {
-      console.warn("Admin Firebase Auth session setup attempt failed.", error);
+      authSessionError = error;
     }
   }
 
   if (!authSessionReady) {
+    console.warn("Admin Firebase Auth session setup failed.", authSessionError);
     throw new Error('Admin Firebase Auth session could not be started.');
   }
 
