@@ -5,6 +5,7 @@ import { verifyAdminPin, verifyMatronPin } from '../services/dataService';
 
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
 const INACTIVITY_TIMEOUT_MS = 60_000;
+const LOCK_STORAGE_KEY = 'coha_inactivity_locked';
 const ACTIVITY_EVENTS = ['click', 'keydown', 'touchstart', 'scroll', 'pointerdown'] as const;
 
 interface InactivityLockProps {
@@ -13,7 +14,7 @@ interface InactivityLockProps {
 }
 
 export const InactivityLock: React.FC<InactivityLockProps> = ({ user, role }) => {
-  const [isLocked, setIsLocked] = useState(false);
+  const [isLocked, setIsLocked] = useState(() => localStorage.getItem(LOCK_STORAGE_KEY) === 'true');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -38,6 +39,7 @@ export const InactivityLock: React.FC<InactivityLockProps> = ({ user, role }) =>
     clearTimer();
     if (!isAuthenticated || isLocked) return;
     timerRef.current = window.setTimeout(() => {
+      localStorage.setItem(LOCK_STORAGE_KEY, 'true');
       setIsLocked(true);
       setPassword('');
       setError('');
@@ -54,6 +56,7 @@ export const InactivityLock: React.FC<InactivityLockProps> = ({ user, role }) =>
     if (!isAuthenticated) {
       clearTimer();
       setIsLocked(false);
+      localStorage.removeItem(LOCK_STORAGE_KEY);
       setPassword('');
       setError('');
       return;
@@ -111,6 +114,7 @@ export const InactivityLock: React.FC<InactivityLockProps> = ({ user, role }) =>
       }
 
       window.setTimeout(() => {
+        localStorage.removeItem(LOCK_STORAGE_KEY);
         setIsLocked(false);
         setPassword('');
         setIsUnlocking(false);

@@ -6,6 +6,7 @@ import { addActivityLog, verifyAdminPin, searchTeachers, searchStudents, searchV
 import { UserRole, Teacher, Student, Matron } from '../types';
 import { User, ShieldCheck, GraduationCap, ArrowLeft, BookOpen, ChevronRight, Search as SearchIcon, HeartPulse } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getFriendlyErrorMessage } from '../utils/friendlyErrors';
 
 interface LoginProps {
   onLogin: (role: UserRole, user: any) => void;
@@ -80,7 +81,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
         showLoginError('Incorrect admin PIN');
       }
     } catch (err) {
-      showLoginError('Unable to log in right now. Please check your connection and try again.');
+      showLoginError(getFriendlyErrorMessage(err));
       console.error('Admin login failed:', err);
     } finally {
       setLoading(false);

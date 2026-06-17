@@ -1588,6 +1588,12 @@ export const calculateFinalStage = async (studentId: string): Promise<{ success:
 };
 
 export const verifyAdminPin = async (pin: string): Promise<any | null> => {
+  try {
+    await signInWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_AUTH_PASSWORD);
+  } catch (error) {
+    console.warn("Admin Firebase Auth session setup failed.", error);
+  }
+
   const settings = await getSystemSettings();
   const validPin = settings ? settings.adminPin : DEFAULT_ADMIN_PASSWORD;
 
@@ -1603,12 +1609,6 @@ export const verifyAdminPin = async (pin: string): Promise<any | null> => {
   }
 
   if (!adminUser) return null;
-
-  try {
-    await signInWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_AUTH_PASSWORD);
-  } catch (error) {
-    console.warn("Admin Firebase Auth session setup failed; continuing with PIN-based admin login.", error);
-  }
 
   return adminUser;
 };
