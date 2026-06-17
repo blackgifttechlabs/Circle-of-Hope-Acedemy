@@ -1,0 +1,307 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasRole(roleName) {
+      return signedIn() && request.auth.token.role == roleName;
+    }
+
+    function isMainAdminEmail() {
+      return signedIn() && request.auth.token.email == 'admin@coha.com';
+    }
+
+    function isAdmin() {
+      return isMainAdminEmail() || hasRole('ADMIN') || hasRole('SUPER_ADMIN');
+    }
+
+    function isSubAdmin() {
+      return hasRole('SUB_ADMIN');
+    }
+
+    function isAnyAdmin() {
+      return isAdmin() || isSubAdmin();
+    }
+
+    function isTeacher() {
+      return hasRole('TEACHER');
+    }
+
+    function isParent() {
+      return hasRole('PARENT');
+    }
+
+    function isMatron() {
+      return hasRole('MATRON');
+    }
+
+    function isVtcStudent() {
+      return hasRole('VTC_STUDENT');
+    }
+
+    function isOwner(fieldName) {
+      return signedIn() && request.resource.data[fieldName] == request.auth.uid;
+    }
+
+    function ownsExisting(fieldName) {
+      return signedIn() && resource.data[fieldName] == request.auth.uid;
+    }
+
+    function hasStudent(studentId) {
+      return signedIn()
+        && request.auth.token.studentIds is list
+        && request.auth.token.studentIds.hasAny([studentId]);
+    }
+
+    function isAssignedTeacher(studentId) {
+      return isTeacher()
+        && request.auth.token.teacherId is string
+        && (
+          request.auth.token.assignedStudentIds is list
+          && request.auth.token.assignedStudentIds.hasAny([studentId])
+        );
+    }
+
+    function isAssignedClass(className) {
+      return isTeacher()
+        && className is string
+        && request.auth.token.assignedClasses is list
+        && request.auth.token.assignedClasses.hasAny([className]);
+    }
+
+    function canReadStudent(studentId) {
+      return isAnyAdmin() || hasStudent(studentId) || isAssignedTeacher(studentId) || isMatron();
+    }
+
+    function canWriteStudent(studentId) {
+      return isAdmin() || isAssignedTeacher(studentId);
+    }
+
+    function publicApplicationCreate() {
+      return request.resource.data.status == 'PENDING'
+        && request.resource.data.submissionDate is timestamp
+        && request.resource.data.firstName is string
+        && request.resource.data.surname is string
+        && request.resource.data.agreed == true;
+    }
+
+    function publicVtcApplicationCreate() {
+      return request.resource.data.status == 'PENDING'
+        && request.resource.data.submissionDate is timestamp
+        && request.resource.data.firstName is string
+        && request.resource.data.surname is string
+        && request.resource.data.cellNo is string;
+    }
+
+    function parentMutableStudentFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'parentPin',
+        'profileImageBase64',
+        'birthCertificate',
+        'medicalDocuments',
+        'otherDocuments',
+        'receiptSubmissionDate',
+        'studentStatus',
+        'paymentRejected'
+      ]);
+    }
+
+    match /settings/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /teachers/{teacherId} {
+      allow read: if isAnyAdmin() || (isTeacher() && request.auth.token.teacherId == teacherId);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /students/{studentId} {
+      allow read: if canReadStudent(studentId);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || isAssignedTeacher(studentId)
+        || (hasStudent(studentId) && parentMutableStudentFieldsOnly());
+    }
+
+    match /applications/{applicationId} {
+      allow create: if publicApplicationCreate() || isAnyAdmin();
+      allow read, update: if isAnyAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /vtcApplications/{applicationId} {
+      allow create: if publicVtcApplicationCreate() || isAnyAdmin();
+      allow read: if isAnyAdmin() || (isVtcStudent() && request.auth.token.applicationId == applicationId);
+      allow update: if isAnyAdmin()
+        || (
+          isVtcStudent()
+          && request.auth.token.applicationId == applicationId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'proofOfPaymentUrl',
+            'birthCertificate',
+            'medicalDocuments',
+            'otherDocuments',
+            'status'
+          ])
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /receipts/{receiptId} {
+      allow read: if isAnyAdmin() || hasStudent(resource.data.usedByStudentId);
+      allow create, update, delete: if isAnyAdmin();
+    }
+
+    match /payment_proofs/{proofId} {
+      allow create: if signedIn()
+        && request.resource.data.studentId is string
+        && (
+          hasStudent(request.resource.data.studentId)
+          || isAnyAdmin()
+        )
+        && request.resource.data.status == 'PENDING';
+      allow read: if isAnyAdmin() || hasStudent(resource.data.studentId);
+      allow update: if isAnyAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /student_documents/{documentId} {
+      allow create: if signedIn()
+        && request.resource.data.studentId is string
+        && (isAnyAdmin() || hasStudent(request.resource.data.studentId));
+      allow read: if isAnyAdmin() || hasStudent(resource.data.studentId) || isAssignedTeacher(resource.data.studentId) || isMatron();
+      allow update, delete: if isAnyAdmin();
+    }
+
+    match /homework_assignments/{assignmentId} {
+      allow read: if isAnyAdmin()
+        || isAssignedClass(resource.data.className)
+        || isParent()
+        || isMatron();
+      allow create: if isAnyAdmin()
+        || (
+          isTeacher()
+          && request.auth.token.teacherId == request.resource.data.teacherId
+          && isAssignedClass(request.resource.data.className)
+        );
+      allow update, delete: if isAnyAdmin()
+        || (
+          isTeacher()
+          && request.auth.token.teacherId == resource.data.teacherId
+        );
+    }
+
+    match /homework_submissions/{submissionId} {
+      allow create: if signedIn()
+        && request.resource.data.studentId is string
+        && (
+          hasStudent(request.resource.data.studentId)
+          || isMatron()
+          || isAnyAdmin()
+        )
+        && request.resource.data.status == 'SUBMITTED';
+      allow read: if isAnyAdmin()
+        || hasStudent(resource.data.studentId)
+        || isAssignedTeacher(resource.data.studentId)
+        || isMatron();
+      allow update: if isAnyAdmin() || isAssignedTeacher(resource.data.studentId);
+      allow delete: if isAdmin();
+    }
+
+    match /lesson_plans/{planId} {
+      allow read: if isAnyAdmin()
+        || (
+          isTeacher()
+          && request.auth.token.teacherId == resource.data.teacherId
+        );
+      allow create: if isTeacher()
+        && request.auth.token.teacherId == request.resource.data.teacherId
+        && isAssignedClass(request.resource.data.classLevel);
+      allow update, delete: if isAnyAdmin()
+        || (
+          isTeacher()
+          && request.auth.token.teacherId == resource.data.teacherId
+        );
+    }
+
+    match /assessment_records/{grade}/students/{studentId}/terms/{termId} {
+      allow read: if canReadStudent(studentId);
+      allow create, update: if isAnyAdmin() || isAssignedTeacher(studentId);
+      allow delete: if isAdmin();
+    }
+
+    match /topic_assessments/{assessmentId} {
+      allow read: if isAnyAdmin()
+        || hasStudent(resource.data.studentId)
+        || isAssignedTeacher(resource.data.studentId);
+      allow create, update: if isAnyAdmin()
+        || (
+          request.resource.data.studentId is string
+          && isAssignedTeacher(request.resource.data.studentId)
+        );
+      allow delete: if isAnyAdmin();
+    }
+
+    match /custom_topics/{topicId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAnyAdmin() || isTeacher();
+    }
+
+    match /topic_overrides/{overrideId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAnyAdmin() || isTeacher();
+    }
+
+    match /daily_register/{grade}/students/{studentId} {
+      allow read: if canReadStudent(studentId);
+      allow create, update: if isAnyAdmin() || isAssignedTeacher(studentId);
+      allow delete: if isAdmin();
+    }
+
+    match /matrons/{matronId} {
+      allow read: if isAnyAdmin() || (isMatron() && request.auth.token.matronId == matronId);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /student_medications/{medicationId} {
+      allow read: if isAnyAdmin() || isMatron() || hasStudent(resource.data.student_id);
+      allow create, update: if isAnyAdmin() || isMatron();
+      allow delete: if isAdmin();
+    }
+
+    match /matron_logs/{logId} {
+      allow read: if isAnyAdmin() || isMatron() || hasStudent(resource.data.student_id);
+      allow create: if (isMatron() && request.auth.token.matronId == request.resource.data.matron_id) || isAnyAdmin();
+      allow update: if isAnyAdmin() || (isMatron() && request.auth.token.matronId == resource.data.matron_id);
+      allow delete: if isAdmin();
+    }
+
+    match /medication_administrations/{administrationId} {
+      allow read: if isAnyAdmin() || isMatron() || hasStudent(resource.data.student_id);
+      allow create: if (isMatron() && request.auth.token.matronId == request.resource.data.matron_id) || isAnyAdmin();
+      allow update: if isAnyAdmin() || (isMatron() && request.auth.token.matronId == resource.data.matron_id);
+      allow delete: if isAdmin();
+    }
+
+    match /activity_logs/{logId} {
+      allow create: if signedIn()
+        && request.resource.data.actorName is string
+        && request.resource.data.actorRole is string
+        && request.resource.data.createdAt is timestamp;
+      allow read: if isAnyAdmin();
+      allow update, delete: if false;
+    }
+
+    match /alert_dismissals/{alertId} {
+      allow read, create, update, delete: if isAnyAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

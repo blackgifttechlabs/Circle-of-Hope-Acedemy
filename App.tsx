@@ -52,8 +52,9 @@ import { MatronSettings } from './pages/matron/Settings';
 import { MatronHomeworks } from './pages/matron/Homeworks';
 import { MatronRecords } from './pages/admin/MatronRecords';
 import { UserRole } from './types';
-import { seedAdminUser, getAdminProfile } from './services/dataService';
+import { getAdminProfile } from './services/dataService';
 import { Toast } from './components/ui/Toast';
+import { InactivityLock } from './components/InactivityLock';
 import { isGrade1To7Class } from './utils/assessmentWorkflow';
 import { getSelectedTeachingClass } from './utils/teacherClassSelection';
 
@@ -134,9 +135,6 @@ const App: React.FC = () => {
   const [toastVisible, setToastVisible] = useState(false);
 
   useEffect(() => {
-    // Seed admin on app load
-    seedAdminUser();
-    
     // Check if admin is currently active to refresh profile name
     if (user && role === UserRole.ADMIN) {
         getAdminProfile(user.id).then(profile => {
@@ -181,6 +179,7 @@ const App: React.FC = () => {
         isVisible={toastVisible} 
         onClose={() => setToastVisible(false)} 
       />
+      <InactivityLock user={user} role={role} />
       <BrowserRouter>
         <SEO />
         <Routes>

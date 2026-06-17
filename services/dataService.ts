@@ -1,6 +1,6 @@
 import { db, auth } from '../firebase';
 import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
@@ -134,51 +134,6 @@ export const determineSpecialNeedsLevel = (dob: string): string => {
   if (age >= 11) return 'Level 3'; 
   if (age >= 9) return 'Level 2';  
   return 'Level 1'; 
-};
-
-export const seedAdminUser = async () => {
-  try {
-    try {
-      await createUserWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_AUTH_PASSWORD);
-    } catch (error: any) {
-      if (error.code !== 'auth/email-already-in-use') {
-        throw error;
-      }
-    }
-
-    const settings = await getSystemSettings();
-    if (!settings) {
-      await saveSystemSettings({
-        schoolName: 'Circle of Hope Academy',
-        adminName: 'Victoria Joel',
-        adminPin: DEFAULT_ADMIN_PASSWORD,
-        termStartDate: '2026-01-14',
-        termStartTime: '07:30',
-        grades: ['Grade 0', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'],
-        specialNeedsLevels: ['Level 1', 'Level 2', 'Level 3'],
-        fees: [
-          { id: '1', category: 'Tuition (Special Classes)', amount: '2300', frequency: 'Monthly', notes: 'Due by 5th' },
-          { id: '2', category: 'Tuition (Termly)', amount: '7100', frequency: 'Termly', notes: 'Discounted rate' },
-        ],
-        uniforms: [], 
-        stationery: [], 
-        lastStudentId: 0
-      });
-    } else if (settings.adminPin === '1111') {
-      await saveSystemSettings({ adminPin: DEFAULT_ADMIN_PASSWORD });
-    }
-
-    const legacyTeachers = await getDocs(query(collection(db, TEACHERS_COLLECTION), where('pin', '==', '1234')));
-    if (!legacyTeachers.empty) {
-      const batch = writeBatch(db);
-      legacyTeachers.docs.forEach((teacherDoc) => {
-        batch.update(doc(db, TEACHERS_COLLECTION, teacherDoc.id), { pin: DEFAULT_TEACHER_PASSWORD });
-      });
-      await batch.commit();
-    }
-  } catch (error: any) {
-    console.error("Error seeding admin user:", error);
-  }
 };
 
 export const addTeacher = async (
