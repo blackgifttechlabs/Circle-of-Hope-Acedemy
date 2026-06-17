@@ -458,6 +458,8 @@ export interface WeeklyLessonPlan {
   theme: string;
   weekNumber: number;
   grade: string;
+  level?: string;
+  stage?: 1 | 2 | 3;
   dates: string;
   coreSubjects: Record<string, Record<string, string>>; // day -> subject -> activity
   extendedSubjects: Record<string, Record<string, string>>; // day -> subject -> activity

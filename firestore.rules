@@ -72,6 +72,18 @@ service cloud.firestore {
         && request.auth.token.assignedClasses.hasAny([className]);
     }
 
+    function canWriteLessonPlanClass() {
+      return isAssignedClass(request.resource.data.classLevel)
+        || (
+          request.resource.data.level is string
+          && isAssignedClass(request.resource.data.level)
+          && (
+            !('stage' in request.resource.data)
+            || request.resource.data.stage in [1, 2, 3]
+          )
+        );
+    }
+
     function isTeacherForStudentRecord() {
       return isTeacher()
         && (
@@ -298,7 +310,7 @@ service cloud.firestore {
         );
       allow create: if isTeacher()
         && request.auth.token.teacherId == request.resource.data.teacherId
-        && isAssignedClass(request.resource.data.classLevel);
+        && canWriteLessonPlanClass();
       allow update, delete: if isAnyAdmin()
         || (
           isTeacher()

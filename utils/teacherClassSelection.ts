@@ -52,6 +52,20 @@ export const getTeachingClassStageOptions = (classes: string[]): string[] => {
   return options;
 };
 
+export const getTeachingClassParts = (className: string): { level: string; stage?: 1 | 2 | 3 } => {
+  const trimmed = className.trim();
+  const match = trimmed.match(/^(.*?)\s-\sStage\s+([123])$/i);
+
+  if (!match) {
+    return { level: trimmed };
+  }
+
+  return {
+    level: match[1].trim(),
+    stage: Number(match[2]) as 1 | 2 | 3,
+  };
+};
+
 export const matchesTeachingClass = (studentClass: string, className: string): boolean => {
   const normalizedStudentClass = studentClass.trim();
   const normalizedClass = className.trim();

@@ -4,8 +4,9 @@ import { ArrowLeft, Upload, FileText, Download, Eye, ChevronLeft, ChevronRight, 
 import { Teacher, WeeklyLessonPlan, SystemSettings } from '../../types';
 import { uploadLessonPlan, getLessonPlans, getSystemSettings, updateLessonPlan, deleteLessonPlan } from '../../services/dataService';
 import { CLASS_LIST_SKILLS } from '../../utils/classListSkills';
-import { getSelectedTeachingClass, getTeacherAssignedClasses, getTeachingClassStageOptions, withTeachingClass } from '../../utils/teacherClassSelection';
+import { getSelectedTeachingClass, getTeacherAssignedClasses, getTeachingClassParts, getTeachingClassStageOptions, withTeachingClass } from '../../utils/teacherClassSelection';
 import { printLessonPlanPDF } from '../../utils/printLessonPlan';
+import { UploadResultModal } from '../../components/ui/UploadResultModal';
 
 interface LessonPlanProps {
   user: Teacher | null;
@@ -131,6 +132,11 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
   const [selectedPlan, setSelectedPlan] = useState<WeeklyLessonPlan | null>(null);
   const [editingPlan, setEditingPlan] = useState<WeeklyLessonPlan | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WeeklyLessonPlan | null>(null);
+  const [resultModal, setResultModal] = useState<{
+    status: 'success' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
   const isReadOnly = !!selectedPlan && !editingPlan;
 
   useEffect(() => {
@@ -222,11 +228,16 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
 
     setIsSubmitting(true);
     try {
+      const selectedPlanClass = formData.grade || selectedClass;
+      const classParts = getTeachingClassParts(selectedPlanClass);
       const newPlan: Omit<WeeklyLessonPlan, 'id' | 'uploadedAt'> = {
         teacherId: user.id,
-        classLevel: formData.grade || selectedClass,
+        classLevel: selectedPlanClass,
         termId: activeTermId,
-        ...formData
+        ...formData,
+        grade: selectedPlanClass,
+        level: classParts.level,
+        ...(classParts.stage ? { stage: classParts.stage } : {})
       };
 
       if (editingPlan?.id) {
@@ -238,7 +249,11 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
         setUploadedPlans(prev => prev.map(plan => plan.id === editingPlan.id ? updatedPlan : plan));
         setSelectedPlan(updatedPlan);
         setEditingPlan(null);
-        alert("Lesson plan updated successfully!");
+        setResultModal({
+          status: 'success',
+          title: 'Lesson plan updated',
+          message: `${selectedPlanClass} week ${newPlan.weekNumber} was saved successfully.`,
+        });
       } else {
         const id = await uploadLessonPlan(newPlan);
         const completePlan: WeeklyLessonPlan = {
@@ -248,11 +263,19 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
         };
         setUploadedPlans(prev => [completePlan, ...prev]);
         setSelectedPlan(null);
-        alert("Lesson plan uploaded successfully!");
+        setResultModal({
+          status: 'success',
+          title: 'Lesson plan uploaded',
+          message: `${selectedPlanClass} week ${newPlan.weekNumber} was submitted successfully.`,
+        });
       }
     } catch (error) {
       console.error("Error submitting lesson plan:", error);
-      alert(editingPlan ? "Failed to update lesson plan. Please try again." : "Failed to upload lesson plan. Please try again.");
+      setResultModal({
+        status: 'error',
+        title: editingPlan ? 'Update failed' : 'Upload failed',
+        message: 'The lesson plan could not be submitted. Please check your connection and try again.',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -673,6 +696,14 @@ const LessonPlanPage: React.FC<LessonPlanProps> = ({ user }) => {
           </div>
         </div>
       )}
+
+      <UploadResultModal
+        open={!!resultModal}
+        status={resultModal?.status || 'success'}
+        title={resultModal?.title || ''}
+        message={resultModal?.message || ''}
+        onClose={() => setResultModal(null)}
+      />
     </div>
   );
 };
