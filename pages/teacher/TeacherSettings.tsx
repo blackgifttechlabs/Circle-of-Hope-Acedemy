@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getTeacherById, updateTeacher } from '../../services/dataService';
 import { Teacher } from '../../types';
 import { KeyRound, LockKeyhole, Save } from 'lucide-react';
+import { isStrongStaffPassword, STAFF_PASSWORD_REQUIREMENTS } from '../../utils/credentials';
 
 interface TeacherSettingsProps {
   user: any;
@@ -39,12 +40,12 @@ export const TeacherSettings: React.FC<TeacherSettingsProps> = ({ user }) => {
 
     if (currentPin !== teacher.pin) {
       setMessageType('error');
-      setMessage('Current PIN is incorrect.');
+      setMessage('Current password is incorrect.');
       return;
     }
-    if (newPin.length < 4) {
+    if (!isStrongStaffPassword(newPin)) {
       setMessageType('error');
-      setMessage('New PIN must be at least 4 digits.');
+      setMessage(STAFF_PASSWORD_REQUIREMENTS);
       return;
     }
     if (newPin !== confirmPin) {
@@ -69,7 +70,7 @@ export const TeacherSettings: React.FC<TeacherSettingsProps> = ({ user }) => {
       setNewPin('');
       setConfirmPin('');
       setMessageType('success');
-      setMessage('Teacher PIN updated successfully.');
+      setMessage('Teacher password updated successfully.');
 
       const pinUpdate = {
         teacherId: teacher.id,
@@ -95,49 +96,46 @@ export const TeacherSettings: React.FC<TeacherSettingsProps> = ({ user }) => {
     <div className="space-y-6 max-w-3xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 font-archivo">Teacher Settings</h1>
-        <p className="text-sm text-gray-500 mt-1">Change your teacher login PIN.</p>
+        <p className="text-sm text-gray-500 mt-1">Change your teacher login password.</p>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="border-b border-gray-200 px-6 py-4">
           <div className="flex items-center gap-2 text-coha-700">
             <KeyRound size={18} />
-            <span className="text-sm font-bold uppercase tracking-[0.16em]">Change PIN</span>
+            <span className="text-sm font-bold uppercase tracking-[0.16em]">Change Password</span>
           </div>
         </div>
 
         <div className="p-6 space-y-5">
           <div className="grid gap-4">
             <div>
-              <label className="block text-[11px] font-black uppercase tracking-[0.16em] text-gray-500 mb-2">Current PIN</label>
+              <label className="block text-[11px] font-black uppercase tracking-[0.16em] text-gray-500 mb-2">Current Password</label>
               <input
                 value={currentPin}
                 onChange={(e) => setCurrentPin(e.target.value)}
                 type="password"
-                inputMode="numeric"
-                placeholder="Enter current PIN"
+                placeholder="Enter current password"
                 className="w-full h-12 border border-gray-300 rounded-xl px-4 text-sm font-semibold outline-none focus:border-coha-500"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-black uppercase tracking-[0.16em] text-gray-500 mb-2">New PIN</label>
+              <label className="block text-[11px] font-black uppercase tracking-[0.16em] text-gray-500 mb-2">New Password</label>
               <input
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value)}
                 type="password"
-                inputMode="numeric"
-                placeholder="Enter new PIN"
+                placeholder="Enter new password"
                 className="w-full h-12 border border-gray-300 rounded-xl px-4 text-sm font-semibold outline-none focus:border-coha-500"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-black uppercase tracking-[0.16em] text-gray-500 mb-2">Confirm PIN</label>
+              <label className="block text-[11px] font-black uppercase tracking-[0.16em] text-gray-500 mb-2">Confirm Password</label>
               <input
                 value={confirmPin}
                 onChange={(e) => setConfirmPin(e.target.value)}
                 type="password"
-                inputMode="numeric"
-                placeholder="Confirm new PIN"
+                placeholder="Confirm new password"
                 className="w-full h-12 border border-gray-300 rounded-xl px-4 text-sm font-semibold outline-none focus:border-coha-500"
               />
             </div>
@@ -162,7 +160,7 @@ export const TeacherSettings: React.FC<TeacherSettingsProps> = ({ user }) => {
             className="w-full h-12 rounded-xl bg-coha-900 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             {saving ? <LockKeyhole size={16} /> : <Save size={16} />}
-            {saving ? 'Updating PIN...' : 'Update PIN'}
+            {saving ? 'Updating Password...' : 'Update Password'}
           </button>
         </div>
       </div>

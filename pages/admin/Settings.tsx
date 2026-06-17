@@ -6,6 +6,7 @@ import { SystemSettings, FeeItem, SupplyItem } from '../../types';
 import { Save, User, DollarSign, Package, Calendar, Plus, Trash2, CheckSquare, Square, Eye, EyeOff, BookOpen, Heart, Settings, Home } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { CalendarSettings } from './CalendarSettings';
+import { isStrongStaffPassword, STAFF_PASSWORD_REQUIREMENTS } from '../../utils/credentials';
 
 export const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'FEES' | 'UNIFORMS' | 'CONFIG' | 'CALENDAR'>('PROFILE');
@@ -25,6 +26,7 @@ export const SettingsPage: React.FC = () => {
   });
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
   const [showPin, setShowPin] = useState(false);
 
   // Local state for new entries
@@ -77,6 +79,14 @@ export const SettingsPage: React.FC = () => {
     if(e) e.preventDefault();
     setLoading(true);
     setSuccessMsg('');
+    setErrorMsg('');
+
+    if (!isStrongStaffPassword(settings.adminPin)) {
+      setErrorMsg(STAFF_PASSWORD_REQUIREMENTS);
+      setLoading(false);
+      return;
+    }
+
     const success = await saveSystemSettings(settings);
     if (success) {
         setSuccessMsg('Settings saved successfully.');
@@ -178,6 +188,12 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
+      {errorMsg && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 flex items-center gap-2">
+            <Trash2 size={20} /> {errorMsg}
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="bg-white border-b border-gray-200 flex flex-wrap mb-6">
         <button 
@@ -226,9 +242,8 @@ export const SettingsPage: React.FC = () => {
                 />
                 <div className="relative">
                     <Input 
-                        label="Login PIN (4 Digits)" 
+                        label="Login Password" 
                         type={showPin ? 'text' : 'password'}
-                        maxLength={4}
                         value={settings.adminPin} 
                         onChange={(e) => setSettings({...settings, adminPin: e.target.value})} 
                     />

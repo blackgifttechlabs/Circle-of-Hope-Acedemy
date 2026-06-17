@@ -798,7 +798,7 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
                 <th className="px-6 py-4 bg-gray-50">Subject</th>
                 <th className="px-6 py-4 bg-white">Assigned Classes</th>
                 <th className="px-6 py-4 bg-gray-50">Students</th>
-                <th className="px-6 py-4 bg-white">PIN</th>
+                <th className="px-6 py-4 bg-white">Password</th>
                 <th className="px-6 py-4 text-right bg-gray-50">Actions</th>
               </tr>
             </thead>

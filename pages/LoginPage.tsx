@@ -117,6 +117,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
     setSelectedUser(user);
     setSearchResults([]);
     setSearchTerm(user.name);
+    setPin('');
   };
 
   const handleUserLogin = async (e: React.FormEvent) => {
@@ -254,6 +255,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                           setActiveTab(role.id as any); 
                           setSelectedUser(null); 
                           setSearchTerm(''); 
+                          setPin('');
                           setError('');
                           if (isMobile) setStep(1);
                         }}
@@ -312,7 +314,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                   </h2>
                   <p className="text-gray-500 text-sm md:text-base leading-relaxed" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
                     {activeTab === 'ADMIN' 
-                      ? 'Enter your security PIN to continue.' 
+                      ? 'Enter your security password to continue.' 
                       : (activeTab === 'MATRON' && !selectedUser) ? 'Search for your name to log in.' : 'Please identify yourself to proceed.'}
                   </p>
                 </div>
@@ -320,16 +322,15 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                 {activeTab === 'ADMIN' && (
                   <form onSubmit={handleAdminLogin} className="space-y-8">
                     <div>
-                      <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-3" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Security PIN</label>
+                      <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-3" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Security Password</label>
                       <input
                         type="password"
-                        placeholder="••••"
+                        placeholder="Enter password"
                         value={pin}
                         onChange={(e) => setPin(e.target.value)}
-                        maxLength={4}
                         autoFocus
                         disabled={loading}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 transition-all font-mono text-2xl tracking-[0.5em]"
+                        className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 transition-all text-lg"
                       />
                     </div>
                     {error && <p className="text-red-500 text-sm font-medium" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{error}</p>}
@@ -421,35 +422,47 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                           </button>
                         </div>
                         <div>
-                          <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-3" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Authorization PIN</label>
-                          <div className="flex justify-between gap-2 max-w-[280px] mx-auto">
-                            {[0, 1, 2, 3].map((idx) => (
-                              <input
-                                key={idx}
-                                id={`pin-${idx}`}
-                                type="password"
-                                inputMode="numeric"
-                                maxLength={1}
-                                value={pin[idx] || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val && !/^\d$/.test(val)) return;
-                                  const newPin = pin.split('');
-                                  newPin[idx] = val;
-                                  setPin(newPin.join(''));
-                                  if (val && idx < 3) {
-                                    document.getElementById(`pin-${idx + 1}`)?.focus();
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Backspace' && !pin[idx] && idx > 0) {
-                                    document.getElementById(`pin-${idx - 1}`)?.focus();
-                                  }
-                                }}
-                                className="w-14 h-16 bg-gray-50 border-2 border-gray-200 rounded-2xl text-center text-2xl font-bold focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 outline-none transition-all"
-                              />
-                            ))}
-                          </div>
+                          <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-3" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
+                            {activeTab === 'TEACHER' ? 'Authorization Password' : 'Authorization PIN'}
+                          </label>
+                          {activeTab === 'TEACHER' ? (
+                            <input
+                              type="password"
+                              value={pin}
+                              onChange={(e) => setPin(e.target.value)}
+                              placeholder="Enter password"
+                              className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 transition-all text-lg"
+                            />
+                          ) : (
+                            <div className="flex justify-between gap-2 max-w-[280px] mx-auto">
+                              {[0, 1, 2, 3].map((idx) => (
+                                <input
+                                  key={idx}
+                                  id={`pin-${idx}`}
+                                  type="password"
+                                  inputMode="numeric"
+                                  maxLength={1}
+                                  value={pin[idx] || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val && !/^\d$/.test(val)) return;
+                                    const newPin = pin.split('');
+                                    newPin[idx] = val;
+                                    setPin(newPin.join(''));
+                                    if (val && idx < 3) {
+                                      document.getElementById(`pin-${idx + 1}`)?.focus();
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Backspace' && !pin[idx] && idx > 0) {
+                                      document.getElementById(`pin-${idx - 1}`)?.focus();
+                                    }
+                                  }}
+                                  className="w-14 h-16 bg-gray-50 border-2 border-gray-200 rounded-2xl text-center text-2xl font-bold focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 outline-none transition-all"
+                                />
+                              ))}
+                            </div>
+                          )}
                         </div>
                         {error && <p className="text-red-500 text-sm font-medium" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{error}</p>}
                         <Button

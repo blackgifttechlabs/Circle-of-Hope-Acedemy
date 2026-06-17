@@ -6,6 +6,7 @@ import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 import { getPaymentOptionLabel, isRegistrationFeeOption } from '../utils/paymentOptions';
 import { hashPin } from '../utils/crypto';
+import { DEFAULT_ADMIN_PASSWORD, DEFAULT_TEACHER_PASSWORD, isStrongStaffPassword, STAFF_PASSWORD_REQUIREMENTS } from '../utils/credentials';
 
 // Collections
 const TEACHERS_COLLECTION = 'teachers';
@@ -27,7 +28,7 @@ const MEDICATION_ADMINISTRATIONS_COLLECTION = 'medication_administrations';
 
 // Admin Auth Configuration
 const ADMIN_EMAIL = "admin@coha.com";
-const ADMIN_AUTH_PASSWORD = "111111"; 
+const ADMIN_AUTH_PASSWORD = DEFAULT_ADMIN_PASSWORD;
 
 const calculateAge = (dobString: string): number => {
   const today = new Date();
@@ -137,13 +138,20 @@ export const determineSpecialNeedsLevel = (dob: string): string => {
 
 export const seedAdminUser = async () => {
   try {
-    await createUserWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_AUTH_PASSWORD);
+    try {
+      await createUserWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_AUTH_PASSWORD);
+    } catch (error: any) {
+      if (error.code !== 'auth/email-already-in-use') {
+        throw error;
+      }
+    }
+
     const settings = await getSystemSettings();
     if (!settings) {
       await saveSystemSettings({
         schoolName: 'Circle of Hope Academy',
         adminName: 'Victoria Joel',
-        adminPin: '1111',
+        adminPin: DEFAULT_ADMIN_PASSWORD,
         termStartDate: '2026-01-14',
         termStartTime: '07:30',
         grades: ['Grade 0', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'],
@@ -156,11 +164,20 @@ export const seedAdminUser = async () => {
         stationery: [], 
         lastStudentId: 0
       });
+    } else if (settings.adminPin === '1111') {
+      await saveSystemSettings({ adminPin: DEFAULT_ADMIN_PASSWORD });
+    }
+
+    const legacyTeachers = await getDocs(query(collection(db, TEACHERS_COLLECTION), where('pin', '==', '1234')));
+    if (!legacyTeachers.empty) {
+      const batch = writeBatch(db);
+      legacyTeachers.docs.forEach((teacherDoc) => {
+        batch.update(doc(db, TEACHERS_COLLECTION, teacherDoc.id), { pin: DEFAULT_TEACHER_PASSWORD });
+      });
+      await batch.commit();
     }
   } catch (error: any) {
-    if (error.code !== 'auth/email-already-in-use') {
-      console.error("Error seeding admin user:", error);
-    }
+    console.error("Error seeding admin user:", error);
   }
 };
 
@@ -179,7 +196,7 @@ export const addTeacher = async (
       assignedClasses: normalizedClasses,
       assignedStudentIds: extras?.assignedStudentIds || [],
       role: UserRole.TEACHER,
-      pin: '1234',
+      pin: DEFAULT_TEACHER_PASSWORD,
       activeTeachingClass: extras?.activeTeachingClass || normalizedClasses[0] || '',
       createdAt: new Date()
     });
@@ -1617,7 +1634,7 @@ export const calculateFinalStage = async (studentId: string): Promise<{ success:
 
 export const verifyAdminPin = async (pin: string): Promise<any | null> => {
   const settings = await getSystemSettings();
-  const validPin = settings ? settings.adminPin : '1111';
+  const validPin = settings ? settings.adminPin : DEFAULT_ADMIN_PASSWORD;
 
   let adminUser = null;
 
@@ -1648,8 +1665,8 @@ export const createSubAdmin = async (name: string, pin: string): Promise<{succes
 
     const cleanName = name.trim();
     const cleanPin = pin.trim();
-    if (!cleanName || cleanPin.length < 4) {
-      return { success: false, message: 'Admin name and a PIN of at least 4 characters are required.' };
+    if (!cleanName || !isStrongStaffPassword(cleanPin)) {
+      return { success: false, message: `Admin name is required. ${STAFF_PASSWORD_REQUIREMENTS}` };
     }
 
     // Check if PIN matches super admin
@@ -1704,8 +1721,8 @@ export const updateAdminAccount = async (
 
     const cleanName = name.trim();
     const cleanPin = pin.trim();
-    if (!cleanName || cleanPin.length < 4) {
-      return { success: false, message: 'Admin name and a PIN of at least 4 characters are required.' };
+    if (!cleanName || !isStrongStaffPassword(cleanPin)) {
+      return { success: false, message: `Admin name is required. ${STAFF_PASSWORD_REQUIREMENTS}` };
     }
 
     const isMainAdmin = adminId === 'admin';

@@ -22,6 +22,7 @@ import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { ActivityLog, SystemSettings } from '../../types';
+import { isStrongStaffPassword, STAFF_PASSWORD_REQUIREMENTS } from '../../utils/credentials';
 
 /* ─── Avatar ─── */
 const Av = ({ name, imageUrl, size = 36 }: { name: string; imageUrl?: string; size?: number }) => {
@@ -213,8 +214,8 @@ export const AdminDashboard: React.FC = () => {
     setCreateAdminError('');
     setCreateAdminSuccess('');
 
-    if (newAdminPin.length < 4) {
-      setCreateAdminError('PIN must be at least 4 characters long.');
+    if (!isStrongStaffPassword(newAdminPin)) {
+      setCreateAdminError(STAFF_PASSWORD_REQUIREMENTS);
       setCreateAdminLoading(false);
       return;
     }
@@ -953,7 +954,7 @@ export const AdminDashboard: React.FC = () => {
                     letterSpacing:-.5, margin:0 }}>Admins</h3>
                 </div>
                 <p style={{ fontSize:12, color:'#94a3b8', fontWeight:600, margin:0 }}>
-                  View admin names, current PINs, account actions, and activity logs.
+                  View admin names, current passwords, account actions, and activity logs.
                 </p>
               </div>
               <button onClick={() => setShowAdmins(false)}
@@ -985,7 +986,7 @@ export const AdminDashboard: React.FC = () => {
                   <tr style={{ background:'#f8fafc', position:'sticky', top:0 }}>
                     <th className="ath">Name</th>
                     <th className="ath">Role</th>
-                    <th className="ath">Current PIN</th>
+                    <th className="ath">Current Password</th>
                     <th className="ath">Activities</th>
                     <th className="ath" style={{ textAlign:'right' }}>Actions</th>
                   </tr>
@@ -1097,7 +1098,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
               <div style={{ marginBottom:24 }}>
                 <Input
-                  label="Current PIN"
+                  label="Current Password"
                   value={editAdminForm.pin}
                   onChange={(event) => setEditAdminForm((prev) => ({ ...prev, pin: event.target.value }))}
                 />
@@ -1315,9 +1316,9 @@ export const AdminDashboard: React.FC = () => {
               </div>
               <div style={{ marginBottom:24 }}>
                 <Input 
-                  label="Admin PIN" 
+                  label="Admin Password" 
                   type="password"
-                  placeholder="Enter a unique PIN" 
+                  placeholder="Enter a unique password" 
                   value={newAdminPin}
                   onChange={(e) => setNewAdminPin(e.target.value)}
                   required

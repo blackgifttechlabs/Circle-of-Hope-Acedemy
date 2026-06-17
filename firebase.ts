@@ -3,12 +3,12 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBY8cTLnqg58ciXccwTk3qJx0kB1Os40Dk",
-  authDomain: "circle-of-hope-academy.firebaseapp.com",
-  projectId: "circle-of-hope-academy",
-  storageBucket: "circle-of-hope-academy.firebasestorage.app",
-  messagingSenderId: "80960093872",
-  appId: "1:80960093872:web:7ace3a1536ddf6e5ab0575"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 const app = initializeApp(firebaseConfig);
