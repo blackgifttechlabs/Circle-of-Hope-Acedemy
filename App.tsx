@@ -8,6 +8,8 @@ import { LoginPage } from './pages/LoginPage';
 import { ApplyPage } from './pages/ApplyPage';
 import { VtcApplyPage } from './pages/VtcApplyPage';
 import { SchoolTour } from './pages/SchoolTour';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { TermsOfServicePage } from './pages/TermsOfServicePage';
 import { AdminDashboard } from './pages/admin/Dashboard';
 import { TeachersPage } from './pages/admin/Teachers';
 import { TeacherProgressPage } from './pages/admin/TeacherProgress';
@@ -52,7 +54,7 @@ import { MatronSettings } from './pages/matron/Settings';
 import { MatronHomeworks } from './pages/matron/Homeworks';
 import { MatronRecords } from './pages/admin/MatronRecords';
 import { UserRole } from './types';
-import { getAdminProfile } from './services/dataService';
+import { getAdminProfile, logoutAuthSession } from './services/dataService';
 import { Toast } from './components/ui/Toast';
 import { InactivityLock } from './components/InactivityLock';
 import { isGrade1To7Class } from './utils/assessmentWorkflow';
@@ -156,6 +158,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    logoutAuthSession().catch((error) => console.error('Could not end auth session:', error));
     setUser(null);
     setRole(null);
     localStorage.removeItem('coha_user');
@@ -207,6 +210,8 @@ const App: React.FC = () => {
           <Route path="/apply" element={<ApplyPage />} />
           <Route path="/vtc-apply" element={<VtcApplyPage />} />
           <Route path="/tour" element={<SchoolTour />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
           <Route path="/login" element={<LoginPage onLogin={handleLogin} showToast={showToast} />} />
 
           {/* Admin Routes */}

@@ -1,6 +1,6 @@
 import { db, auth } from '../firebase';
 import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
@@ -25,11 +25,50 @@ const MATRONS_COLLECTION = 'matrons';
 const STUDENT_MEDICATIONS_COLLECTION = 'student_medications';
 const MATRON_LOGS_COLLECTION = 'matron_logs';
 const MEDICATION_ADMINISTRATIONS_COLLECTION = 'medication_administrations';
+const LOGIN_INDEX_COLLECTION = 'login_index';
 
 // Admin Auth Configuration
 const ADMIN_EMAIL = "admin@coha.com";
 const ADMIN_AUTH_PASSWORD = DEFAULT_ADMIN_PASSWORD;
 const LEGACY_ADMIN_AUTH_PASSWORD = "111111";
+
+const encodeAuthId = (value: string) => (
+  btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '').toLowerCase()
+);
+
+export const getPortalAuthEmail = (role: UserRole | 'ADMIN', id: string) => (
+  `${role.toLowerCase()}-${encodeAuthId(id)}@coha.local`
+);
+
+const getPortalAuthPassword = (password: string) => (
+  password.length >= 6 ? password : `coha-${password}`
+);
+
+export interface LoginIndexEntry {
+  id: string;
+  role: UserRole;
+  name: string;
+  subtitle?: string;
+  targetId: string;
+}
+
+export const searchLoginIndex = async (role: UserRole, searchTerm: string): Promise<LoginIndexEntry[]> => {
+  if (!searchTerm || searchTerm.trim().length < 2) return [];
+  const snap = await getDocs(query(collection(db, LOGIN_INDEX_COLLECTION), where('role', '==', role)));
+  const lowerTerm = searchTerm.trim().toLowerCase();
+  return snap.docs
+    .map((item) => ({ id: item.id, ...item.data() } as LoginIndexEntry))
+    .filter((item) => item.name.toLowerCase().includes(lowerTerm))
+    .slice(0, 12);
+};
+
+export const signInPortalAccount = async (role: UserRole, targetId: string, password: string) => {
+  return signInWithEmailAndPassword(auth, getPortalAuthEmail(role, targetId), getPortalAuthPassword(password));
+};
+
+export const logoutAuthSession = async () => {
+  await signOut(auth);
+};
 
 const calculateAge = (dobString: string): number => {
   const today = new Date();
@@ -2771,6 +2810,18 @@ export const getMatrons = async (): Promise<Matron[]> => {
   } catch (error) {
     console.error("Error fetching matrons:", error);
     return [];
+  }
+};
+
+export const getMatronById = async (id: string): Promise<Matron | null> => {
+  try {
+    const docRef = doc(db, MATRONS_COLLECTION, id);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    return { id: docSnap.id, ...docSnap.data() } as Matron;
+  } catch (error) {
+    console.error("Error fetching matron:", error);
+    return null;
   }
 };
 

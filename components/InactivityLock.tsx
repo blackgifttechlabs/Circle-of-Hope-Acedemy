@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { LockKeyhole, ShieldCheck } from 'lucide-react';
 import { UserRole } from '../types';
-import { verifyAdminPin, verifyMatronPin } from '../services/dataService';
+import { signInPortalAccount, verifyAdminPin } from '../services/dataService';
 
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
 const INACTIVITY_TIMEOUT_MS = 150_000;
@@ -85,16 +85,14 @@ export const InactivityLock: React.FC<InactivityLockProps> = ({ user, role }) =>
       return !!(await verifyAdminPin(value));
     }
 
-    if (role === UserRole.TEACHER || role === UserRole.VTC_STUDENT) {
-      return user.pin === value;
-    }
-
-    if (role === UserRole.PARENT) {
-      return user.parentPin === value;
-    }
-
-    if (role === UserRole.MATRON) {
-      return !!(await verifyMatronPin(user.id, value));
+    if (
+      role === UserRole.TEACHER
+      || role === UserRole.PARENT
+      || role === UserRole.VTC_STUDENT
+      || role === UserRole.MATRON
+    ) {
+      await signInPortalAccount(role, user.id, value);
+      return true;
     }
 
     return false;

@@ -2,7 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { addActivityLog, verifyAdminPin, searchTeachers, searchStudents, searchVtcStudents, getMatrons, verifyMatronPin } from '../services/dataService';
+import {
+  addActivityLog,
+  verifyAdminPin,
+  searchTeachers,
+  searchStudents,
+  searchVtcStudents,
+  getMatrons,
+  searchLoginIndex,
+  signInPortalAccount,
+  getTeacherById,
+  getStudentById,
+  getVtcApplicationById,
+  getMatronById,
+} from '../services/dataService';
 import { UserRole, Teacher, Student, Matron } from '../types';
 import { User, ShieldCheck, GraduationCap, ArrowLeft, BookOpen, ChevronRight, Search as SearchIcon, HeartPulse } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -97,17 +110,27 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
 
     if (term.length > 1) {
       if (activeTab === 'TEACHER') {
-        const results = await searchTeachers(term);
-        setSearchResults(results);
+        const indexResults = await searchLoginIndex(UserRole.TEACHER, term);
+        setSearchResults(indexResults.length ? indexResults : await searchTeachers(term));
       } else if (activeTab === 'PARENT') {
-        const results = await searchStudents(term);
-        setSearchResults(results);
+        const indexResults = await searchLoginIndex(UserRole.PARENT, term);
+        setSearchResults(indexResults.length ? indexResults : await searchStudents(term));
       } else if (activeTab === 'VTC') {
-        const results = await searchVtcStudents(term);
-        setSearchResults(results.map(r => ({ ...r, name: `${r.firstName} ${r.surname}` })));
+        const indexResults = await searchLoginIndex(UserRole.VTC_STUDENT, term);
+        if (indexResults.length) {
+          setSearchResults(indexResults);
+        } else {
+          const results = await searchVtcStudents(term);
+          setSearchResults(results.map(r => ({ ...r, name: `${r.firstName} ${r.surname}` })));
+        }
       } else if (activeTab === 'MATRON') {
-        const results = await getMatrons();
-        setSearchResults(results.filter(m => m.name.toLowerCase().includes(term.toLowerCase())));
+        const indexResults = await searchLoginIndex(UserRole.MATRON, term);
+        if (indexResults.length) {
+          setSearchResults(indexResults);
+        } else {
+          const results = await getMatrons();
+          setSearchResults(results.filter(m => m.name.toLowerCase().includes(term.toLowerCase())));
+        }
       }
     } else {
       setSearchResults([]);
@@ -131,28 +154,62 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
     let success = false;
     let role = UserRole.TEACHER;
     let userData = selectedUser;
+    const targetId = selectedUser.targetId || selectedUser.id;
 
     if (activeTab === 'TEACHER') {
-      if (selectedUser.pin === pin) {
+      try {
+        await signInPortalAccount(UserRole.TEACHER, targetId, pin);
+        const teacher = await getTeacherById(targetId);
+        if (!teacher) throw new Error('Teacher profile not found.');
         success = true;
         role = UserRole.TEACHER;
+        userData = teacher;
+      } catch {
+        if (selectedUser.pin === pin) {
+          success = true;
+          role = UserRole.TEACHER;
+        }
       }
     } else if (activeTab === 'PARENT') {
-      if (selectedUser.parentPin === pin) {
+      try {
+        await signInPortalAccount(UserRole.PARENT, targetId, pin);
+        const student = await getStudentById(targetId);
+        if (!student) throw new Error('Student profile not found.');
         success = true;
         role = UserRole.PARENT;
-        userData = { ...selectedUser, name: selectedUser.parentName };
+        userData = { ...student, name: student.parentName };
+      } catch {
+        if (selectedUser.parentPin === pin) {
+          success = true;
+          role = UserRole.PARENT;
+          userData = { ...selectedUser, name: selectedUser.parentName };
+        }
       }
     } else if (activeTab === 'VTC') {
-      if (selectedUser.pin === pin) {
+      try {
+        await signInPortalAccount(UserRole.VTC_STUDENT, targetId, pin);
+        const vtcStudent = await getVtcApplicationById(targetId);
+        if (!vtcStudent) throw new Error('VTC profile not found.');
         success = true;
         role = UserRole.VTC_STUDENT;
+        userData = { ...vtcStudent, id: targetId, name: `${vtcStudent.firstName} ${vtcStudent.surname}` };
+      } catch {
+        if (selectedUser.pin === pin) {
+          success = true;
+          role = UserRole.VTC_STUDENT;
+        }
       }
     } else if (activeTab === 'MATRON') {
-      const matron = await verifyMatronPin(selectedUser.id, pin);
-      if (matron) {
+      try {
+        await signInPortalAccount(UserRole.MATRON, targetId, pin);
+        const matron = await getMatronById(targetId);
+        if (!matron) throw new Error('Matron profile not found.');
         success = true;
         role = UserRole.MATRON;
+        userData = matron;
+      } catch {
+        showLoginError('Incorrect password.');
+        return;
       }
     }
 
@@ -161,10 +218,10 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
       addActivityLog({
         category: 'LOGIN',
         action: `${userData.name} logged in`,
-        actorId: selectedUser.id,
+        actorId: targetId,
         actorName: userData.name,
         actorRole: role,
-        targetId: role === UserRole.PARENT ? selectedUser.id : undefined,
+        targetId: role === UserRole.PARENT ? targetId : undefined,
         targetName: role === UserRole.PARENT ? selectedUser.name : undefined,
         details: role === UserRole.PARENT ? `Parent logged in for ${selectedUser.name}.` : `${role} portal login.`,
       });
@@ -387,8 +444,8 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                                   <div>
                                     <p className="font-bold text-gray-900 text-base md:text-lg" style={{ fontFamily: '"Google Sans", sans-serif' }}>{item.name}</p>
                                     <div className="flex items-center gap-2 mt-1">
-                                      {activeTab === 'PARENT' && <span className="text-[10px] font-bold text-coha-500 bg-coha-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Grade {item.grade}</span>}
-                                      {activeTab === 'TEACHER' && <span className="text-[10px] font-bold text-coha-500 bg-coha-50 px-2 py-0.5 rounded-full uppercase tracking-wider">{item.subject}</span>}
+                                      {activeTab === 'PARENT' && <span className="text-[10px] font-bold text-coha-500 bg-coha-50 px-2 py-0.5 rounded-full uppercase tracking-wider">{item.subtitle || `Grade ${item.grade || '-'}`}</span>}
+                                      {activeTab === 'TEACHER' && <span className="text-[10px] font-bold text-coha-500 bg-coha-50 px-2 py-0.5 rounded-full uppercase tracking-wider">{item.subtitle || item.subject}</span>}
                                     </div>
                                   </div>
                                   <ChevronRight size={18} className="text-gray-300 group-hover:text-coha-500 transition-all duration-300 group-hover:translate-x-1" />

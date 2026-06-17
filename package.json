@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "migrate:auth": "node scripts/migrateAuthUsers.cjs"
   },
   "dependencies": {
     "exceljs": "^4.4.0",
@@ -31,6 +32,7 @@
     "@types/react-dom": "^18.2.22",
     "@types/uuid": "^9.0.8",
     "@vitejs/plugin-react": "^4.2.1",
+    "firebase-admin": "^13.10.0",
     "typescript": "^5.3.3",
     "vite": "^5.2.0"
   },

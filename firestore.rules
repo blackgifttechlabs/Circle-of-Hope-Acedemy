@@ -114,6 +114,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /login_index/{entryId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     match /teachers/{teacherId} {
       allow read: if isAnyAdmin() || (isTeacher() && request.auth.token.teacherId == teacherId);
       allow create, update, delete: if isAdmin();
