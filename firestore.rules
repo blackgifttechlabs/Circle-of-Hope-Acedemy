@@ -230,6 +230,7 @@ service cloud.firestore {
       allow read: if isAnyAdmin()
         || hasStudent(resource.data.studentId)
         || isAssignedTeacher(resource.data.studentId)
+        || isTeacher()
         || isMatron();
       allow update: if isAnyAdmin() || isAssignedTeacher(resource.data.studentId);
       allow delete: if isAdmin();
@@ -281,7 +282,7 @@ service cloud.firestore {
     }
 
     match /daily_register/{grade}/students/{studentId} {
-      allow read: if canReadStudent(studentId);
+      allow read: if canReadStudent(studentId) || isTeacher();
       allow create, update: if isAnyAdmin() || isAssignedTeacher(studentId);
       allow delete: if isAdmin();
     }
@@ -321,7 +322,9 @@ service cloud.firestore {
     }
 
     match /alert_dismissals/{alertId} {
-      allow read, create, update, delete: if isAnyAdmin();
+      allow read: if isAnyAdmin() || isMatron();
+      allow create, update: if isAnyAdmin() || isMatron();
+      allow delete: if isAdmin();
     }
 
     match /{document=**} {

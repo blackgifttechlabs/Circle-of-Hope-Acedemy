@@ -94,6 +94,7 @@ async function migrateTeachers() {
   ]);
   const students = studentsSnap.docs.map((item) => ({ id: item.id, ...item.data() }));
 
+  let count = 0;
   for (const doc of snap.docs) {
     const teacher = doc.data();
     const password = teacher.pin || DEFAULT_TEACHER_PASSWORD;
@@ -128,12 +129,15 @@ async function migrateTeachers() {
       name: teacher.name || 'Teacher',
       subtitle: teacher.subject || assignedClasses.join(', '),
     });
+    count += 1;
+    console.log(`  synced teacher ${count}/${snap.size}: ${teacher.name || doc.id}`);
   }
   console.log(`Teacher Auth accounts ready: ${snap.size}`);
 }
 
 async function migrateParents() {
   const snap = await db.collection('students').get();
+  let count = 0;
   for (const doc of snap.docs) {
     const student = doc.data();
     if (!student.parentPin) continue;
@@ -153,8 +157,12 @@ async function migrateParents() {
       name: student.name || doc.id,
       subtitle: student.assignedClass || student.grade || student.level || '',
     });
+    count += 1;
+    if (count === 1 || count % 10 === 0) {
+      console.log(`  synced parent ${count}/${snap.size}: ${student.name || doc.id}`);
+    }
   }
-  console.log(`Parent Auth accounts ready: ${snap.size}`);
+  console.log(`Parent Auth accounts ready: ${count}`);
 }
 
 async function migrateVtcStudents() {
@@ -210,6 +218,7 @@ async function migrateMatrons() {
       subtitle: 'Care & medication',
     });
     count += 1;
+    console.log(`  synced matron ${count}/${snap.size}: ${matron.name || doc.id}`);
   }
   console.log(`Matron Auth accounts ready: ${count}. Temporary password: ${TEMP_MATRON_PASSWORD}`);
 }

@@ -841,8 +841,15 @@ export const getReceipts = async (): Promise<Receipt[]> => {
 };
 
 export const getReceiptsForStudent = async (studentId: string): Promise<Receipt[]> => {
-    const receipts = await getReceipts();
-    return receipts.filter(r => r.usedByStudentId === studentId);
+    const q = query(collection(db, RECEIPTS_COLLECTION), where('usedByStudentId', '==', studentId));
+    const snap = await getDocs(q);
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as Receipt))
+      .sort((a, b) => {
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        return bTime - aTime;
+      });
 };
 
 export const addActivityLog = async (data: Omit<ActivityLog, 'id' | 'createdAt'>) => {

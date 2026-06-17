@@ -108,23 +108,29 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
     setError('');
 
     if (term.length > 1) {
-      if (activeTab === 'TEACHER') {
-        const indexResults = await searchLoginIndex(UserRole.TEACHER, term);
-        setSearchResults(indexResults.length ? indexResults : await searchTeachers(term));
-      } else if (activeTab === 'PARENT') {
-        const indexResults = await searchLoginIndex(UserRole.PARENT, term);
-        setSearchResults(indexResults.length ? indexResults : await searchStudents(term));
-      } else if (activeTab === 'VTC') {
-        const indexResults = await searchLoginIndex(UserRole.VTC_STUDENT, term);
-        if (indexResults.length) {
+      try {
+        if (activeTab === 'TEACHER') {
+          const indexResults = await searchLoginIndex(UserRole.TEACHER, term);
+          setSearchResults(indexResults.length ? indexResults : await searchTeachers(term));
+        } else if (activeTab === 'PARENT') {
+          const indexResults = await searchLoginIndex(UserRole.PARENT, term);
+          setSearchResults(indexResults.length ? indexResults : await searchStudents(term));
+        } else if (activeTab === 'VTC') {
+          const indexResults = await searchLoginIndex(UserRole.VTC_STUDENT, term);
+          if (indexResults.length) {
+            setSearchResults(indexResults);
+          } else {
+            const results = await searchVtcStudents(term);
+            setSearchResults(results.map(r => ({ ...r, name: `${r.firstName} ${r.surname}` })));
+          }
+        } else if (activeTab === 'MATRON') {
+          const indexResults = await searchLoginIndex(UserRole.MATRON, term);
           setSearchResults(indexResults);
-        } else {
-          const results = await searchVtcStudents(term);
-          setSearchResults(results.map(r => ({ ...r, name: `${r.firstName} ${r.surname}` })));
         }
-      } else if (activeTab === 'MATRON') {
-        const indexResults = await searchLoginIndex(UserRole.MATRON, term);
-        setSearchResults(indexResults);
+      } catch (err) {
+        console.error('Login search failed:', err);
+        setSearchResults([]);
+        showLoginError('We could not search accounts right now. Please refresh and try again.');
       }
     } else {
       setSearchResults([]);
@@ -159,10 +165,8 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
         role = UserRole.TEACHER;
         userData = teacher;
       } catch {
-        if (selectedUser.pin === pin) {
-          success = true;
-          role = UserRole.TEACHER;
-        }
+        showLoginError('Incorrect teacher password, or this teacher account has not been synced yet.');
+        return;
       }
     } else if (activeTab === 'PARENT') {
       try {
@@ -173,11 +177,8 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
         role = UserRole.PARENT;
         userData = { ...student, name: student.parentName };
       } catch {
-        if (selectedUser.parentPin === pin) {
-          success = true;
-          role = UserRole.PARENT;
-          userData = { ...selectedUser, name: selectedUser.parentName };
-        }
+        showLoginError('Incorrect parent password, or this parent account has not been synced yet.');
+        return;
       }
     } else if (activeTab === 'VTC') {
       try {
@@ -188,10 +189,8 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
         role = UserRole.VTC_STUDENT;
         userData = { ...vtcStudent, id: targetId, name: `${vtcStudent.firstName} ${vtcStudent.surname}` };
       } catch {
-        if (selectedUser.pin === pin) {
-          success = true;
-          role = UserRole.VTC_STUDENT;
-        }
+        showLoginError('Incorrect VTC student password, or this account has not been synced yet.');
+        return;
       }
     } else if (activeTab === 'MATRON') {
       try {
@@ -202,7 +201,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
         role = UserRole.MATRON;
         userData = matron;
       } catch {
-        showLoginError('Incorrect password.');
+        showLoginError('Incorrect matron password. Use the synced matron password or ask an admin to reset it.');
         return;
       }
     }
