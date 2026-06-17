@@ -117,6 +117,7 @@ export interface SystemSettings {
   lastStudentId?: number; 
   activeTermId?: string;
   hostels?: string[];
+  adminAssistantEnabled?: boolean;
 }
 
 // Assessment Specific Types

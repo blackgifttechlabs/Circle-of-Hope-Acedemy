@@ -3,7 +3,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { getSystemSettings, saveSystemSettings } from '../../services/dataService';
 import { SystemSettings, FeeItem, SupplyItem } from '../../types';
-import { Save, User, DollarSign, Package, Calendar, Plus, Trash2, CheckSquare, Square, Eye, EyeOff, BookOpen, Heart, Settings, Home } from 'lucide-react';
+import { Save, User, DollarSign, Package, Calendar, Plus, Trash2, CheckSquare, Square, Eye, EyeOff, BookOpen, Heart, Settings, Home, Bot } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { CalendarSettings } from './CalendarSettings';
 import { isStrongStaffPassword, STAFF_PASSWORD_REQUIREMENTS } from '../../utils/credentials';
@@ -28,6 +28,7 @@ export const SettingsPage: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [showPin, setShowPin] = useState(false);
+  const [assistantSaving, setAssistantSaving] = useState(false);
 
   // Local state for new entries
   const [newFee, setNewFee] = useState<FeeItem>({ id: '', category: '', amount: '', frequency: 'Monthly', notes: '' });
@@ -89,10 +90,30 @@ export const SettingsPage: React.FC = () => {
 
     const success = await saveSystemSettings(settings);
     if (success) {
+        window.dispatchEvent(new CustomEvent('coha-assistant-setting-change'));
         setSuccessMsg('Settings saved successfully.');
         setTimeout(() => setSuccessMsg(''), 3000);
     }
     setLoading(false);
+  };
+
+  const toggleAssistant = async () => {
+    const nextEnabled = !settings.adminAssistantEnabled;
+    setAssistantSaving(true);
+    setSuccessMsg('');
+    setErrorMsg('');
+    setSettings((prev) => ({ ...prev, adminAssistantEnabled: nextEnabled }));
+
+    const success = await saveSystemSettings({ adminAssistantEnabled: nextEnabled });
+    if (success) {
+      window.dispatchEvent(new CustomEvent('coha-assistant-setting-change'));
+      setSuccessMsg(nextEnabled ? 'Assistant activated.' : 'Assistant hidden.');
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } else {
+      setSettings((prev) => ({ ...prev, adminAssistantEnabled: !nextEnabled }));
+      setErrorMsg('Could not update assistant setting. Please try again.');
+    }
+    setAssistantSaving(false);
   };
 
   // Fee Management
@@ -468,6 +489,52 @@ export const SettingsPage: React.FC = () => {
                             onChange={(e) => setSettings({...settings, schoolName: e.target.value})} 
                         />
                     </div>
+                </div>
+
+                <div className="bg-white border border-gray-200 p-6 shadow-sm">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+                        <div className="flex items-start gap-3">
+                            <div className="p-2 bg-indigo-100 rounded-full text-indigo-700">
+                                <Bot size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900">Admin Assistant</h3>
+                                <p className="mt-1 text-sm text-gray-500 max-w-2xl">
+                                    Activate the guided assistant for admin workflows such as payments, teacher setup, and pending work checks.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={toggleAssistant}
+                            disabled={assistantSaving}
+                            className={`group flex min-w-[178px] items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition-all focus:outline-none focus:ring-4 ${
+                                settings.adminAssistantEnabled
+                                    ? 'border-coha-900 bg-coha-50 text-coha-900 focus:ring-coha-100'
+                                    : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 focus:ring-gray-100'
+                            } ${assistantSaving ? 'opacity-70 cursor-wait' : ''}`}
+                            aria-pressed={!!settings.adminAssistantEnabled}
+                        >
+                            <span>
+                                <span className="block text-[10px] font-black uppercase tracking-[0.18em]">Assistant</span>
+                                <span className="mt-0.5 block text-sm font-black">
+                                    {assistantSaving ? 'Saving...' : settings.adminAssistantEnabled ? 'Active' : 'Hidden'}
+                                </span>
+                            </span>
+                            <span className={`relative h-7 w-12 rounded-full p-1 transition-colors ${
+                                settings.adminAssistantEnabled ? 'bg-coha-900' : 'bg-gray-300'
+                            }`}>
+                                <span className={`block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                                    settings.adminAssistantEnabled ? 'translate-x-5' : 'translate-x-0'
+                                }`} />
+                            </span>
+                        </button>
+                    </div>
+                    <p className={`mt-4 text-sm font-semibold ${settings.adminAssistantEnabled ? 'text-emerald-700' : 'text-gray-500'}`}>
+                        {settings.adminAssistantEnabled
+                            ? 'The assistant is active and will appear on admin pages.'
+                            : 'The assistant stays hidden for all admins until this is activated.'}
+                    </p>
                 </div>
 
                 {/* Section 1: Term Configuration */}

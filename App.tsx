@@ -57,6 +57,7 @@ import { UserRole } from './types';
 import { getAdminProfile, logoutAuthSession } from './services/dataService';
 import { Toast } from './components/ui/Toast';
 import { InactivityLock } from './components/InactivityLock';
+import { AdminAssistant } from './components/AdminAssistant';
 import { isGrade1To7Class } from './utils/assessmentWorkflow';
 import { getSelectedTeachingClass } from './utils/teacherClassSelection';
 import { getFriendlyErrorMessage } from './utils/friendlyErrors';
@@ -86,6 +87,12 @@ const AppLayout: React.FC<{
         <main className="flex-1 px-[10px] py-5 sm:p-5 overflow-y-auto">
           {children}
         </main>
+        {role === UserRole.ADMIN && (
+          <AdminAssistant
+            user={user}
+            isSubAdmin={!!user && (user.adminRole === 'sub_admin' || user.id !== 'admin')}
+          />
+        )}
       </div>
     </div>
   );

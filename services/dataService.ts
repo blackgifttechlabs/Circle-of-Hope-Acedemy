@@ -52,6 +52,51 @@ export interface LoginIndexEntry {
   targetId: string;
 }
 
+type AuthSyncPayload = {
+  role: UserRole | 'ADMIN';
+  targetId: string;
+  password: string;
+  name: string;
+  subtitle?: string;
+  adminRole?: 'super_admin' | 'sub_admin';
+  assignedClasses?: string[];
+  assignedStudentIds?: string[];
+};
+
+const syncPortalAuthUser = async (payload: AuthSyncPayload) => {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) {
+    console.warn('Auth account was not synced because there is no admin Auth session.');
+    return false;
+  }
+
+  const response = await fetch('/api/sync-auth-user', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const result = await response.json().catch(() => null);
+    throw new Error(result?.message || 'Auth account sync failed.');
+  }
+
+  return true;
+};
+
+const syncPortalAuthUserSafely = async (payload: AuthSyncPayload) => {
+  try {
+    await syncPortalAuthUser(payload);
+    return true;
+  } catch (error) {
+    console.error('Auth account sync failed:', error);
+    return false;
+  }
+};
+
 export const searchLoginIndex = async (role: UserRole, searchTerm: string): Promise<LoginIndexEntry[]> => {
   if (!searchTerm || searchTerm.trim().length < 2) return [];
   const snap = await getDocs(query(collection(db, LOGIN_INDEX_COLLECTION), where('role', '==', role)));
@@ -194,6 +239,15 @@ export const addTeacher = async (
       pin: DEFAULT_TEACHER_PASSWORD,
       activeTeachingClass: extras?.activeTeachingClass || normalizedClasses[0] || '',
       createdAt: new Date()
+    });
+    await syncPortalAuthUserSafely({
+      role: UserRole.TEACHER,
+      targetId: docRef.id,
+      password: DEFAULT_TEACHER_PASSWORD,
+      name,
+      subtitle: subject || normalizedClasses.join(', '),
+      assignedClasses: normalizedClasses,
+      assignedStudentIds: extras?.assignedStudentIds || [],
     });
     return docRef.id;
   } catch (error) {
@@ -467,6 +521,15 @@ export const syncTeacherAssignments = async (
     });
 
     await batch.commit();
+    await syncPortalAuthUserSafely({
+      role: UserRole.TEACHER,
+      targetId: teacherId,
+      password: teacher.pin || DEFAULT_TEACHER_PASSWORD,
+      name: teacher.name,
+      subtitle: teacher.subject || normalizedClasses.join(', '),
+      assignedClasses: normalizedClasses,
+      assignedStudentIds: normalizedStudentIds,
+    });
     return true;
   } catch (error) {
     console.error('Error syncing teacher assignments:', error);
@@ -620,6 +683,14 @@ export const createStudentByAdmin = async ({
       });
     }
 
+    await syncPortalAuthUserSafely({
+      role: UserRole.PARENT,
+      targetId: customId,
+      password: pin,
+      name,
+      subtitle: target.normalizedClass,
+    });
+
     return { success: true, student: studentData };
   } catch (error) {
     console.error('Error creating student by admin:', error);
@@ -729,6 +800,14 @@ export const approveApplicationInitial = async (app: Application): Promise<{pin:
     for (const item of uploadedDocs) {
       await addDoc(collection(db, STUDENT_DOCUMENTS_COLLECTION), JSON.parse(JSON.stringify(item)));
     }
+
+    await syncPortalAuthUserSafely({
+      role: UserRole.PARENT,
+      targetId: customId,
+      password: pin,
+      name: `${app.firstName} ${app.surname}`.trim(),
+      subtitle: studentData.assignedClass || studentData.grade || studentData.level || '',
+    });
     
     return { pin, studentId: customId };
   } catch (error) {
@@ -1716,6 +1795,15 @@ export const createSubAdmin = async (name: string, pin: string): Promise<{succes
       details: 'Sub-admin account created.',
     });
 
+    await syncPortalAuthUserSafely({
+      role: 'ADMIN',
+      targetId: newAdmin.id,
+      password: cleanPin,
+      name: cleanName,
+      subtitle: 'Sub-admin',
+      adminRole: 'sub_admin',
+    });
+
     return { success: true, message: 'Admin created successfully.' };
   } catch (error: any) {
     return { success: false, message: error.message || 'Failed to create admin.' };
@@ -1777,6 +1865,17 @@ export const updateAdminAccount = async (
       targetName: cleanName,
       details: isMainAdmin ? 'Main admin profile updated.' : 'Sub-admin profile updated.',
     });
+
+    if (!isMainAdmin) {
+      await syncPortalAuthUserSafely({
+        role: 'ADMIN',
+        targetId: adminId,
+        password: cleanPin,
+        name: cleanName,
+        subtitle: 'Sub-admin',
+        adminRole: 'sub_admin',
+      });
+    }
 
     return { success: true, message: 'Admin updated successfully.' };
   } catch (error: any) {
@@ -1940,7 +2039,28 @@ export const getVtcApplicationById = async (id: string): Promise<any | null> => 
 export const updateVtcApplication = async (id: string, data: any) => {
   try {
     const docRef = doc(db, VTC_APPLICATIONS_COLLECTION, id);
-    await updateDoc(docRef, data);
+    const currentSnap = await getDoc(docRef);
+    const currentData = currentSnap.exists() ? currentSnap.data() : {};
+    const nextStatus = data.status || currentData.status;
+    const authEnabledStatus = ['APPROVED', 'PAYMENT_REQUIRED', 'VERIFYING', 'VERIFIED'].includes(nextStatus);
+    const generatedPin = authEnabledStatus && !(data.pin || currentData.pin)
+      ? Math.floor(1000 + Math.random() * 9000).toString()
+      : undefined;
+    const payload = generatedPin ? { ...data, pin: generatedPin } : data;
+
+    await updateDoc(docRef, payload);
+
+    const nextData = { ...currentData, ...payload };
+    if (authEnabledStatus && nextData.pin) {
+      const name = `${nextData.firstName || ''} ${nextData.surname || ''}`.trim() || id;
+      await syncPortalAuthUserSafely({
+        role: UserRole.VTC_STUDENT,
+        targetId: id,
+        password: nextData.pin,
+        name,
+        subtitle: nextStatus,
+      });
+    }
     return true;
   } catch (error) {
     console.error("Error updating VTC application:", error);
@@ -2801,6 +2921,13 @@ export const addMatron = async (name: string, pin: string, createdBy: string) =>
       created_at: Timestamp.now(),
       is_active: true,
       role: UserRole.MATRON
+    });
+    await syncPortalAuthUserSafely({
+      role: UserRole.MATRON,
+      targetId: docRef.id,
+      password: pin,
+      name,
+      subtitle: 'Care & medication',
     });
     return docRef.id;
   } catch (error) {
