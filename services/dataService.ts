@@ -29,6 +29,7 @@ const MEDICATION_ADMINISTRATIONS_COLLECTION = 'medication_administrations';
 // Admin Auth Configuration
 const ADMIN_EMAIL = "admin@coha.com";
 const ADMIN_AUTH_PASSWORD = DEFAULT_ADMIN_PASSWORD;
+const LEGACY_ADMIN_AUTH_PASSWORD = "111111";
 
 const calculateAge = (dobString: string): number => {
   const today = new Date();
@@ -1588,10 +1589,19 @@ export const calculateFinalStage = async (studentId: string): Promise<{ success:
 };
 
 export const verifyAdminPin = async (pin: string): Promise<any | null> => {
-  try {
-    await signInWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_AUTH_PASSWORD);
-  } catch (error) {
-    console.warn("Admin Firebase Auth session setup failed.", error);
+  let authSessionReady = false;
+  for (const password of [ADMIN_AUTH_PASSWORD, LEGACY_ADMIN_AUTH_PASSWORD]) {
+    try {
+      await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
+      authSessionReady = true;
+      break;
+    } catch (error) {
+      console.warn("Admin Firebase Auth session setup attempt failed.", error);
+    }
+  }
+
+  if (!authSessionReady) {
+    throw new Error('Admin Firebase Auth session could not be started.');
   }
 
   const settings = await getSystemSettings();

@@ -9,6 +9,10 @@ export const getFriendlyErrorMessage = (error: unknown): string => {
     return 'This section is protected. Please sign in again, or ask the school office to update your access.';
   }
 
+  if (normalized.includes('admin firebase auth session could not be started') || normalized.includes('invalid-credential')) {
+    return 'The admin account needs to be updated by the school office before you can sign in.';
+  }
+
   if (normalized.includes('auth/') || normalized.includes('unauthenticated')) {
     return 'Your session has expired. Please sign in again to continue.';
   }
