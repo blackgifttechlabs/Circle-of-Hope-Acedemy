@@ -4,7 +4,7 @@ import { UserRole } from '../types';
 import { verifyAdminPin, verifyMatronPin } from '../services/dataService';
 
 const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
-const INACTIVITY_TIMEOUT_MS = 60_000;
+const INACTIVITY_TIMEOUT_MS = 150_000;
 const LOCK_STORAGE_KEY = 'coha_inactivity_locked';
 const ACTIVITY_EVENTS = ['click', 'keydown', 'touchstart', 'scroll', 'pointerdown'] as const;
 
