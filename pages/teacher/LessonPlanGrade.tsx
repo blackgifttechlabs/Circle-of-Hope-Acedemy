@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, FileText, Download, Eye, ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Download, Eye, ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon, Edit2, Trash2, X } from 'lucide-react';
 import { Teacher, WeeklyLessonPlan, SystemSettings } from '../../types';
-import { uploadLessonPlan, getLessonPlans, getSystemSettings } from '../../services/dataService';
+import { uploadLessonPlan, getLessonPlans, getSystemSettings, updateLessonPlan, deleteLessonPlan } from '../../services/dataService';
 import { getPromotionalSubjects, getNonPromotionalSubjects } from '../../utils/subjects';
 import { getSelectedTeachingClass, getTeacherAssignedClasses, getTeachingClassStageOptions, withTeachingClass } from '../../utils/teacherClassSelection';
 import { printLessonPlanPDF } from '../../utils/printLessonPlan';
@@ -84,6 +84,9 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
   });
 
   const [selectedPlan, setSelectedPlan] = useState<WeeklyLessonPlan | null>(null);
+  const [editingPlan, setEditingPlan] = useState<WeeklyLessonPlan | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WeeklyLessonPlan | null>(null);
+  const isReadOnly = !!selectedPlan && !editingPlan;
 
   useEffect(() => {
     if (!user || !selectedClass) return;
@@ -162,20 +165,30 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
         ...formData
       };
 
-      const id = await uploadLessonPlan(newPlan);
-      
-      const completePlan: WeeklyLessonPlan = {
-        ...newPlan,
-        id,
-        uploadedAt: new Date().toISOString()
-      };
-
-      setUploadedPlans(prev => [completePlan, ...prev]);
-      setSelectedPlan(null);
-      alert("Lesson plan uploaded successfully!");
+      if (editingPlan?.id) {
+        await updateLessonPlan(editingPlan.id, newPlan);
+        const updatedPlan: WeeklyLessonPlan = {
+          ...editingPlan,
+          ...newPlan,
+        };
+        setUploadedPlans(prev => prev.map(plan => plan.id === editingPlan.id ? updatedPlan : plan));
+        setSelectedPlan(updatedPlan);
+        setEditingPlan(null);
+        alert("Lesson plan updated successfully!");
+      } else {
+        const id = await uploadLessonPlan(newPlan);
+        const completePlan: WeeklyLessonPlan = {
+          ...newPlan,
+          id,
+          uploadedAt: new Date().toISOString()
+        };
+        setUploadedPlans(prev => [completePlan, ...prev]);
+        setSelectedPlan(null);
+        alert("Lesson plan uploaded successfully!");
+      }
     } catch (error) {
       console.error("Error submitting lesson plan:", error);
-      alert("Failed to upload lesson plan. Please try again.");
+      alert(editingPlan ? "Failed to update lesson plan. Please try again." : "Failed to upload lesson plan. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -183,8 +196,47 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
 
   const handleViewPlan = (plan: WeeklyLessonPlan) => {
     setSelectedPlan(plan);
+    setEditingPlan(null);
     if (window.innerWidth < 768) {
       setIsMobileSidebarOpen(false);
+    }
+  };
+
+  const handleCreateNew = () => {
+    setSelectedPlan(null);
+    setEditingPlan(null);
+  };
+
+  const handleEditPlan = (plan: WeeklyLessonPlan) => {
+    setSelectedPlan(plan);
+    setEditingPlan(plan);
+    setActiveTermId(plan.termId || activeTermId);
+    setFormData({
+      theme: plan.theme || 'Weekly Plan',
+      weekNumber: plan.weekNumber || 1,
+      grade: plan.grade || plan.classLevel || selectedClass || '',
+      dates: plan.dates || '',
+      coreSubjects: plan.coreSubjects || {},
+      extendedSubjects: plan.extendedSubjects || {},
+      competencyLabels: plan.competencyLabels || {},
+    });
+    if (window.innerWidth < 768) {
+      setIsMobileSidebarOpen(false);
+    }
+  };
+
+  const confirmDeletePlan = async () => {
+    if (!deleteTarget) return;
+    const success = await deleteLessonPlan(deleteTarget);
+    if (success) {
+      setUploadedPlans(prev => prev.filter(plan => plan.id !== deleteTarget.id));
+      if (selectedPlan?.id === deleteTarget.id) {
+        setSelectedPlan(null);
+        setEditingPlan(null);
+      }
+      setDeleteTarget(null);
+    } else {
+      alert("Failed to delete lesson plan. Please try again.");
     }
   };
 
@@ -207,7 +259,7 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
     const { promotionalSubjects, nonPromotionalSubjects } = getLessonPlanGradeSubjects(grade);
 
     const subjects = isPromotional ? promotionalSubjects : nonPromotionalSubjects;
-    const data = selectedPlan ? (isPromotional ? selectedPlan.coreSubjects : selectedPlan.extendedSubjects) : (isPromotional ? formData.coreSubjects : formData.extendedSubjects);
+    const data = isReadOnly ? (isPromotional ? selectedPlan?.coreSubjects : selectedPlan?.extendedSubjects) : (isPromotional ? formData.coreSubjects : formData.extendedSubjects);
 
     return (
       <div className="overflow-x-auto pb-4">
@@ -244,7 +296,7 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
                   return (
                     <td key={`${day}-${subject}`} className="p-3 align-top border-l border-gray-100/50">
                       <div className="flex flex-col gap-1 min-h-[80px]">
-                        {selectedPlan ? (
+                        {isReadOnly ? (
                           hasValue ? (
                             <div className="text-sm text-gray-700 whitespace-pre-wrap">{value}</div>
                           ) : (
@@ -294,7 +346,7 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
           <div className="flex items-center gap-3">
             {selectedPlan && (
               <button 
-                onClick={() => setSelectedPlan(null)}
+                onClick={handleCreateNew}
                 className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
               >
                 Create New
@@ -302,11 +354,11 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
             )}
             <button 
               onClick={handleSubmit}
-              disabled={isSubmitting || !!selectedPlan}
+              disabled={isSubmitting || isReadOnly}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
               <Upload size={16} />
-              {isSubmitting ? 'Uploading...' : 'Upload Lesson Plan'}
+              {isSubmitting ? (editingPlan ? 'Saving...' : 'Uploading...') : editingPlan ? 'Save Changes' : 'Upload Lesson Plan'}
             </button>
           </div>
         </div>
@@ -320,7 +372,7 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
               <div className="flex gap-8">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Week</label>
-                  {selectedPlan ? (
+                  {isReadOnly ? (
                     <div className="text-sm font-semibold text-gray-900 border-b border-transparent pb-1">
                       {selectedPlan.weekNumber}
                     </div>
@@ -338,7 +390,7 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Selected Class</label>
-                  {selectedPlan ? (
+                  {isReadOnly ? (
                     <div className="text-sm font-semibold text-gray-900 border-b border-transparent pb-1">
                       {selectedPlan.grade}
                     </div>
@@ -359,7 +411,7 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Dates</label>
                 <div className="text-sm font-semibold text-gray-900">
-                  {selectedPlan ? selectedPlan.dates : formData.dates}
+                  {isReadOnly ? selectedPlan?.dates : formData.dates}
                 </div>
               </div>
             </div>
@@ -388,7 +440,7 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
             </div>
 
             {/* Footer Actions */}
-            {!selectedPlan && (
+            {!isReadOnly && (
               <div className="p-6 border-t border-gray-100 flex gap-6 bg-gray-50/50">
                 <button 
                   onClick={() => setFormData(prev => ({ ...prev, coreSubjects: {}, extendedSubjects: {} }))}
@@ -398,7 +450,7 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
                 </button>
               </div>
             )}
-            {!selectedPlan && (
+            {!isReadOnly && (
               <div className="px-6 pb-6 text-xs text-gray-400">
                 Click any cell to edit. Switch tabs to view promotional vs non-promotional subjects.
               </div>
@@ -463,6 +515,18 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
                     >
                       <Download size={14} /> PDF
                     </button>
+                    <button 
+                      onClick={() => handleEditPlan(plan)}
+                      className="flex-1 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <Edit2 size={14} /> Edit
+                    </button>
+                    <button 
+                      onClick={() => setDeleteTarget(plan)}
+                      className="flex-1 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
                   </div>
                 </div>
               ))}
@@ -487,6 +551,33 @@ const LessonPlanGradePage: React.FC<LessonPlanProps> = ({ user }) => {
       >
         {isMobileSidebarOpen ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
       </button>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-red-100 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-black text-gray-900">Delete lesson plan?</h3>
+                <p className="mt-1 text-sm text-gray-500">This action cannot be undone.</p>
+              </div>
+              <button onClick={() => setDeleteTarget(null)} className="h-9 w-9 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-4 text-sm text-gray-700">
+              Delete <span className="font-black">{deleteTarget.theme || `Week ${deleteTarget.weekNumber}`}</span> for {deleteTarget.classLevel}?
+            </div>
+            <div className="flex justify-end gap-3 bg-gray-50 px-5 py-4">
+              <button onClick={() => setDeleteTarget(null)} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700">
+                Cancel
+              </button>
+              <button onClick={confirmDeletePlan} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

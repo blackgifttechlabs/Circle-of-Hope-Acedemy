@@ -322,6 +322,55 @@ export const uploadLessonPlan = async (plan: Omit<WeeklyLessonPlan, 'id' | 'uplo
   }
 };
 
+export const updateLessonPlan = async (
+  planId: string,
+  plan: Omit<WeeklyLessonPlan, 'id' | 'uploadedAt'>
+) => {
+  try {
+    await updateDoc(doc(db, 'lesson_plans', planId), {
+      ...plan,
+      updatedAt: new Date().toISOString(),
+    } as any);
+    const teacher = await getTeacherById(plan.teacherId);
+    await addActivityLog({
+      category: 'LESSON_PLAN',
+      action: `${teacher?.name || 'Teacher'} edited a lesson plan for ${plan.classLevel}`,
+      actorId: plan.teacherId,
+      actorName: teacher?.name || 'Teacher',
+      actorRole: UserRole.TEACHER,
+      targetId: planId,
+      targetName: `${plan.classLevel} lesson plan`,
+      details: `Term: ${plan.termId}. Week: ${plan.weekNumber || '-'}. Theme: ${plan.theme || '-'}.`,
+    });
+    return true;
+  } catch (error) {
+    console.error("Error updating lesson plan:", error);
+    throw error;
+  }
+};
+
+export const deleteLessonPlan = async (plan: WeeklyLessonPlan) => {
+  if (!plan.id) return false;
+  try {
+    await deleteDoc(doc(db, 'lesson_plans', plan.id));
+    const teacher = await getTeacherById(plan.teacherId);
+    await addActivityLog({
+      category: 'LESSON_PLAN',
+      action: `${teacher?.name || 'Teacher'} deleted a lesson plan for ${plan.classLevel}`,
+      actorId: plan.teacherId,
+      actorName: teacher?.name || 'Teacher',
+      actorRole: UserRole.TEACHER,
+      targetId: plan.id,
+      targetName: `${plan.classLevel} lesson plan`,
+      details: `Term: ${plan.termId}. Week: ${plan.weekNumber || '-'}. Theme: ${plan.theme || '-'}.`,
+    });
+    return true;
+  } catch (error) {
+    console.error("Error deleting lesson plan:", error);
+    return false;
+  }
+};
+
 export const getLessonPlans = async (teacherId: string, classLevel: string) => {
   try {
     const q = query(

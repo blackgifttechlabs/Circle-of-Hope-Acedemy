@@ -26,7 +26,7 @@ type Message = {
   id: string;
   from: 'assistant' | 'admin';
   text: string;
-  status?: 'working' | 'success' | 'error';
+  status?: 'working' | 'success' | 'error' | 'typing';
 };
 
 type AssistantFlow = 'MENU' | 'TEACHER_NAME' | 'TEACHER_SUBJECT' | 'TEACHER_CLASSES' | 'TEACHER_CONFIRM' | 'PAYMENT_STUDENT' | 'PAYMENT_AMOUNT' | 'PAYMENT_CATEGORY' | 'PAYMENT_TERM' | 'PAYMENT_LABEL' | 'PAYMENT_NOTES' | 'PAYMENT_CONFIRM';
@@ -64,7 +64,8 @@ const initialPaymentDraft = (): PaymentDraft => ({
   notes: '',
 });
 
-const formatMoney = (value: string) => `N$ ${(parseFloat(value) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatMoney = (value: string) =>
+  `N$ ${(parseFloat(value) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const renderMessageText = (text: string) => {
   const lines = text.split('\n');
@@ -74,7 +75,7 @@ const renderMessageText = (text: string) => {
     const bullet = line.match(/^(-)\s(.+)$/);
     const label = line.match(/^([^:]{2,36}):\s(.+)$/);
     const done = line.match(/^(Done\.)(.*)$/);
-    const latest = line.match(/^(Latest notifications:|What would you like to do\\?|Confirm teacher setup:|Confirm payment:)$/);
+    const latest = line.match(/^(Latest notifications:|What would you like to do\?|Confirm teacher setup:|Confirm payment:)$/);
 
     let content: React.ReactNode = line;
     if (numbered) {
@@ -114,6 +115,49 @@ const renderMessageText = (text: string) => {
   });
 };
 
+const NOTIF_META = [
+  { icon: CreditCard, bg: '#2563eb', badge: '#1d4ed8' },
+  { icon: UserPlus,   bg: '#059669', badge: '#047857' },
+  { icon: Sparkles,   bg: '#7c3aed', badge: '#6d28d9' },
+  { icon: Check,      bg: '#d97706', badge: '#b45309' },
+  { icon: Bot,        bg: '#dc2626', badge: '#b91c1c' },
+];
+
+const animStyles = `
+  @keyframes coha-popin {
+    0%   { opacity: 0; transform: scale(0.35) translateY(40px); transform-origin: bottom right; }
+    60%  { opacity: 1; }
+    100% { opacity: 1; transform: scale(1) translateY(0); transform-origin: bottom right; }
+  }
+  @keyframes coha-popout {
+    0%   { opacity: 1; transform: scale(1) translateY(0); transform-origin: bottom right; }
+    25%  { transform: scale(1.08) translateY(-6px); transform-origin: bottom right; }
+    100% { opacity: 0; transform: scale(0.08) translateY(60px); transform-origin: bottom right; }
+  }
+  @keyframes coha-ping {
+    0%, 100% { transform: scale(1); opacity: 0.3; }
+    50%       { transform: scale(1.55); opacity: 0; }
+  }
+  @keyframes coha-fab-idle {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-4px); }
+  }
+  @keyframes coha-dot-bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40%            { transform: translateY(-5px); opacity: 1; }
+  }
+`;
+
+const closePanel = (setOpen: (v: boolean) => void) => {
+  const panel = document.getElementById('coha-panel');
+  if (panel) {
+    panel.style.animation = 'coha-popout 0.5s cubic-bezier(0.36, 0, 0.66, -0.56) both';
+    setTimeout(() => setOpen(false), 520);
+  } else {
+    setOpen(false);
+  }
+};
+
 export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin }) => {
   const [enabled, setEnabled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -135,11 +179,25 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
   }, [settings]);
 
   const paymentOptions = useMemo(() => getPaymentOptions(settings), [settings]);
-
   const canUseTeacherTools = !isSubAdmin;
 
   const addMessage = (from: Message['from'], text: string, status?: Message['status']) => {
     setMessages((prev) => [...prev, { id: makeId(), from, text, status }]);
+  };
+
+  const addTypingThenMessage = (
+    from: Message['from'],
+    text: string,
+    status?: Message['status'],
+    delayMs = 700
+  ) => {
+    const typingId = makeId();
+    setMessages((prev) => [...prev, { id: typingId, from, text: '', status: 'typing' }]);
+    setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === typingId ? { ...m, text, status } : m))
+      );
+    }, delayMs);
   };
 
   const showMainMenu = () => {
@@ -174,7 +232,11 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
         `${counts.pendingHomeworkSubmissions} homework submission${counts.pendingHomeworkSubmissions === 1 ? '' : 's'} to review`,
         `${counts.pendingVerifications} payment verification record${counts.pendingVerifications === 1 ? '' : 's'}`,
       ];
-      addMessage('assistant', `Latest notifications:\n${lines.map((line) => `- ${line}`).join('\n')}`, counts.total ? undefined : 'success');
+      addMessage(
+        'assistant',
+        `__NOTIFICATIONS__${JSON.stringify({ lines, total: counts.total })}`,
+        counts.total ? undefined : 'success'
+      );
     } catch {
       addMessage('assistant', 'I could not load notifications right now. Please try again.', 'error');
     } finally {
@@ -191,7 +253,12 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
 
   useEffect(() => {
     if (!open || messages.length > 0) return;
-    addMessage('assistant', `Good day ${user?.name || 'Admin'}. I can guide you through common admin tasks.`);
+    addTypingThenMessage(
+      'assistant',
+      `Good day ${user?.name || 'Admin'}. I can guide you through common admin tasks.`,
+      undefined,
+      600
+    );
     showNotifications().then(showMainMenu);
   }, [open, messages.length, user?.name]);
 
@@ -228,18 +295,26 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
   };
 
   const startPaymentFlow = () => {
-    setPaymentDraft({ ...initialPaymentDraft(), termId: settings?.activeTermId || paymentOptions[0]?.value || '' });
+    setPaymentDraft({
+      ...initialPaymentDraft(),
+      termId: settings?.activeTermId || paymentOptions[0]?.value || '',
+    });
     setStudentSearch('');
     setStudentResults([]);
     setFlow('PAYMENT_STUDENT');
-    addMessage('assistant', 'Payment recording started. Which student are you recording this payment for? Start typing the student name.');
+    addMessage(
+      'assistant',
+      'Payment recording started. Which student are you recording this payment for? Start typing the student name.'
+    );
   };
 
   const handleMenuReply = (value: string) => {
     const trimmed = value.trim();
     if (canUseTeacherTools && trimmed === '1') return startTeacherFlow();
-    if ((canUseTeacherTools && trimmed === '2') || (!canUseTeacherTools && trimmed === '1')) return startPaymentFlow();
-    if ((canUseTeacherTools && trimmed === '3') || (!canUseTeacherTools && trimmed === '2')) return showNotifications().then(showMainMenu);
+    if ((canUseTeacherTools && trimmed === '2') || (!canUseTeacherTools && trimmed === '1'))
+      return startPaymentFlow();
+    if ((canUseTeacherTools && trimmed === '3') || (!canUseTeacherTools && trimmed === '2'))
+      return showNotifications().then(showMainMenu);
     addMessage('assistant', 'Please choose one of the menu numbers.');
   };
 
@@ -248,34 +323,37 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
       addMessage('assistant', 'Teacher setup is missing a name, subject, or assigned class.', 'error');
       return;
     }
-
     setBusy(true);
     addMessage('assistant', `Creating teacher profile for ${teacherDraft.name}...`, 'working');
-    const id = await addTeacher(teacherDraft.name.trim(), teacherDraft.subject.trim(), teacherDraft.classes[0], {
-      assignedClasses: teacherDraft.classes,
-      activeTeachingClass: teacherDraft.classes[0],
-    });
+    const id = await addTeacher(
+      teacherDraft.name.trim(),
+      teacherDraft.subject.trim(),
+      teacherDraft.classes[0],
+      { assignedClasses: teacherDraft.classes, activeTeachingClass: teacherDraft.classes[0] }
+    );
     setBusy(false);
-
     if (!id) {
       addMessage('assistant', 'I could not create that teacher. Please check the details and try again.', 'error');
       return;
     }
-
     addMessage(
       'assistant',
-      `Done. ${teacherDraft.name} was added and assigned to ${teacherDraft.classes.join(', ')}. Default teacher password: ${DEFAULT_TEACHER_PASSWORD}. Their login account is created automatically when the backend function is configured.`,
+      `Done. ${teacherDraft.name} was added and assigned to ${teacherDraft.classes.join(', ')}. Default teacher password: ${DEFAULT_TEACHER_PASSWORD}. Run the Auth sync before they log in.`,
       'success'
     );
     showMainMenu();
   };
 
   const completePayment = async () => {
-    if (!paymentDraft.student || !paymentDraft.amount || (paymentDraft.category === 'FEES' && !paymentDraft.termId) || (paymentDraft.category === 'OTHER' && !paymentDraft.label.trim())) {
+    if (
+      !paymentDraft.student ||
+      !paymentDraft.amount ||
+      (paymentDraft.category === 'FEES' && !paymentDraft.termId) ||
+      (paymentDraft.category === 'OTHER' && !paymentDraft.label.trim())
+    ) {
       addMessage('assistant', 'Payment details are not complete yet.', 'error');
       return;
     }
-
     setBusy(true);
     addMessage('assistant', `Recording ${formatMoney(paymentDraft.amount)} for ${paymentDraft.student.name}...`, 'working');
     const result = await recordAdminPayment({
@@ -284,20 +362,24 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
       paymentCategory: paymentDraft.category,
       termId: paymentDraft.category === 'FEES' ? paymentDraft.termId : '',
       paymentLabel: paymentDraft.category === 'OTHER' ? paymentDraft.label : undefined,
-      academicYear: paymentDraft.student.academicYear || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+      academicYear:
+        paymentDraft.student.academicYear ||
+        `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
       adminName: user?.name || 'Admin',
       adminId: user?.id || 'admin',
       notes: paymentDraft.notes,
     });
     setBusy(false);
-
     if (!result.success || !result.receipt) {
       addMessage('assistant', result.message || 'I could not record that payment.', 'error');
       return;
     }
-
     window.dispatchEvent(new CustomEvent('coha-payment-proof-update'));
-    addMessage('assistant', `Done. Receipt ${result.receipt.number} was created for ${paymentDraft.student.name}.`, 'success');
+    addMessage(
+      'assistant',
+      `Done. Receipt ${result.receipt.number} was created for ${paymentDraft.student.name}.`,
+      'success'
+    );
     showMainMenu();
   };
 
@@ -348,7 +430,11 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
 
     if (flow === 'PAYMENT_CATEGORY') {
       if (value === '1') {
-        setPaymentDraft((prev) => ({ ...prev, category: 'FEES', termId: prev.termId || paymentOptions[0]?.value || '' }));
+        setPaymentDraft((prev) => ({
+          ...prev,
+          category: 'FEES',
+          termId: prev.termId || paymentOptions[0]?.value || '',
+        }));
         setFlow('PAYMENT_TERM');
         addMessage('assistant', 'Choose the fee or term from the cards below, then press Send term.');
         return;
@@ -375,7 +461,10 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
       const nextDraft = { ...paymentDraft, notes };
       setPaymentDraft(nextDraft);
       setFlow('PAYMENT_CONFIRM');
-      addMessage('assistant', `Confirm payment:\nStudent: ${nextDraft.student?.name}\nAmount: ${formatMoney(nextDraft.amount)}\nType: ${nextDraft.category === 'FEES' ? 'School fees' : nextDraft.label}\n\nReply 1 to record payment or 2 to start again.`);
+      addMessage(
+        'assistant',
+        `Confirm payment:\nStudent: ${nextDraft.student?.name}\nAmount: ${formatMoney(nextDraft.amount)}\nType: ${nextDraft.category === 'FEES' ? 'School fees' : nextDraft.label}\n\nReply 1 to record payment or 2 to start again.`
+      );
       return;
     }
 
@@ -401,7 +490,10 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
       return;
     }
     setFlow('TEACHER_CONFIRM');
-    addMessage('assistant', `Confirm teacher setup:\nName: ${teacherDraft.name}\nSubject: ${teacherDraft.subject}\nClasses: ${teacherDraft.classes.join(', ')}\n\nReply 1 to create teacher or 2 to start again.`);
+    addMessage(
+      'assistant',
+      `Confirm teacher setup:\nName: ${teacherDraft.name}\nSubject: ${teacherDraft.subject}\nClasses: ${teacherDraft.classes.join(', ')}\n\nReply 1 to create teacher or 2 to start again.`
+    );
   };
 
   const selectStudent = (student: Student) => {
@@ -424,164 +516,369 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
 
   if (!enabled) return null;
 
+  const isNotif = (text: string) => text.startsWith('__NOTIFICATIONS__');
+
+  const renderNotifications = (text: string) => {
+    const payload = JSON.parse(text.replace('__NOTIFICATIONS__', ''));
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.15)' }} />
+          <p
+            className="text-[9px] font-black uppercase"
+            style={{ color: 'rgba(255,255,255,0.5)', letterSpacing: '0.18em' }}
+          >
+            Pending work
+          </p>
+          <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.15)' }} />
+        </div>
+        <div className="flex flex-col gap-2">
+          {payload.lines.map((line: string, i: number) => {
+            const match = line.match(/^(\d+) (.+)$/);
+            const count = match ? parseInt(match[1]) : 0;
+            const label = match ? match[2] : line;
+            const isZero = count === 0;
+            const { icon: Icon, bg, badge } = NOTIF_META[i] || NOTIF_META[0];
+            return (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-2xl px-3 py-2.5"
+                style={{
+                  background: isZero ? `${bg}18` : `${bg}28`,
+                  border: `1.5px solid ${bg}${isZero ? '40' : '70'}`,
+                }}
+              >
+                <span className="flex items-center gap-2.5">
+                  <span
+                    className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
+                    style={{
+                      background: isZero ? `${bg}35` : bg,
+                      boxShadow: isZero ? 'none' : `0 3px 10px ${bg}55`,
+                    }}
+                  >
+                    <Icon size={14} color={isZero ? bg : '#fff'} />
+                  </span>
+                  <span
+                    className="text-xs font-semibold leading-tight"
+                    style={{ color: isZero ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.9)' }}
+                  >
+                    {label}
+                  </span>
+                </span>
+                <span
+                  className="text-xs font-black rounded-lg flex items-center justify-center"
+                  style={{
+                    minWidth: '34px',
+                    height: '28px',
+                    padding: '0 10px',
+                    background: isZero ? `${bg}28` : badge,
+                    color: isZero ? bg : '#fff',
+                    letterSpacing: '0.03em',
+                    fontVariantNumeric: 'tabular-nums',
+                    boxShadow: isZero ? 'none' : `0 2px 10px ${badge}88`,
+                  }}
+                >
+                  {count}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="fixed bottom-5 right-5 z-[80]">
+      <style>{animStyles}</style>
+
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="h-14 w-14 rounded-full bg-coha-900 text-white shadow-[0_16px_40px_rgba(43,43,94,0.35)] flex items-center justify-center border border-white/20"
+          className="h-14 w-14 rounded-full bg-coha-900 text-white flex items-center justify-center border border-white/20 relative"
           aria-label="Open admin assistant"
+          style={{
+            boxShadow: '0 16px 40px rgba(43,43,94,0.35)',
+            animation: 'coha-fab-idle 2.8s ease-in-out infinite',
+          }}
         >
-          <MessageCircle size={24} />
+          <span
+            className="absolute inset-0 rounded-full bg-coha-700 opacity-30"
+            style={{ animation: 'coha-ping 2.8s ease-in-out infinite' }}
+          />
+          <MessageCircle size={24} className="relative z-10" />
         </button>
       )}
 
       {open && (
-        <div className="w-[calc(100vw-32px)] sm:w-[420px] h-[620px] max-h-[calc(100vh-40px)] bg-white border border-gray-200 shadow-[0_24px_80px_rgba(15,23,42,0.25)] rounded-2xl overflow-hidden flex flex-col">
-          <div className="bg-coha-900 text-white px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-white/12 flex items-center justify-center">
-                <Bot size={21} />
+        <>
+          <div
+            className="fixed inset-0 z-[-1]"
+            style={{
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
+              background: 'rgba(15,23,42,0.35)',
+            }}
+            onClick={() => closePanel(setOpen)}
+          />
+
+          <div
+            id="coha-panel"
+            className="w-[calc(100vw-32px)] sm:w-[620px] h-[820px] max-h-[calc(100vh-40px)] bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col"
+            style={{
+              boxShadow: '0 24px 80px rgba(15,23,42,0.25)',
+              animation: 'coha-popin 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both',
+            }}
+          >
+            {/* Header */}
+            <div className="bg-coha-900 text-white px-4 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-white/12 flex items-center justify-center">
+                  <Bot size={21} />
+                </div>
+                <div>
+                  <p className="text-sm font-black">COHA Assistant</p>
+                  <p className="text-[11px] text-white/70 font-semibold">
+                    {isSubAdmin ? 'Sub-admin tools' : 'Super admin tools'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-black">COHA Assistant</p>
-                <p className="text-[11px] text-white/70 font-semibold">{isSubAdmin ? 'Sub-admin tools' : 'Super admin tools'}</p>
-              </div>
+              <button
+                onClick={() => closePanel(setOpen)}
+                className="h-9 w-9 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <button onClick={() => setOpen(false)} className="h-9 w-9 rounded-lg bg-white/10 flex items-center justify-center">
-              <X size={18} />
-            </button>
-          </div>
 
-          <div ref={scrollRef} className="flex-1 overflow-y-auto bg-slate-50 px-4 py-4 space-y-3">
-            {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.from === 'admin' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[86%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
-                  message.from === 'admin'
-                    ? 'bg-coha-900 text-white rounded-br-md'
-                    : message.status === 'success'
-                      ? 'bg-emerald-50 text-emerald-900 border border-emerald-100 rounded-bl-md'
-                      : message.status === 'error'
-                        ? 'bg-rose-50 text-rose-800 border border-rose-100 rounded-bl-md'
-                        : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md'
-                }`}>
-                  {message.status === 'working' && <Loader2 size={15} className="inline mr-2 animate-spin" />}
-                  {renderMessageText(message.text)}
-                </div>
-              </div>
-            ))}
-
-            {flow === 'TEACHER_CLASSES' && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
-                <div className="grid grid-cols-2 gap-2">
-                  {availableClasses.map((className) => (
-                    <button
-                      key={className}
-                      onClick={() => toggleClass(className)}
-                      className={`min-h-[48px] rounded-xl border px-3 text-left text-xs font-black transition ${
-                        teacherDraft.classes.includes(className)
-                          ? 'border-coha-900 bg-coha-50 text-coha-900'
-                          : 'border-slate-200 bg-white text-slate-700'
-                      }`}
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        {teacherDraft.classes.includes(className) && <Check size={14} />}
-                        {className}
+            {/* Messages */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto bg-slate-50 px-4 py-4 space-y-3">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.from === 'admin' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    style={
+                      message.from === 'admin'
+                        ? {
+                            background: 'linear-gradient(135deg, #312e81 0%, #4f46e5 100%)',
+                            boxShadow: '0 4px 14px rgba(79,70,229,0.4)',
+                          }
+                        : isNotif(message.text)
+                        ? {
+                            background: 'linear-gradient(160deg, #0f172a 0%, #1e293b 100%)',
+                            border: '1.5px solid rgba(255,255,255,0.08)',
+                          }
+                        : {}
+                    }
+                    className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                      message.from === 'admin'
+                        ? 'text-white rounded-br-md'
+                        : isNotif(message.text)
+                        ? 'text-white rounded-bl-md shadow-lg'
+                        : message.status === 'success'
+                        ? 'bg-emerald-50 text-emerald-900 border border-emerald-100 rounded-bl-md shadow-sm'
+                        : message.status === 'error'
+                        ? 'bg-rose-50 text-rose-800 border border-rose-100 rounded-bl-md shadow-sm'
+                        : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md shadow-sm'
+                    }`}
+                  >
+                    {message.status === 'typing' ? (
+                      <span className="flex items-center gap-1 py-1 px-1">
+                        {[0, 1, 2].map((d) => (
+                          <span
+                            key={d}
+                            className="h-2 w-2 rounded-full bg-slate-400 inline-block"
+                            style={{
+                              animation: `coha-dot-bounce 1.2s ease-in-out ${d * 0.18}s infinite`,
+                            }}
+                          />
+                        ))}
                       </span>
-                    </button>
-                  ))}
+                    ) : message.status === 'working' ? (
+                      <Loader2 size={15} className="inline mr-2 animate-spin" />
+                    ) : null}
+                    {message.status !== 'typing' && (
+                      isNotif(message.text)
+                        ? renderNotifications(message.text)
+                        : renderMessageText(message.text)
+                    )}
+                  </div>
                 </div>
-                <button onClick={sendTeacherClasses} className="mt-3 h-10 w-full rounded-xl bg-coha-900 text-white text-sm font-bold">
-                  Send classes
-                </button>
-              </div>
-            )}
+              ))}
 
-            {flow === 'PAYMENT_STUDENT' && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm animate-[fadeup_.18s_ease]">
-                <input
-                  value={studentSearch}
-                  onChange={(event) => setStudentSearch(event.target.value)}
-                  placeholder="Type student name..."
-                  className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-coha-900"
-                />
-                {studentResults.length > 0 && (
-                  <div className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-100">
-                    {studentResults.map((student) => (
+              {/* Teacher class picker */}
+              {flow === 'TEACHER_CLASSES' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    {availableClasses.map((className) => (
                       <button
-                        key={student.id}
-                        onClick={() => selectStudent(student)}
-                        className="w-full px-3 py-3 text-left hover:bg-slate-50 border-b border-slate-100 last:border-b-0 flex items-center justify-between"
+                        key={className}
+                        onClick={() => toggleClass(className)}
+                        className={`min-h-[48px] rounded-xl border px-3 text-left text-xs font-black transition-all active:scale-95 ${
+                          teacherDraft.classes.includes(className)
+                            ? 'border-coha-900 bg-coha-50 text-coha-900'
+                            : 'border-slate-200 bg-white text-slate-700'
+                        }`}
                       >
-                        <span>
-                          <span className="block text-sm font-black text-slate-900">{student.name}</span>
-                          <span className="block text-xs font-semibold text-slate-500">{student.id} · {student.assignedClass || student.grade || student.level || '-'}</span>
+                        <span className="inline-flex items-center gap-2">
+                          {teacherDraft.classes.includes(className) && <Check size={14} />}
+                          {className}
                         </span>
-                        <ChevronRight size={16} className="text-slate-400" />
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
-            )}
-
-            {flow === 'PAYMENT_TERM' && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
-                <div className="grid gap-2">
-                  {paymentOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setPaymentDraft((prev) => ({ ...prev, termId: option.value }))}
-                      className={`rounded-xl border px-3 py-3 text-left text-xs font-black ${
-                        paymentDraft.termId === option.value ? 'border-coha-900 bg-coha-50 text-coha-900' : 'border-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                  <button
+                    onClick={sendTeacherClasses}
+                    className="mt-3 h-10 w-full rounded-xl text-white text-sm font-bold transition-all active:scale-98"
+                    style={{
+                      background: 'linear-gradient(135deg, #312e81 0%, #4f46e5 100%)',
+                      boxShadow: '0 4px 14px rgba(79,70,229,0.35)',
+                    }}
+                  >
+                    Send classes
+                  </button>
                 </div>
-                <button onClick={sendPaymentTerm} className="mt-3 h-10 w-full rounded-xl bg-coha-900 text-white text-sm font-bold">
-                  Send term
+              )}
+
+              {/* Student search */}
+              {flow === 'PAYMENT_STUDENT' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
+                  <input
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    placeholder="Type student name..."
+                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-coha-900"
+                  />
+                  {studentResults.length > 0 && (
+                    <div className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-100">
+                      {studentResults.map((student) => (
+                        <button
+                          key={student.id}
+                          onClick={() => selectStudent(student)}
+                          className="w-full px-3 py-3 text-left hover:bg-slate-50 border-b border-slate-100 last:border-b-0 flex items-center justify-between transition-colors"
+                        >
+                          <span>
+                            <span className="block text-sm font-black text-slate-900">{student.name}</span>
+                            <span className="block text-xs font-semibold text-slate-500">
+                              {student.id} · {student.assignedClass || student.grade || student.level || '-'}
+                            </span>
+                          </span>
+                          <ChevronRight size={16} className="text-slate-400" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Term picker */}
+              {flow === 'PAYMENT_TERM' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
+                  <div className="grid gap-2">
+                    {paymentOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setPaymentDraft((prev) => ({ ...prev, termId: option.value }))}
+                        className={`rounded-xl border px-3 py-3 text-left text-xs font-black transition-all ${
+                          paymentDraft.termId === option.value
+                            ? 'border-coha-900 bg-coha-50 text-coha-900'
+                            : 'border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={sendPaymentTerm}
+                    className="mt-3 h-10 w-full rounded-xl text-white text-sm font-bold transition-all active:scale-98"
+                    style={{
+                      background: 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)',
+                      boxShadow: '0 4px 14px rgba(6,78,59,0.35)',
+                    }}
+                  >
+                    Send term
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom bar */}
+            <div className="border-t border-slate-200 bg-white p-3">
+              <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+                {canUseTeacherTools && (
+                  <button
+                    onClick={startTeacherFlow}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all active:scale-95"
+                    style={{
+                      background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+                      color: '#fff',
+                      boxShadow: '0 2px 8px rgba(49,46,129,0.4)',
+                    }}
+                  >
+                    <UserPlus size={13} /> Add teacher
+                  </button>
+                )}
+                <button
+                  onClick={startPaymentFlow}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all active:scale-95"
+                  style={{
+                    background: 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)',
+                    color: '#fff',
+                    boxShadow: '0 2px 8px rgba(6,78,59,0.4)',
+                  }}
+                >
+                  <CreditCard size={13} /> Record payment
+                </button>
+                <button
+                  onClick={() => showNotifications()}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all active:scale-95"
+                  style={{
+                    background: 'linear-gradient(135deg, #78350f 0%, #92400e 100%)',
+                    color: '#fff',
+                    boxShadow: '0 2px 8px rgba(120,53,15,0.4)',
+                  }}
+                >
+                  <Sparkles size={13} /> Pending
                 </button>
               </div>
-            )}
-          </div>
-
-          <div className="border-t border-slate-200 bg-white p-3">
-            <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-              {canUseTeacherTools && (
-                <button onClick={startTeacherFlow} className="shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 inline-flex items-center gap-1">
-                  <UserPlus size={13} /> Add teacher
+              <div className="flex items-center gap-2">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+                  disabled={
+                    busy ||
+                    flow === 'TEACHER_CLASSES' ||
+                    flow === 'PAYMENT_STUDENT' ||
+                    flow === 'PAYMENT_TERM'
+                  }
+                  placeholder={busy ? 'Working...' : 'Reply with a number or type here'}
+                  className="h-11 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-coha-900 disabled:bg-slate-100 transition-colors"
+                />
+                <button
+                  onClick={handleSubmit}
+                  disabled={
+                    busy ||
+                    !input.trim() ||
+                    flow === 'TEACHER_CLASSES' ||
+                    flow === 'PAYMENT_STUDENT' ||
+                    flow === 'PAYMENT_TERM'
+                  }
+                  className="h-11 w-11 rounded-xl text-white disabled:opacity-40 flex items-center justify-center transition-all active:scale-90"
+                  style={{
+                    background: 'linear-gradient(135deg, #312e81 0%, #4f46e5 100%)',
+                    boxShadow: '0 4px 14px rgba(79,70,229,0.45)',
+                  }}
+                >
+                  {busy ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                 </button>
-              )}
-              <button onClick={startPaymentFlow} className="shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 inline-flex items-center gap-1">
-                <CreditCard size={13} /> Record payment
-              </button>
-              <button onClick={() => showNotifications()} className="shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 inline-flex items-center gap-1">
-                <Sparkles size={13} /> Pending
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') handleSubmit();
-                }}
-                disabled={busy || flow === 'TEACHER_CLASSES' || flow === 'PAYMENT_STUDENT' || flow === 'PAYMENT_TERM'}
-                placeholder={busy ? 'Working...' : 'Reply with a number or type here'}
-                className="h-11 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-coha-900 disabled:bg-slate-100"
-              />
-              <button
-                onClick={handleSubmit}
-                disabled={busy || !input.trim() || flow === 'TEACHER_CLASSES' || flow === 'PAYMENT_STUDENT' || flow === 'PAYMENT_TERM'}
-                className="h-11 w-11 rounded-xl bg-coha-900 text-white disabled:opacity-40 flex items-center justify-center"
-              >
-                {busy ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-              </button>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
