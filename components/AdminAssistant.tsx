@@ -97,6 +97,54 @@ const toDateInputValue = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return '';
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  const monthNames: Record<string, number> = {
+    jan: 0,
+    january: 0,
+    feb: 1,
+    february: 1,
+    mar: 2,
+    march: 2,
+    apr: 3,
+    april: 3,
+    may: 4,
+    jun: 5,
+    june: 5,
+    jul: 6,
+    july: 6,
+    aug: 7,
+    august: 7,
+    sep: 8,
+    sept: 8,
+    september: 8,
+    oct: 9,
+    october: 9,
+    nov: 10,
+    november: 10,
+    dec: 11,
+    december: 11,
+  };
+  const formatLocalDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const natural = trimmed.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s/-]+([a-zA-Z]+)(?:[\s,/-]+(\d{4}))?$/);
+  if (natural) {
+    const day = parseInt(natural[1], 10);
+    const month = monthNames[natural[2].toLowerCase()];
+    if (month !== undefined && day >= 1 && day <= 31) {
+      const currentYear = new Date().getFullYear();
+      const explicitYear = natural[3] ? parseInt(natural[3], 10) : null;
+      let parsed = new Date(explicitYear || currentYear, month, day);
+      if (!explicitYear && parsed < new Date()) {
+        parsed = new Date(currentYear + 1, month, day);
+      }
+      if (parsed.getMonth() === month && parsed.getDate() === day) return formatLocalDate(parsed);
+    }
+  }
+
   const currentYear = new Date().getFullYear();
   const hasYear = /\d{4}/.test(trimmed);
   let date = new Date(hasYear ? trimmed : `${trimmed} ${currentYear}`);
@@ -104,7 +152,7 @@ const toDateInputValue = (value: string) => {
     date = new Date(`${trimmed} ${currentYear + 1}`);
   }
   if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
+  return formatLocalDate(date);
 };
 
 const getNextCalendarTermId = (settings: SystemSettings | null) => {
@@ -797,7 +845,7 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
     : [];
   const inlineSuggestion = input
     ? inputSuggestionOptions.find((option) => option.toLowerCase().startsWith(input.toLowerCase()) && option.toLowerCase() !== input.toLowerCase())
-    : inputSuggestionOptions[0] || '';
+    : '';
 
   const renderNotifications = (text: string) => {
     const payload = JSON.parse(text.replace('__NOTIFICATIONS__', ''));
@@ -1202,9 +1250,10 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
-                  {inlineSuggestion && !input && !busy && (
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-300">
-                      {inlineSuggestion}
+                  {inlineSuggestion && !busy && (
+                    <span className="pointer-events-none absolute left-3 right-3 top-1/2 -translate-y-1/2 z-0 overflow-hidden whitespace-nowrap text-sm">
+                      <span className="text-transparent">{input}</span>
+                      <span className="text-slate-300">{inlineSuggestion.slice(input.length)}</span>
                     </span>
                   )}
                   <input
@@ -1226,7 +1275,7 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
                       flow === 'PAYMENT_TERM'
                     }
                     placeholder={busy ? 'Working...' : 'Reply with a number or type here'}
-                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-coha-900 disabled:bg-slate-100 transition-colors"
+                    className="relative z-10 h-11 w-full rounded-xl border border-slate-200 bg-transparent px-3 text-sm outline-none focus:border-coha-900 disabled:bg-slate-100 transition-colors"
                   />
                   <datalist id="coha-admin-assistant-suggestions">
                     {inputSuggestionOptions.map((option) => <option key={option} value={option} />)}
