@@ -7,7 +7,14 @@ import {
   HeartPulse, Pill, AlertTriangle
 } from 'lucide-react';
 import { UserRole } from '../types';
-import { getAllHomeworkSubmissions, getHomeworkSubmissionsForClass, getPaymentProofs, getPendingActionCounts, getStudentById } from '../services/dataService';
+import {
+  getAllHomeworkSubmissions,
+  getAllLessonPlans,
+  getHomeworkSubmissionsForClass,
+  getPaymentProofs,
+  getPendingActionCounts,
+  getStudentById,
+} from '../services/dataService';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -23,6 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   const [applicationBadgeCount, setApplicationBadgeCount] = useState(0);
   const [paymentBadgeCount, setPaymentBadgeCount] = useState(0);
   const [homeworkBadgeCount, setHomeworkBadgeCount] = useState(0);
+  const [lessonPlanBadgeCount, setLessonPlanBadgeCount] = useState(0);
   const [vtcBadgeCount, setVtcBadgeCount] = useState(0);
   const [isCollapsed, setIsCollapsed]     = useState(false);
   const [studentDivision, setStudentDivision] = useState<string | null>(null);
@@ -37,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
 
   const adminPaymentsViewKey = `coha_seen_admin_payments_${user?.id || 'admin'}`;
   const adminHomeworksViewKey = `coha_seen_admin_homeworks_${user?.id || 'admin'}`;
+  const adminLessonPlansViewKey = `coha_seen_admin_lesson_plans_${user?.id || 'admin'}`;
   const teacherHomeworksViewKey = `coha_seen_teacher_homeworks_${user?.id || 'teacher'}_${user?.assignedClass || 'class'}`;
 
   useEffect(() => {
@@ -50,22 +59,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
       setHomeworkBadgeCount(0);
     }
 
+    if (role === UserRole.ADMIN && location.pathname.startsWith('/admin/lesson-plans')) {
+      localStorage.setItem(adminLessonPlansViewKey, String(Date.now()));
+      setLessonPlanBadgeCount(0);
+    }
+
     if (role === UserRole.TEACHER && location.pathname.startsWith('/teacher/homework')) {
       localStorage.setItem(teacherHomeworksViewKey, String(Date.now()));
       setHomeworkBadgeCount(0);
     }
-  }, [role, location.pathname, adminPaymentsViewKey, adminHomeworksViewKey, teacherHomeworksViewKey]);
+  }, [role, location.pathname, adminPaymentsViewKey, adminHomeworksViewKey, adminLessonPlansViewKey, teacherHomeworksViewKey]);
 
   useEffect(() => {
     if (role === UserRole.ADMIN) {
       const fetchCounts = async () => {
-        const [counts, paymentProofs, homeworkSubmissions] = await Promise.all([
+        const [counts, paymentProofs, homeworkSubmissions, lessonPlans] = await Promise.all([
           getPendingActionCounts(),
           getPaymentProofs(),
           getAllHomeworkSubmissions(),
+          getAllLessonPlans(),
         ]);
         const lastViewedPaymentsAt = parseInt(localStorage.getItem(adminPaymentsViewKey) || '0', 10) || 0;
         const lastViewedHomeworksAt = parseInt(localStorage.getItem(adminHomeworksViewKey) || '0', 10) || 0;
+        const lastViewedLessonPlansAt = parseInt(localStorage.getItem(adminLessonPlansViewKey) || '0', 10) || 0;
         setApplicationBadgeCount(counts.pendingApps + counts.pendingVerifications);
         setPaymentBadgeCount(
           location.pathname.startsWith('/admin/payments')
@@ -76,6 +92,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
           location.pathname.startsWith('/admin/homeworks')
             ? 0
             : homeworkSubmissions.filter((item) => item.status === 'SUBMITTED' && getMillis(item.submittedAt) > lastViewedHomeworksAt).length
+        );
+        setLessonPlanBadgeCount(
+          location.pathname.startsWith('/admin/lesson-plans')
+            ? 0
+            : lessonPlans.filter((item) => getMillis(item.uploadedAt) > lastViewedLessonPlansAt).length
         );
         setVtcBadgeCount(counts.pendingVtcApps);
       };
@@ -88,11 +109,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
       window.addEventListener('focus', handleUpdate);
       window.addEventListener('coha-payment-proof-update', handleUpdate as EventListener);
       window.addEventListener('coha-homework-submission-update', handleUpdate as EventListener);
+      window.addEventListener('coha-lesson-plan-update', handleUpdate as EventListener);
       const interval = setInterval(fetchCounts, 30000);
       return () => {
         window.removeEventListener('focus', handleUpdate);
         window.removeEventListener('coha-payment-proof-update', handleUpdate as EventListener);
         window.removeEventListener('coha-homework-submission-update', handleUpdate as EventListener);
+        window.removeEventListener('coha-lesson-plan-update', handleUpdate as EventListener);
         clearInterval(interval);
       };
     } else if (role === UserRole.TEACHER && user?.assignedClass) {
@@ -131,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
       };
       fetchStudent();
     }
-  }, [role, user, adminPaymentsViewKey, adminHomeworksViewKey, teacherHomeworksViewKey, location.pathname]);
+  }, [role, user, adminPaymentsViewKey, adminHomeworksViewKey, adminLessonPlansViewKey, teacherHomeworksViewKey, location.pathname]);
 
   /* ─── nav link definitions ─── */
   const adminLinks = [
@@ -139,7 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Applications',     path: '/admin/applications',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: applicationBadgeCount },
     { label: 'VTC Applications', path: '/admin/vtc-applications', icon: <FileText        size={17} strokeWidth={2.2} />, badge: vtcBadgeCount },
     { label: 'Teachers',         path: '/admin/teachers',         icon: <Users           size={17} strokeWidth={2.2} />, badge: 0 },
-    { label: 'Lesson Plans',     path: '/admin/lesson-plans',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: 0 },
+    { label: 'Lesson Plans',     path: '/admin/lesson-plans',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: lessonPlanBadgeCount },
     { label: 'Assessments',      path: '/admin/assessment-progress', icon: <BarChart3   size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Payments',         path: '/admin/payments',           icon: <CreditCard  size={17} strokeWidth={2.2} />, badge: paymentBadgeCount },
     { label: 'View Activities',  path: '/admin/activities',         icon: <Activity    size={17} strokeWidth={2.2} />, badge: 0 },
@@ -359,14 +382,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
 
                       {/* badge – expanded */}
                       {!isCollapsed && link.badge > 0 && (
-                        <span className={`ml-auto shrink-0 bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none ${link.label === 'Homework' || link.label === 'Homeworks' ? 'animate-pulse' : ''}`}>
+                        <span className={`ml-auto shrink-0 bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none ${link.label === 'Homework' || link.label === 'Homeworks' || link.label === 'Lesson Plans' ? 'animate-pulse' : ''}`}>
                           {link.badge}
                         </span>
                       )}
 
                       {/* badge dot – collapsed */}
                       {isCollapsed && link.badge > 0 && (
-                        <span className={`absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-red-500 border-[1.5px] border-[#2b2b5e] ${link.label === 'Homework' || link.label === 'Homeworks' ? 'animate-pulse' : ''}`} />
+                        <span className={`absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-red-500 border-[1.5px] border-[#2b2b5e] ${link.label === 'Homework' || link.label === 'Homeworks' || link.label === 'Lesson Plans' ? 'animate-pulse' : ''}`} />
                       )}
                     </>
                   )}

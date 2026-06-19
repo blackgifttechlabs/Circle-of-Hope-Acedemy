@@ -477,6 +477,9 @@ export const uploadLessonPlan = async (plan: Omit<WeeklyLessonPlan, 'id' | 'uplo
       targetName: `${plan.classLevel} lesson plan`,
       details: `Term: ${plan.termId}. Week: ${plan.weekNumber || '-'}. Theme: ${plan.theme || '-'}.`,
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('coha-lesson-plan-update', { detail: { planId: docRef.id } }));
+    }
     return docRef.id;
   } catch (error) {
     console.error("Error uploading lesson plan:", error);
@@ -815,15 +818,21 @@ export const transferStudentToTeacherAndClass = async (
 export const createStudentByAdmin = async ({
     firstName,
     surname,
+    gender,
     dob,
     targetClass,
+    needsHostel = false,
+    dorm = '',
     adminName,
     adminId = 'admin',
 }: {
     firstName: string;
     surname: string;
+    gender?: string;
     dob: string;
     targetClass: string;
+    needsHostel?: boolean;
+    dorm?: string;
     adminName: string;
     adminId?: string;
 }): Promise<{ success: boolean; student?: Student; message?: string }> => {
@@ -848,6 +857,7 @@ export const createStudentByAdmin = async ({
       name,
       firstName: cleanFirstName,
       surname: cleanSurname,
+      ...(gender === 'Male' || gender === 'Female' ? { gender } : {}),
       dob,
       role: UserRole.PARENT,
       grade: target.grade,
@@ -861,6 +871,8 @@ export const createStudentByAdmin = async ({
       studentStatus: 'ENROLLED',
       academicYear,
       enrolledAt: Timestamp.now(),
+      needsHostel: !!needsHostel,
+      ...(needsHostel && dorm ? { dorm } : {}),
       ...(target.division === Division.SPECIAL_NEEDS
         ? { assessment: { teacherAssessments: {}, isComplete: false } }
         : {}),
@@ -2379,7 +2391,10 @@ export const getDashboardStats = async () => {
     const receiptsSnap = await getDocs(collection(db, RECEIPTS_COLLECTION));
     const settings = await getSystemSettings();
 
-    const totalStudents = studentsSnap.size;
+    const enrolledStudentDocs = studentsSnap.docs.filter((studentDoc) => (
+      studentDoc.data().studentStatus === 'ENROLLED'
+    ));
+    const totalStudents = enrolledStudentDocs.length;
     const totalTeachers = teachersSnap.size;
     
     let expectedRevenue = 0;
@@ -2451,7 +2466,7 @@ export const getDashboardStats = async () => {
     });
 
     let collectedRevenue = 0;
-    const defaulters = studentsSnap.docs
+    const defaulters = enrolledStudentDocs
       .map((doc) => {
         const d = doc.data();
         const paid = paidByStudent.get(doc.id) || 0;
@@ -2471,7 +2486,7 @@ export const getDashboardStats = async () => {
       .filter((student) => student.balance > 0);
 
     const monthCounts = new Array(12).fill(0);
-    studentsSnap.forEach(doc => {
+    enrolledStudentDocs.forEach(doc => {
       const data = doc.data();
       if (data.enrolledAt) {
         const date = data.enrolledAt.toDate();

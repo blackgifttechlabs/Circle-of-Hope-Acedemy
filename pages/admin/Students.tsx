@@ -14,6 +14,11 @@ import { Search, Eye, Download, Filter, Key, Repeat, UserPlus, Users, Home, User
 import { Toast } from '../../components/ui/Toast';
 import { printStudentList } from '../../utils/printStudentList';
 import { getTeacherAssignedClasses } from '../../utils/teacherClassSelection';
+import {
+  STUDENT_FIRST_NAME_SUGGESTIONS,
+  STUDENT_GENDER_SUGGESTIONS,
+  STUDENT_SURNAME_SUGGESTIONS,
+} from '../../utils/studentSuggestions';
 
 const STUDENT_REFRESH_COOLDOWN_MS = 60_000;
 
@@ -41,6 +46,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
   const [newStudentForm, setNewStudentForm] = useState({
     firstName: '',
     surname: '',
+    gender: '',
     dob: '',
     targetClass: '',
     needsHostel: false,
@@ -85,6 +91,97 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
 
   useEffect(() => {
     fetchStudents();
+  }, [fetchStudents]);
+
+  useEffect(() => {
+    const applyAssistantDraft = (draft: Partial<typeof newStudentForm> = {}, animate = true) => {
+      setAddStudentOpen(true);
+      const nextDraft = {
+        firstName: draft.firstName || '',
+        surname: draft.surname || '',
+        gender: draft.gender || '',
+        dob: draft.dob || '',
+        targetClass: draft.targetClass || '',
+        needsHostel: !!draft.needsHostel,
+        dorm: draft.dorm || '',
+      };
+
+      if (!animate) {
+        setNewStudentForm(nextDraft);
+        return;
+      }
+
+      const fields = Object.keys(nextDraft) as Array<keyof typeof nextDraft>;
+      let fieldIndex = 0;
+      let charIndex = 0;
+      let current = {
+        firstName: '',
+        surname: '',
+        gender: '',
+        dob: '',
+        targetClass: '',
+        needsHostel: nextDraft.needsHostel,
+        dorm: '',
+      };
+
+      setNewStudentForm(current);
+
+      const tick = () => {
+        if (fieldIndex >= fields.length) return;
+        const field = fields[fieldIndex];
+        const value = nextDraft[field];
+        if (typeof value === 'boolean') {
+          current = { ...current, [field]: value };
+          setNewStudentForm(current);
+          fieldIndex += 1;
+          charIndex = 0;
+          window.setTimeout(tick, 80);
+          return;
+        }
+
+        const text = String(value || '');
+        current = { ...current, [field]: text.slice(0, charIndex + 1) };
+        setNewStudentForm(current);
+        charIndex += 1;
+
+        if (charIndex >= text.length) {
+          fieldIndex += 1;
+          charIndex = 0;
+          window.setTimeout(tick, 120);
+        } else {
+          window.setTimeout(tick, 28);
+        }
+      };
+
+      tick();
+    };
+
+    const handleOpenStudentModal = (event: Event) => {
+      const customEvent = event as CustomEvent<{ draft?: Partial<typeof newStudentForm>; animate?: boolean }>;
+      applyAssistantDraft(customEvent.detail?.draft || {}, customEvent.detail?.animate !== false);
+    };
+
+    const handleStudentCreated = () => {
+      setAddStudentOpen(false);
+      fetchStudents();
+    };
+
+    const pending = sessionStorage.getItem('coha_pending_add_student_draft');
+    if (pending) {
+      sessionStorage.removeItem('coha_pending_add_student_draft');
+      try {
+        applyAssistantDraft(JSON.parse(pending), true);
+      } catch {
+        applyAssistantDraft({}, false);
+      }
+    }
+
+    window.addEventListener('coha-open-add-student', handleOpenStudentModal as EventListener);
+    window.addEventListener('coha-student-created', handleStudentCreated as EventListener);
+    return () => {
+      window.removeEventListener('coha-open-add-student', handleOpenStudentModal as EventListener);
+      window.removeEventListener('coha-student-created', handleStudentCreated as EventListener);
+    };
   }, [fetchStudents]);
 
   useEffect(() => {
@@ -263,7 +360,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
 
     setToast({ show: true, msg: `${result.student?.name || 'Student'} was added.` });
     setAddStudentOpen(false);
-    setNewStudentForm({ firstName: '', surname: '', dob: '', targetClass: '', needsHostel: false, dorm: '' });
+    setNewStudentForm({ firstName: '', surname: '', gender: '', dob: '', targetClass: '', needsHostel: false, dorm: '' });
     fetchStudents();
   };
 
@@ -608,20 +705,41 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Name</label>
                   <input
+                    list="coha-student-first-name-suggestions"
                     value={newStudentForm.firstName}
                     onChange={(e) => setNewStudentForm((prev) => ({ ...prev, firstName: e.target.value }))}
                     className="w-full p-3 border border-gray-300 bg-white outline-none rounded-[8px] focus:border-emerald-500"
                     placeholder="Student name"
                   />
+                  <datalist id="coha-student-first-name-suggestions">
+                    {STUDENT_FIRST_NAME_SUGGESTIONS.map((name) => <option key={name} value={name} />)}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Surname</label>
                   <input
+                    list="coha-student-surname-suggestions"
                     value={newStudentForm.surname}
                     onChange={(e) => setNewStudentForm((prev) => ({ ...prev, surname: e.target.value }))}
                     className="w-full p-3 border border-gray-300 bg-white outline-none rounded-[8px] focus:border-emerald-500"
                     placeholder="Student surname"
                   />
+                  <datalist id="coha-student-surname-suggestions">
+                    {STUDENT_SURNAME_SUGGESTIONS.map((surname) => <option key={surname} value={surname} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Gender</label>
+                  <input
+                    list="coha-student-gender-suggestions"
+                    value={newStudentForm.gender}
+                    onChange={(e) => setNewStudentForm((prev) => ({ ...prev, gender: e.target.value }))}
+                    className="w-full p-3 border border-gray-300 bg-white outline-none rounded-[8px] focus:border-emerald-500"
+                    placeholder="Male or Female"
+                  />
+                  <datalist id="coha-student-gender-suggestions">
+                    {STUDENT_GENDER_SUGGESTIONS.map((gender) => <option key={gender} value={gender} />)}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Date of Birth</label>

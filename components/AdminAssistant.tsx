@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
+  AlertTriangle,
   Bot,
   Check,
   ChevronRight,
@@ -13,14 +15,21 @@ import {
 } from 'lucide-react';
 import {
   addTeacher,
+  createStudentByAdmin,
   getPendingActionCounts,
   getSystemSettings,
   recordAdminPayment,
+  saveSystemSettings,
   searchStudents,
 } from '../services/dataService';
 import { Student, SystemSettings, UserRole } from '../types';
 import { DEFAULT_TEACHER_PASSWORD } from '../utils/credentials';
 import { getPaymentOptions } from '../utils/paymentOptions';
+import {
+  STUDENT_FIRST_NAME_SUGGESTIONS,
+  STUDENT_GENDER_SUGGESTIONS,
+  STUDENT_SURNAME_SUGGESTIONS,
+} from '../utils/studentSuggestions';
 
 type Message = {
   id: string;
@@ -29,7 +38,7 @@ type Message = {
   status?: 'working' | 'success' | 'error' | 'typing';
 };
 
-type AssistantFlow = 'MENU' | 'TEACHER_NAME' | 'TEACHER_SUBJECT' | 'TEACHER_CLASSES' | 'TEACHER_CONFIRM' | 'PAYMENT_STUDENT' | 'PAYMENT_AMOUNT' | 'PAYMENT_CATEGORY' | 'PAYMENT_TERM' | 'PAYMENT_LABEL' | 'PAYMENT_NOTES' | 'PAYMENT_CONFIRM';
+type AssistantFlow = 'MENU' | 'TEACHER_NAME' | 'TEACHER_SUBJECT' | 'TEACHER_CLASSES' | 'TEACHER_CONFIRM' | 'PAYMENT_STUDENT' | 'PAYMENT_AMOUNT' | 'PAYMENT_CATEGORY' | 'PAYMENT_TERM' | 'PAYMENT_LABEL' | 'PAYMENT_NOTES' | 'PAYMENT_CONFIRM' | 'STUDENT_FIRST_NAME' | 'STUDENT_SURNAME' | 'STUDENT_GENDER' | 'STUDENT_DOB' | 'STUDENT_CLASS' | 'STUDENT_HOSTEL' | 'STUDENT_DORM' | 'STUDENT_CONFIRM' | 'TERM_OPENING_DATE';
 
 type TeacherDraft = {
   name: string;
@@ -44,6 +53,16 @@ type PaymentDraft = {
   termId: string;
   label: string;
   notes: string;
+};
+
+type StudentDraft = {
+  firstName: string;
+  surname: string;
+  gender: string;
+  dob: string;
+  targetClass: string;
+  needsHostel: boolean;
+  dorm: string;
 };
 
 interface AdminAssistantProps {
@@ -63,6 +82,46 @@ const initialPaymentDraft = (): PaymentDraft => ({
   label: '',
   notes: '',
 });
+
+const initialStudentDraft = (): StudentDraft => ({
+  firstName: '',
+  surname: '',
+  gender: '',
+  dob: '',
+  targetClass: '',
+  needsHostel: false,
+  dorm: '',
+});
+
+const toDateInputValue = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const currentYear = new Date().getFullYear();
+  const hasYear = /\d{4}/.test(trimmed);
+  let date = new Date(hasYear ? trimmed : `${trimmed} ${currentYear}`);
+  if (!hasYear && !Number.isNaN(date.getTime()) && date < new Date()) {
+    date = new Date(`${trimmed} ${currentYear + 1}`);
+  }
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+};
+
+const getNextCalendarTermId = (settings: SystemSettings | null) => {
+  const terms = settings?.schoolCalendars || [];
+  const activeIndex = Math.max(terms.findIndex((term) => term.id === settings?.activeTermId), 0);
+  return terms[Math.min(activeIndex + 1, Math.max(terms.length - 1, 0))]?.id || 'term-2';
+};
+
+const getCalendarSetupIssues = (settings: SystemSettings | null) => {
+  const termId = getNextCalendarTermId(settings);
+  const schoolTerm = settings?.schoolCalendars?.find((term) => term.id === termId);
+  const hostelTerm = settings?.hostelCalendars?.find((term) => term.id === termId);
+  const issues = [];
+  if (schoolTerm && !schoolTerm.learnersOpeningDate) issues.push(`${schoolTerm.termName} learner opening date`);
+  if (hostelTerm && !hostelTerm.hostelOpeningDate) issues.push(`${hostelTerm.termName} hostel opening date`);
+  return { termId, termName: schoolTerm?.termName || hostelTerm?.termName || 'next term', issues };
+};
 
 const formatMoney = (value: string) =>
   `N$ ${(parseFloat(value) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -159,6 +218,7 @@ const closePanel = (setOpen: (v: boolean) => void) => {
 };
 
 export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin }) => {
+  const navigate = useNavigate();
   const [enabled, setEnabled] = useState(false);
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -168,9 +228,12 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
   const [busy, setBusy] = useState(false);
   const [teacherDraft, setTeacherDraft] = useState<TeacherDraft>(initialTeacherDraft);
   const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>(initialPaymentDraft);
+  const [studentDraft, setStudentDraft] = useState<StudentDraft>(initialStudentDraft);
   const [studentSearch, setStudentSearch] = useState('');
   const [studentResults, setStudentResults] = useState<Student[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const calendarIssues = useMemo(() => getCalendarSetupIssues(settings), [settings]);
+  const isStudentFlow = flow.startsWith('STUDENT_');
 
   const availableClasses = useMemo(() => {
     const grades = settings?.grades || [];
@@ -204,14 +267,16 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
     setFlow('MENU');
     setTeacherDraft(initialTeacherDraft());
     setPaymentDraft(initialPaymentDraft());
+    setStudentDraft(initialStudentDraft());
     setStudentSearch('');
     setStudentResults([]);
     const teacherLine = canUseTeacherTools ? '\n1. Add a teacher' : '';
-    const paymentNumber = canUseTeacherTools ? '2' : '1';
-    const pendingNumber = canUseTeacherTools ? '3' : '2';
+    const studentNumber = canUseTeacherTools ? '2' : '1';
+    const paymentNumber = canUseTeacherTools ? '3' : '2';
+    const pendingNumber = canUseTeacherTools ? '4' : '3';
     addMessage(
       'assistant',
-      `What would you like to do? Reply with a number.${teacherLine}\n${paymentNumber}. Record a payment\n${pendingNumber}. Check pending work`
+      `What would you like to do? Reply with a number.${teacherLine}\n${studentNumber}. Add a student\n${paymentNumber}. Record a payment\n${pendingNumber}. Check pending work`
     );
   };
 
@@ -308,14 +373,106 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
     );
   };
 
+  const openStudentModal = (draft = studentDraft, animate = true) => {
+    sessionStorage.setItem('coha_pending_add_student_draft', JSON.stringify(draft));
+    navigate('/admin/students');
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('coha-open-add-student', { detail: { draft, animate } }));
+    }, 180);
+  };
+
+  const syncStudentDraft = (draft: StudentDraft, animate = true) => {
+    setStudentDraft(draft);
+    openStudentModal(draft, animate);
+  };
+
+  const startStudentFlow = () => {
+    const draft = initialStudentDraft();
+    syncStudentDraft(draft, false);
+    setFlow('STUDENT_FIRST_NAME');
+    addMessage('assistant', 'Student setup started. I opened the Students page and Add Student form. What is the student first name?');
+  };
+
+  const startTermSetupFlow = () => {
+    setFlow('TERM_OPENING_DATE');
+    addMessage('assistant', `Let me help you set up ${calendarIssues.termName}. When is the next term beginning? You can type a date like 18 Feb.`);
+  };
+
   const handleMenuReply = (value: string) => {
     const trimmed = value.trim();
     if (canUseTeacherTools && trimmed === '1') return startTeacherFlow();
     if ((canUseTeacherTools && trimmed === '2') || (!canUseTeacherTools && trimmed === '1'))
-      return startPaymentFlow();
+      return startStudentFlow();
     if ((canUseTeacherTools && trimmed === '3') || (!canUseTeacherTools && trimmed === '2'))
+      return startPaymentFlow();
+    if ((canUseTeacherTools && trimmed === '4') || (!canUseTeacherTools && trimmed === '3'))
       return showNotifications().then(showMainMenu);
     addMessage('assistant', 'Please choose one of the menu numbers.');
+  };
+
+  const completeStudent = async () => {
+    if (!studentDraft.firstName.trim() || !studentDraft.surname.trim() || !studentDraft.dob || !studentDraft.targetClass) {
+      addMessage('assistant', 'The student setup still needs first name, surname, date of birth, and class.', 'error');
+      return;
+    }
+    setBusy(true);
+    addMessage('assistant', `Creating student profile for ${studentDraft.firstName} ${studentDraft.surname}...`, 'working');
+    const result = await createStudentByAdmin({
+      ...studentDraft,
+      adminName: user?.name || 'Admin',
+      adminId: user?.id || 'admin',
+    });
+    setBusy(false);
+    if (!result.success) {
+      addMessage('assistant', result.message || 'I could not create that student.', 'error');
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('coha-student-created'));
+    addMessage('assistant', `Done. ${result.student?.name || 'Student'} was added to ${studentDraft.targetClass}.`, 'success');
+    showMainMenu();
+  };
+
+  const saveNextTermOpeningDate = async (value: string) => {
+    const dateValue = toDateInputValue(value);
+    if (!dateValue || !settings) {
+      addMessage('assistant', 'I could not read that date. Try a format like 18 Feb or 2026-02-18.');
+      return;
+    }
+    const termId = calendarIssues.termId;
+    const nextSettings: SystemSettings = {
+      ...settings,
+      activeTermId: settings.activeTermId || 'term-1',
+      termStartDate: dateValue,
+      schoolCalendars: (settings.schoolCalendars || []).map((term) => (
+        term.id === termId
+          ? {
+              ...term,
+              learnersOpeningDate: term.learnersOpeningDate || dateValue,
+              teachersOpeningDate: term.teachersOpeningDate || dateValue,
+            }
+          : term
+      )),
+      hostelCalendars: (settings.hostelCalendars || []).map((term) => (
+        term.id === termId
+          ? {
+              ...term,
+              hostelOpeningDate: term.hostelOpeningDate || dateValue,
+              staffOpeningDate: term.staffOpeningDate || dateValue,
+            }
+          : term
+      )),
+    };
+    setBusy(true);
+    const success = await saveSystemSettings(nextSettings);
+    setBusy(false);
+    if (!success) {
+      addMessage('assistant', 'I could not save those calendar settings. Please try again.', 'error');
+      return;
+    }
+    setSettings(nextSettings);
+    window.dispatchEvent(new CustomEvent('coha-assistant-setting-change'));
+    addMessage('assistant', `Done. I applied ${dateValue} to ${calendarIssues.termName} school and hostel opening dates.`, 'success');
+    showMainMenu();
   };
 
   const completeTeacher = async () => {
@@ -395,6 +552,96 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
     }
 
     if (flow === 'MENU') return handleMenuReply(value);
+
+    if (flow === 'TERM_OPENING_DATE') {
+      return saveNextTermOpeningDate(value);
+    }
+
+    if (flow === 'STUDENT_FIRST_NAME') {
+      const next = { ...studentDraft, firstName: value };
+      syncStudentDraft(next);
+      setFlow('STUDENT_SURNAME');
+      addMessage('assistant', 'What is the student surname?');
+      return;
+    }
+
+    if (flow === 'STUDENT_SURNAME') {
+      const next = { ...studentDraft, surname: value };
+      syncStudentDraft(next);
+      setFlow('STUDENT_GENDER');
+      addMessage('assistant', 'What is the student gender? Type Male, Female, or skip.');
+      return;
+    }
+
+    if (flow === 'STUDENT_GENDER') {
+      const skipped = value.toLowerCase() === 'skip';
+      const normalized = value.toLowerCase().startsWith('m') ? 'Male' : value.toLowerCase().startsWith('f') ? 'Female' : '';
+      if (!skipped && !normalized) {
+        addMessage('assistant', 'Please type Male, Female, or skip.');
+        return;
+      }
+      const next = { ...studentDraft, gender: skipped ? '' : normalized };
+      syncStudentDraft(next);
+      setFlow('STUDENT_DOB');
+      addMessage('assistant', 'What is the date of birth? Use a full date like 2019-04-18.');
+      return;
+    }
+
+    if (flow === 'STUDENT_DOB') {
+      const dateValue = toDateInputValue(value);
+      if (!dateValue) {
+        addMessage('assistant', 'Please enter a valid date of birth, for example 2019-04-18.');
+        return;
+      }
+      const next = { ...studentDraft, dob: dateValue };
+      syncStudentDraft(next);
+      setFlow('STUDENT_CLASS');
+      addMessage('assistant', 'Choose the class from the cards below, or type the class name.');
+      return;
+    }
+
+    if (flow === 'STUDENT_CLASS') {
+      const next = { ...studentDraft, targetClass: value };
+      syncStudentDraft(next);
+      setFlow('STUDENT_HOSTEL');
+      addMessage('assistant', 'Does this student need hostel accommodation? Reply yes, no, or skip.');
+      return;
+    }
+
+    if (flow === 'STUDENT_HOSTEL') {
+      const answer = value.toLowerCase();
+      if (answer === 'yes' || answer === 'y') {
+        const next = { ...studentDraft, needsHostel: true };
+        syncStudentDraft(next);
+        setFlow('STUDENT_DORM');
+        addMessage('assistant', 'Which hostel should be assigned? Type a hostel name or skip.');
+        return;
+      }
+      if (answer === 'no' || answer === 'n' || answer === 'skip') {
+        const next = { ...studentDraft, needsHostel: false, dorm: '' };
+        syncStudentDraft(next);
+        setFlow('STUDENT_CONFIRM');
+        addMessage('assistant', `Confirm student setup:\nName: ${next.firstName} ${next.surname}\nGender: ${next.gender || 'Skipped'}\nDate of birth: ${next.dob}\nClass: ${next.targetClass}\nHostel: No\n\nReply 1 to create student or 2 to start again.`);
+        return;
+      }
+      addMessage('assistant', 'Reply yes, no, or skip.');
+      return;
+    }
+
+    if (flow === 'STUDENT_DORM') {
+      const next = { ...studentDraft, dorm: value.toLowerCase() === 'skip' ? '' : value };
+      syncStudentDraft(next);
+      setFlow('STUDENT_CONFIRM');
+      addMessage('assistant', `Confirm student setup:\nName: ${next.firstName} ${next.surname}\nGender: ${next.gender || 'Skipped'}\nDate of birth: ${next.dob}\nClass: ${next.targetClass}\nHostel: ${next.needsHostel ? (next.dorm || 'Needed, no dorm selected') : 'No'}\n\nReply 1 to create student or 2 to start again.`);
+      return;
+    }
+
+    if (flow === 'STUDENT_CONFIRM') {
+      if (value === '1') return completeStudent();
+      if (value === '2') return startStudentFlow();
+      addMessage('assistant', 'Reply 1 to create the student, or 2 to start again.');
+      return;
+    }
 
     if (flow === 'TEACHER_NAME') {
       setTeacherDraft((prev) => ({ ...prev, name: value }));
@@ -514,9 +761,43 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
     addMessage('assistant', 'Add a note for the receipt, or type none.');
   };
 
+  const chooseStudentClass = (className: string) => {
+    const next = { ...studentDraft, targetClass: className };
+    syncStudentDraft(next);
+    setFlow('STUDENT_HOSTEL');
+    addMessage('admin', `Selected ${className}`);
+    addMessage('assistant', 'Does this student need hostel accommodation? Reply yes, no, or skip.');
+  };
+
+  const chooseStudentDorm = (dorm: string) => {
+    const next = { ...studentDraft, needsHostel: true, dorm };
+    syncStudentDraft(next);
+    setFlow('STUDENT_CONFIRM');
+    addMessage('admin', `Selected ${dorm}`);
+    addMessage('assistant', `Confirm student setup:\nName: ${next.firstName} ${next.surname}\nGender: ${next.gender || 'Skipped'}\nDate of birth: ${next.dob}\nClass: ${next.targetClass}\nHostel: ${next.dorm}\n\nReply 1 to create student or 2 to start again.`);
+  };
+
   if (!enabled) return null;
 
   const isNotif = (text: string) => text.startsWith('__NOTIFICATIONS__');
+  const inputSuggestionOptions = flow === 'STUDENT_FIRST_NAME'
+    ? STUDENT_FIRST_NAME_SUGGESTIONS
+    : flow === 'STUDENT_SURNAME'
+    ? STUDENT_SURNAME_SUGGESTIONS
+    : flow === 'STUDENT_GENDER'
+    ? [...STUDENT_GENDER_SUGGESTIONS, 'Skip']
+    : flow === 'STUDENT_CLASS'
+    ? availableClasses
+    : flow === 'STUDENT_DORM'
+    ? [...(settings?.hostels || []), 'Skip']
+    : flow === 'STUDENT_HOSTEL'
+    ? ['Yes', 'No', 'Skip']
+    : flow === 'TERM_OPENING_DATE'
+    ? ['18 Feb', '2026-02-18']
+    : [];
+  const inlineSuggestion = input
+    ? inputSuggestionOptions.find((option) => option.toLowerCase().startsWith(input.toLowerCase()) && option.toLowerCase() !== input.toLowerCase())
+    : inputSuggestionOptions[0] || '';
 
   const renderNotifications = (text: string) => {
     const payload = JSON.parse(text.replace('__NOTIFICATIONS__', ''));
@@ -560,7 +841,7 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
                   </span>
                   <span
                     className="text-xs font-semibold leading-tight"
-                    style={{ color: isZero ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.9)' }}
+                    style={{ color: '#fff', fontWeight: 800 }}
                   >
                     {label}
                   </span>
@@ -572,9 +853,10 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
                     height: '28px',
                     padding: '0 10px',
                     background: isZero ? `${bg}28` : badge,
-                    color: isZero ? bg : '#fff',
+                    color: '#fff',
                     letterSpacing: '0.03em',
                     fontVariantNumeric: 'tabular-nums',
+                    fontWeight: 900,
                     boxShadow: isZero ? 'none' : `0 2px 10px ${badge}88`,
                   }}
                 >
@@ -624,7 +906,7 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
 
           <div
             id="coha-panel"
-            className="w-[calc(100vw-32px)] sm:w-[620px] h-[820px] max-h-[calc(100vh-40px)] bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col"
+            className={`w-[calc(100vw-32px)] ${isStudentFlow ? 'sm:w-[500px] h-[680px]' : 'sm:w-[620px] h-[820px]'} max-h-[calc(100vh-40px)] bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col`}
             style={{
               boxShadow: '0 24px 80px rgba(15,23,42,0.25)',
               animation: 'coha-popin 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both',
@@ -803,10 +1085,71 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
                   </button>
                 </div>
               )}
+
+              {flow === 'STUDENT_CLASS' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    {availableClasses.map((className) => (
+                      <button
+                        key={className}
+                        onClick={() => chooseStudentClass(className)}
+                        className={`rounded-xl border px-3 py-3 text-left text-xs font-black transition-all ${
+                          studentDraft.targetClass === className
+                            ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+                            : 'border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {className}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {flow === 'STUDENT_DORM' && (settings?.hostels || []).length > 0 && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    {(settings?.hostels || []).map((dorm) => (
+                      <button
+                        key={dorm}
+                        onClick={() => chooseStudentDorm(dorm)}
+                        className={`rounded-xl border px-3 py-3 text-left text-xs font-black transition-all ${
+                          studentDraft.dorm === dorm
+                            ? 'border-amber-600 bg-amber-50 text-amber-900'
+                            : 'border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {dorm}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Bottom bar */}
             <div className="border-t border-slate-200 bg-white p-3">
+              {calendarIssues.issues.length > 0 && flow === 'MENU' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    addMessage('assistant', `There are settings you did not apply yet:\n- ${calendarIssues.issues.join('\n- ')}`);
+                    startTermSetupFlow();
+                  }}
+                  className="mb-3 w-full rounded-2xl border border-amber-300 bg-amber-50 px-3 py-3 text-left transition-all hover:bg-amber-100"
+                  style={{ boxShadow: '0 0 22px rgba(245,158,11,0.35)' }}
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="h-10 w-10 rounded-xl bg-amber-400 text-amber-950 flex items-center justify-center shadow-[0_0_18px_rgba(245,158,11,0.65)]">
+                      <AlertTriangle size={20} />
+                    </span>
+                    <span>
+                      <span className="block text-xs font-black uppercase tracking-widest text-amber-900">Settings not applied</span>
+                      <span className="block text-xs font-bold text-amber-800">{calendarIssues.termName} calendar needs setup</span>
+                    </span>
+                  </span>
+                </button>
+              )}
               <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
                 {canUseTeacherTools && (
                   <button
@@ -821,6 +1164,17 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
                     <UserPlus size={13} /> Add teacher
                   </button>
                 )}
+                <button
+                  onClick={startStudentFlow}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all active:scale-95"
+                  style={{
+                    background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
+                    color: '#fff',
+                    boxShadow: '0 2px 8px rgba(4,120,87,0.4)',
+                  }}
+                >
+                  <UserPlus size={13} /> Add student
+                </button>
                 <button
                   onClick={startPaymentFlow}
                   className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all active:scale-95"
@@ -845,19 +1199,37 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
-                  disabled={
-                    busy ||
-                    flow === 'TEACHER_CLASSES' ||
-                    flow === 'PAYMENT_STUDENT' ||
-                    flow === 'PAYMENT_TERM'
-                  }
-                  placeholder={busy ? 'Working...' : 'Reply with a number or type here'}
-                  className="h-11 flex-1 rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-coha-900 disabled:bg-slate-100 transition-colors"
-                />
+                <div className="relative flex-1">
+                  {inlineSuggestion && !input && !busy && (
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-300">
+                      {inlineSuggestion}
+                    </span>
+                  )}
+                  <input
+                    value={input}
+                    list="coha-admin-assistant-suggestions"
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Tab' && inlineSuggestion) {
+                        e.preventDefault();
+                        setInput(inlineSuggestion);
+                        return;
+                      }
+                      if (e.key === 'Enter') handleSubmit();
+                    }}
+                    disabled={
+                      busy ||
+                      flow === 'TEACHER_CLASSES' ||
+                      flow === 'PAYMENT_STUDENT' ||
+                      flow === 'PAYMENT_TERM'
+                    }
+                    placeholder={busy ? 'Working...' : 'Reply with a number or type here'}
+                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-coha-900 disabled:bg-slate-100 transition-colors"
+                  />
+                  <datalist id="coha-admin-assistant-suggestions">
+                    {inputSuggestionOptions.map((option) => <option key={option} value={option} />)}
+                  </datalist>
+                </div>
                 <button
                   onClick={handleSubmit}
                   disabled={
