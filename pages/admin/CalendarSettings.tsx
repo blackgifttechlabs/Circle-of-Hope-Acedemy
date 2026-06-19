@@ -49,8 +49,28 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({ settings, se
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; termId: string | null; type: 'SCHOOL' | 'HOSTEL' | null }>({ isOpen: false, termId: null, type: null });
 
   // Initialize if undefined
-  const schoolCalendars = settings.schoolCalendars || [];
-  const hostelCalendars = settings.hostelCalendars || [];
+  const schoolCalendars = (settings.schoolCalendars || []).map((term, index) => ({
+      ...term,
+      id: term.id || `term-${index + 1}`,
+      termName: term.termName || `Term ${index + 1}`,
+      learnersOpeningDate: term.learnersOpeningDate || '',
+      learnersClosingDate: term.learnersClosingDate || '',
+      teachersOpeningDate: term.teachersOpeningDate || '',
+      teachersClosingDate: term.teachersClosingDate || '',
+      holidays: Array.isArray(term.holidays) ? term.holidays : [],
+      schoolDays: Number(term.schoolDays) || 0,
+  }));
+  const hostelCalendars = (settings.hostelCalendars || []).map((term, index) => ({
+      ...term,
+      id: term.id || `term-${index + 1}`,
+      termName: term.termName || `Term ${index + 1}`,
+      hostelOpeningDate: term.hostelOpeningDate || '',
+      hostelClosingDate: term.hostelClosingDate || '',
+      staffOpeningDate: term.staffOpeningDate || '',
+      staffClosingDate: term.staffClosingDate || '',
+      holidays: Array.isArray(term.holidays) ? term.holidays : [],
+      hostelDays: Number(term.hostelDays) || 0,
+  }));
 
   const updateSchoolCalendars = (newCalendars: TermCalendar[]) => {
       setSettings({ ...settings, schoolCalendars: newCalendars });
@@ -284,7 +304,7 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({ settings, se
                                         <Input label="Term Name" value={term.termName} onChange={(e) => updateSchoolTerm(term.id, 'termName', e.target.value)} />
                                     </div>
                                     <div>
-                                        <Input label="Total School Days (Auto-calculated)" type="number" value={term.schoolDays.toString()} onChange={(e) => updateSchoolTerm(term.id, 'schoolDays', parseInt(e.target.value) || 0)} />
+                                        <Input label="Total School Days (Auto-calculated)" type="number" value={(Number(term.schoolDays) || 0).toString()} onChange={(e) => updateSchoolTerm(term.id, 'schoolDays', parseInt(e.target.value) || 0)} />
                                     </div>
                                 </div>
 
@@ -383,7 +403,7 @@ export const CalendarSettings: React.FC<CalendarSettingsProps> = ({ settings, se
                                         <Input label="Term Name" value={term.termName} onChange={(e) => updateHostelTerm(term.id, 'termName', e.target.value)} />
                                     </div>
                                     <div>
-                                        <Input label="Total Hostel Days (Auto-calculated)" type="number" value={term.hostelDays.toString()} onChange={(e) => updateHostelTerm(term.id, 'hostelDays', parseInt(e.target.value) || 0)} />
+                                        <Input label="Total Hostel Days (Auto-calculated)" type="number" value={(Number(term.hostelDays) || 0).toString()} onChange={(e) => updateHostelTerm(term.id, 'hostelDays', parseInt(e.target.value) || 0)} />
                                     </div>
                                 </div>
 

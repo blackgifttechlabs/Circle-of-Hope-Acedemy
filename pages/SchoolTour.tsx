@@ -243,7 +243,12 @@ export const SchoolTour: React.FC = () => {
   const navRef      = useRef<HTMLDivElement>(null);
   const navigate    = useNavigate();
 
-  useEffect(()=>{getSystemSettings().then(d=>d&&setSettings(d));},[]);
+  useEffect(()=>{
+    const loadSettings = () => getSystemSettings().then(d=>d&&setSettings(d));
+    loadSettings();
+    window.addEventListener('coha-assistant-setting-change', loadSettings);
+    return () => window.removeEventListener('coha-assistant-setting-change', loadSettings);
+  },[]);
 
   // Auto-rotate hero images every 5 seconds
   useEffect(()=>{
@@ -273,11 +278,36 @@ export const SchoolTour: React.FC = () => {
   };
 
   /* calendar */
-  const schoolCals=settings?.schoolCalendars||[];
-  const hostelCals=settings?.hostelCalendars||[];
+  const schoolCals=(settings?.schoolCalendars||[]).map((term,index)=>({
+    ...term,
+    id: term.id || `term-${index+1}`,
+    termName: term.termName || `Term ${index+1}`,
+    learnersOpeningDate: term.learnersOpeningDate || '',
+    learnersClosingDate: term.learnersClosingDate || '',
+    teachersOpeningDate: term.teachersOpeningDate || '',
+    teachersClosingDate: term.teachersClosingDate || '',
+    holidays: Array.isArray(term.holidays) ? term.holidays : [],
+    schoolDays: Number(term.schoolDays)||0,
+  }));
+  const hostelCals=(settings?.hostelCalendars||[]).map((term,index)=>({
+    ...term,
+    id: term.id || `term-${index+1}`,
+    termName: term.termName || `Term ${index+1}`,
+    hostelOpeningDate: term.hostelOpeningDate || '',
+    hostelClosingDate: term.hostelClosingDate || '',
+    staffOpeningDate: term.staffOpeningDate || '',
+    staffClosingDate: term.staffClosingDate || '',
+    holidays: Array.isArray(term.holidays) ? term.holidays : [],
+    hostelDays: Number(term.hostelDays)||0,
+  }));
   const calList=calMode==='HOSTEL'?hostelCals:schoolCals;
   const activeCal=calList.find(c=>c.id===selectedTerm)||calList[0];
-  useEffect(()=>{if(calList.length&&!selectedTerm)setSelectedTerm(calList[0]?.id||'');},[calList,selectedTerm]);
+  useEffect(()=>{
+    if(calMode==='TEACHER') return;
+    if(calList.length&&(!selectedTerm||!calList.some(term=>term.id===selectedTerm))){
+      setSelectedTerm(calList[0]?.id||'');
+    }
+  },[calMode,calList,selectedTerm]);
 
   const buildHolidays=(term:{holidays?:{name:string;startDate:string;endDate?:string}[]})=>
     (term?.holidays||[]).map(h=>({name:h.name,start:new Date(h.startDate),end:new Date(h.endDate||h.startDate)}));
@@ -287,8 +317,9 @@ export const SchoolTour: React.FC = () => {
 
   const openDate  = calMode==='HOSTEL' ? activeHostelCal?.hostelOpeningDate  : activeSchoolCal?.learnersOpeningDate;
   const closeDate = calMode==='HOSTEL' ? activeHostelCal?.hostelClosingDate  : activeSchoolCal?.learnersClosingDate;
-  const calMonths = activeCal?getMonthsInRange(openDate||'',closeDate||''):[];
-  const termDates = activeCal?dateRange(openDate||'',closeDate||''):[];
+  const calendarEndDate = closeDate || openDate || '';
+  const calMonths = activeCal?getMonthsInRange(openDate||'',calendarEndDate):[];
+  const termDates = activeCal?dateRange(openDate||'',calendarEndDate):[];
   const holidays  = activeCal?buildHolidays(activeCal):[];
   const totalDays = calMode==='HOSTEL' ? (activeHostelCal?.hostelDays||0) : (activeSchoolCal?.schoolDays||0);
 

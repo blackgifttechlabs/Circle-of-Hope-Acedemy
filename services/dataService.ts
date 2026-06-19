@@ -2548,23 +2548,47 @@ export const getSystemSettings = async (): Promise<SystemSettings | null> => {
     const data = docSnap.data() as SystemSettings;
     
     // Enforce strict 3 terms with programmatic IDs
-    const ensureTerms = (calendars: any[] | undefined, prefix: string) => {
+    const ensureSchoolTerms = (calendars: any[] | undefined) => {
       const cals = calendars || [];
       const result = [];
       for (let i = 0; i < 3; i++) {
         const existing = cals[i] || {};
         result.push({
-          ...existing,
           id: `term-${i + 1}`,
-          termName: existing.termName || `Term ${i + 1}`
+          termName: existing.termName || `Term ${i + 1}`,
+          learnersOpeningDate: existing.learnersOpeningDate || '',
+          learnersClosingDate: existing.learnersClosingDate || '',
+          teachersOpeningDate: existing.teachersOpeningDate || '',
+          teachersClosingDate: existing.teachersClosingDate || '',
+          holidays: Array.isArray(existing.holidays) ? existing.holidays : [],
+          schoolDays: Number(existing.schoolDays) || 0,
+        });
+      }
+      return result;
+    };
+
+    const ensureHostelTerms = (calendars: any[] | undefined) => {
+      const cals = calendars || [];
+      const result = [];
+      for (let i = 0; i < 3; i++) {
+        const existing = cals[i] || {};
+        result.push({
+          id: `term-${i + 1}`,
+          termName: existing.termName || `Term ${i + 1}`,
+          hostelOpeningDate: existing.hostelOpeningDate || '',
+          hostelClosingDate: existing.hostelClosingDate || '',
+          staffOpeningDate: existing.staffOpeningDate || '',
+          staffClosingDate: existing.staffClosingDate || '',
+          holidays: Array.isArray(existing.holidays) ? existing.holidays : [],
+          hostelDays: Number(existing.hostelDays) || 0,
         });
       }
       return result;
     };
 
     data.grades = normalizeMainstreamGrades(data.grades);
-    data.schoolCalendars = ensureTerms(data.schoolCalendars, 'school');
-    data.hostelCalendars = ensureTerms(data.hostelCalendars, 'hostel');
+    data.schoolCalendars = ensureSchoolTerms(data.schoolCalendars);
+    data.hostelCalendars = ensureHostelTerms(data.hostelCalendars);
     data.specialNeedsLevels = normalizeSpecialNeedsLevels(data.specialNeedsLevels);
     data.hostels = data.hostels || [];
 
