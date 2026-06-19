@@ -894,15 +894,17 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
 
       {open && (
         <>
-          <div
-            className="fixed inset-0 z-[-1]"
-            style={{
-              backdropFilter: 'blur(6px)',
-              WebkitBackdropFilter: 'blur(6px)',
-              background: 'rgba(15,23,42,0.35)',
-            }}
-            onClick={() => closePanel(setOpen)}
-          />
+          {!isStudentFlow && (
+            <div
+              className="fixed inset-0 z-[-1]"
+              style={{
+                backdropFilter: 'blur(6px)',
+                WebkitBackdropFilter: 'blur(6px)',
+                background: 'rgba(15,23,42,0.35)',
+              }}
+              onClick={() => closePanel(setOpen)}
+            />
+          )}
 
           <div
             id="coha-panel"
