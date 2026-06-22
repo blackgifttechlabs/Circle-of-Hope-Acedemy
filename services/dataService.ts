@@ -1,7 +1,7 @@
 import { db, auth } from '../firebase';
 import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, ThemeOverride, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, ThemeOverride, CustomThemeEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 import { getPaymentOptionLabel, isRegistrationFeeOption } from '../utils/paymentOptions';
@@ -2746,6 +2746,10 @@ const buildThemeOverrideDocId = (grade: string, termId: string, subject: string,
   `${grade.replace(/\s+/g, '')}_${termId}_${subject.replace(/\s+/g, '')}_${originalTheme.replace(/\s+/g, '')}`
 );
 
+const buildCustomThemeDocId = (grade: string, termId: string, subject: string, theme: string) => (
+  `${grade.replace(/\s+/g, '')}_${termId}_${subject.replace(/\s+/g, '')}_${theme.replace(/\s+/g, '')}`
+);
+
 const getRatingFromAverage = (average: number): AssessmentRating => {
   if (average >= 2.5) return 'FM';
   if (average >= 1.5) return 'AM';
@@ -2980,20 +2984,55 @@ export const markDailyRegister = async (grade: string, studentId: string, studen
 
 
 // Custom Topics Management
-export const addCustomTopic = async (grade: string, termId: string, subject: string, topic: string) => {
+export const addCustomTopic = async (grade: string, termId: string, subject: string, topic: string, theme?: string) => {
   try {
-    const docId = buildCustomTopicDocId(grade, termId, subject, topic);
+    const docId = buildCustomTopicDocId(grade, termId, subject, topic, theme);
     await setDoc(doc(db, 'custom_topics', docId), {
       grade,
       termId,
       subject,
       topic,
+      ...(theme ? { theme } : {}),
       createdAt: new Date().toISOString()
     });
     return true;
   } catch (error) {
     console.error("Error adding custom topic:", error);
     return false;
+  }
+};
+
+export const addCustomTheme = async (grade: string, termId: string, subject: string, theme: string) => {
+  try {
+    const trimmedTheme = theme.trim();
+    if (!trimmedTheme) return false;
+    await setDoc(doc(db, 'custom_themes', buildCustomThemeDocId(grade, termId, subject, trimmedTheme)), {
+      grade,
+      termId,
+      subject,
+      theme: trimmedTheme,
+      createdAt: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error adding custom theme:', error);
+    return false;
+  }
+};
+
+export const getCustomThemeEntries = async (grade: string, termId: string, subject: string): Promise<CustomThemeEntry[]> => {
+  try {
+    const q = query(
+      collection(db, 'custom_themes'),
+      where('grade', '==', grade),
+      where('termId', '==', termId),
+      where('subject', '==', subject)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CustomThemeEntry));
+  } catch (error) {
+    console.error('Error getting custom themes:', error);
+    return [];
   }
 };
 

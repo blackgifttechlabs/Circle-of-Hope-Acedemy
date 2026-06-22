@@ -99,7 +99,8 @@ export default function AssessmentSheet({
   const [overridesT2, setOverridesT2] = useState<TopicOverride[]>([]);
   const [overridesT3, setOverridesT3] = useState<TopicOverride[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingTermId, setEditingTermId] = useState<string | null>(null);
+  // Teacher sheets open ready for mark entry; admin sheets stay read-only.
+  const [editingTermId, setEditingTermId] = useState<string | null>(adminMode ? null : 'all');
   const [draftMarks, setDraftMarks] = useState<Record<string, string>>({});
   const [savingCell, setSavingCell] = useState<string | null>(null);
   const className = getSelectedTeachingClass(user, location.search);
@@ -871,7 +872,7 @@ export default function AssessmentSheet({
         <div className="flex gap-3">
           {!adminMode && (
             <button
-              onClick={() => setEditingTermId(editingTermId ? null : (sheetTerms[0]?.id || null))}
+              onClick={() => setEditingTermId(editingTermId ? null : 'all')}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${editingTermId ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
             >
               <Edit2 size={16} />
@@ -991,10 +992,10 @@ export default function AssessmentSheet({
                 <div className="flex gap-2 print:hidden">
                   {!adminMode && (
                     <button
-                      onClick={() => setEditingTermId(editingTermId === termId ? null : termId)}
-                      className={`px-2 py-1 text-xs font-bold rounded transition-colors ${editingTermId === termId ? 'bg-amber-500 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                      onClick={() => setEditingTermId(editingTermId === termId || editingTermId === 'all' ? null : termId)}
+                      className={`px-2 py-1 text-xs font-bold rounded transition-colors ${editingTermId === termId || editingTermId === 'all' ? 'bg-amber-500 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
                     >
-                      {editingTermId === termId ? 'Done' : 'Edit marks'}
+                      {editingTermId === termId || editingTermId === 'all' ? 'Done' : 'Edit marks'}
                     </button>
                   )}
                   <button
@@ -1090,7 +1091,7 @@ export default function AssessmentSheet({
                         {termTopics.map((topic, i) => {
                           const cellKey = `${termId}:${student.id}:${topic}`;
                           const savedMark = getStudentMark(student.id, topic, term.assessments);
-                          const isEditing = !adminMode && editingTermId === termId;
+                          const isEditing = !adminMode && (editingTermId === 'all' || editingTermId === termId);
                           return (
                             <td key={`m-${i}`} className="border border-black p-0.5 text-center font-mono">
                               {isEditing ? (
