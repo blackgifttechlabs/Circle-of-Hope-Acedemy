@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, FileSpreadsheet, Printer } from 'lucide-react';
-import { getCustomTopicEntries, getStudents, getStudentsForTeacherByClass, getTopicAssessments, getTopicOverrides } from '../../../services/dataService';
+import { ArrowLeft, Download, Edit2, FileSpreadsheet, Printer } from 'lucide-react';
+import { getCustomTopicEntries, getStudents, getStudentsForTeacherByClass, getTopicAssessments, getTopicOverrides, saveTopicAssessments } from '../../../services/dataService';
 import { CustomTopicEntry, Student, TopicAssessmentRecord, TopicOverride } from '../../../types';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -99,6 +99,9 @@ export default function AssessmentSheet({
   const [overridesT2, setOverridesT2] = useState<TopicOverride[]>([]);
   const [overridesT3, setOverridesT3] = useState<TopicOverride[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingTermId, setEditingTermId] = useState<string | null>(null);
+  const [draftMarks, setDraftMarks] = useState<Record<string, string>>({});
+  const [savingCell, setSavingCell] = useState<string | null>(null);
   const className = getSelectedTeachingClass(user, location.search);
   const standardWorkflow = isGrade1To7Class(className);
   const subjectLabel = getSubjectLabel(subject || '', className);
@@ -217,6 +220,54 @@ export default function AssessmentSheet({
     if (total === null || termTopics.length === 0) return null;
     const maxMark = standardWorkflow ? 10 : 3;
     return Math.round((total / (termTopics.length * maxMark)) * 100);
+  };
+
+  const getTopicDetails = (termId: string, topic: string, termAssessments: TopicAssessmentRecord[]) => {
+    const recorded = termAssessments.find((item) => item.topic === topic);
+    if (recorded) return { theme: recorded.theme, topicId: recorded.topicId };
+    const defaultTopic = standardWorkflow
+      ? getDefaultTopicsForTheme(className, termId, subject || '', 'default').find((item) => item.label === topic)
+      : getDefaultThemesForSubject(className, termId, subject || '')
+          .flatMap((_, index) => getDefaultTopicsForTheme(className, termId, subject || '', String(index)))
+          .find((item) => item.label === topic);
+    return { theme: defaultTopic?.theme, topicId: defaultTopic?.id };
+  };
+
+  const saveCellMark = async (
+    termId: string,
+    studentId: string,
+    topic: string,
+    termAssessments: TopicAssessmentRecord[]
+  ) => {
+    const key = `${termId}:${studentId}:${topic}`;
+    const rawMark = draftMarks[key];
+    if (rawMark === undefined) return;
+    if (rawMark === '') {
+      setDraftMarks((current) => { const next = { ...current }; delete next[key]; return next; });
+      return;
+    }
+    const mark = Number(rawMark);
+    const maxMark = standardWorkflow ? 10 : 3;
+    if (!Number.isFinite(mark) || mark < 0 || mark > maxMark) return;
+
+    setSavingCell(key);
+    try {
+      const details = getTopicDetails(termId, topic, termAssessments);
+      await saveTopicAssessments(className, termId, subject || '', topic, { [studentId]: mark }, details);
+      const update = (records: TopicAssessmentRecord[]) => {
+        const existing = records.findIndex((item) => item.studentId === studentId && item.topic === topic && item.theme === details.theme);
+        const next = { ...(existing >= 0 ? records[existing] : {}), studentId, grade: className, recordedClass: className, termId, subject: subject || '', topic, ...details, mark, updatedAt: new Date().toISOString() } as TopicAssessmentRecord;
+        return existing >= 0 ? records.map((item, index) => index === existing ? next : item) : [...records, next];
+      };
+      if (termId === 'term-1') setAssessmentsT1(update);
+      else if (termId === 'term-2') setAssessmentsT2(update);
+      else setAssessmentsT3(update);
+      setDraftMarks((current) => { const next = { ...current }; delete next[key]; return next; });
+    } catch (error) {
+      console.error('Error saving assessment mark:', error);
+    } finally {
+      setSavingCell(null);
+    }
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -818,6 +869,15 @@ export default function AssessmentSheet({
           <h1 className="text-2xl font-bold text-slate-900">{subjectLabel} Assessment Sheet</h1>
         </div>
         <div className="flex gap-3">
+          {!adminMode && (
+            <button
+              onClick={() => setEditingTermId(editingTermId ? null : (sheetTerms[0]?.id || null))}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${editingTermId ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            >
+              <Edit2 size={16} />
+              {editingTermId ? 'Finish Editing' : 'Edit Sheet'}
+            </button>
+          )}
           <ActionMenu
             label="Excel"
             icon={FileSpreadsheet}
@@ -929,6 +989,14 @@ export default function AssessmentSheet({
                   Continuous Assessment - {term.name}
                 </h2>
                 <div className="flex gap-2 print:hidden">
+                  {!adminMode && (
+                    <button
+                      onClick={() => setEditingTermId(editingTermId === termId ? null : termId)}
+                      className={`px-2 py-1 text-xs font-bold rounded transition-colors ${editingTermId === termId ? 'bg-amber-500 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                    >
+                      {editingTermId === termId ? 'Done' : 'Edit marks'}
+                    </button>
+                  )}
                   <button
                     onClick={() => generateExcel(term)}
                     className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
@@ -1019,11 +1087,30 @@ export default function AssessmentSheet({
                         <td className="border border-black p-0.5 px-1 whitespace-nowrap font-sans">
                           {student.name}
                         </td>
-                        {termTopics.map((topic, i) => (
-                          <td key={`m-${i}`} className="border border-black p-0.5 text-center font-mono">
-                            {getStudentMark(student.id, topic, term.assessments) ?? ''}
-                          </td>
-                        ))}
+                        {termTopics.map((topic, i) => {
+                          const cellKey = `${termId}:${student.id}:${topic}`;
+                          const savedMark = getStudentMark(student.id, topic, term.assessments);
+                          const isEditing = !adminMode && editingTermId === termId;
+                          return (
+                            <td key={`m-${i}`} className="border border-black p-0.5 text-center font-mono">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={standardWorkflow ? 10 : 3}
+                                  step="1"
+                                  value={draftMarks[cellKey] ?? (savedMark ?? '')}
+                                  onChange={(e) => setDraftMarks((current) => ({ ...current, [cellKey]: e.target.value }))}
+                                  onBlur={() => saveCellMark(termId, student.id, topic, term.assessments)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }}
+                                  disabled={savingCell === cellKey}
+                                  className="w-full min-w-0 bg-amber-50 text-center outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-60"
+                                  aria-label={`${student.name}, ${topic} mark`}
+                                />
+                              ) : savedMark ?? ''}
+                            </td>
+                          );
+                        })}
                         <td className="border border-black p-0.5 text-center font-mono font-bold">
                           {total ?? ''}
                         </td>

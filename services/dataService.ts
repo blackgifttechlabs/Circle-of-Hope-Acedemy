@@ -1,7 +1,7 @@
 import { db, auth } from '../firebase';
 import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, ThemeOverride, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 import { getPaymentOptionLabel, isRegistrationFeeOption } from '../utils/paymentOptions';
@@ -2742,6 +2742,10 @@ const buildTopicOverrideDocId = (
   return `${grade.replace(/\s+/g, '')}_${termId}_${subject.replace(/\s+/g, '')}${themePart}_${originalTopic.replace(/\s+/g, '')}`;
 };
 
+const buildThemeOverrideDocId = (grade: string, termId: string, subject: string, originalTheme: string) => (
+  `${grade.replace(/\s+/g, '')}_${termId}_${subject.replace(/\s+/g, '')}_${originalTheme.replace(/\s+/g, '')}`
+);
+
 const getRatingFromAverage = (average: number): AssessmentRating => {
   if (average >= 2.5) return 'FM';
   if (average >= 1.5) return 'AM';
@@ -3046,6 +3050,51 @@ export const getTopicOverrides = async (
   } catch (error) {
     console.error("Error getting topic overrides:", error);
     return [];
+  }
+};
+
+export const getThemeOverrides = async (
+  grade: string,
+  termId: string,
+  subject: string
+): Promise<ThemeOverride[]> => {
+  try {
+    const q = query(
+      collection(db, 'theme_overrides'),
+      where('grade', '==', grade),
+      where('termId', '==', termId),
+      where('subject', '==', subject)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ThemeOverride));
+  } catch (error) {
+    console.error('Error getting theme overrides:', error);
+    return [];
+  }
+};
+
+export const renameTheme = async (
+  grade: string,
+  termId: string,
+  subject: string,
+  originalTheme: string,
+  theme: string
+) => {
+  try {
+    const trimmedTheme = theme.trim();
+    if (!trimmedTheme) return false;
+    await setDoc(doc(db, 'theme_overrides', buildThemeOverrideDocId(grade, termId, subject, originalTheme)), {
+      grade,
+      termId,
+      subject,
+      originalTheme,
+      theme: trimmedTheme,
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error renaming theme:', error);
+    return false;
   }
 };
 

@@ -6,9 +6,11 @@ import {
   deleteTopic,
   getCustomTopicEntries,
   getStudentsForTeacherByClass,
+  getThemeOverrides,
   getTopicAssessments,
   getTopicOverrides,
   renameTopic,
+  renameTheme,
 } from '../../../services/dataService';
 import { Student, TopicAssessmentRecord } from '../../../types';
 import {
@@ -81,10 +83,14 @@ export default function TopicSelection({ user }: { user: any }) {
   const [editingTopic, setEditingTopic] = useState<{ index: number; name: string } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ topic: TopicCard; index: number } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [themeOverrides, setThemeOverrides] = useState<Record<string, string>>({});
+  const [editingTheme, setEditingTheme] = useState(false);
+  const [themeName, setThemeName] = useState('');
 
   const termId = activeTerm.toLowerCase().replace(' ', '-');
-  const themes = getDefaultThemesForSubject(className, termId, subject || '');
-  const activeThemeLabel = themes[Number(activeThemeId)]?.label;
+  const defaultThemes = getDefaultThemesForSubject(className, termId, subject || '');
+  const themes = defaultThemes.map((theme) => ({ ...theme, label: themeOverrides[theme.label] || theme.label, originalLabel: theme.label }));
+  const activeThemeLabel = themes[Number(activeThemeId)]?.originalLabel;
 
   useEffect(() => {
     if (className) {
@@ -105,11 +111,14 @@ export default function TopicSelection({ user }: { user: any }) {
     if (!subject) return;
 
     setLoading(true);
-    const [assessmentsData, customTopics, overrides] = await Promise.all([
+    const [assessmentsData, customTopics, overrides, fetchedThemeOverrides] = await Promise.all([
       getTopicAssessments(gradeKey, termId, subject),
       getCustomTopicEntries(gradeKey, termId, subject),
       getTopicOverrides(gradeKey, termId, subject),
+      getThemeOverrides(gradeKey, termId, subject),
     ]);
+
+    setThemeOverrides(Object.fromEntries(fetchedThemeOverrides.map((item) => [item.originalTheme, item.theme])));
 
     setAssessments(assessmentsData);
 
@@ -214,6 +223,18 @@ export default function TopicSelection({ user }: { user: any }) {
     }
   };
 
+  const handleSaveTheme = async () => {
+    const activeTheme = themes[Number(activeThemeId)];
+    const nextName = themeName.trim();
+    if (!activeTheme || !nextName || !subject) return;
+
+    const success = await renameTheme(gradeKey, termId, subject, activeTheme.originalLabel, nextName);
+    if (success) {
+      setThemeOverrides((current) => ({ ...current, [activeTheme.originalLabel]: nextName }));
+      setEditingTheme(false);
+    }
+  };
+
   return (
     <div className="w-full px-5 py-6">
       <div className="mb-6">
@@ -248,18 +269,43 @@ export default function TopicSelection({ user }: { user: any }) {
         </div>
 
         {!standardWorkflow && themes.length > 0 && (
-          <div className="flex gap-2 p-1 bg-slate-100 rounded-xl overflow-x-auto">
+          <div className="flex gap-2 p-1 bg-slate-100 rounded-xl overflow-x-auto items-center">
             {themes.map((theme, index) => (
-              <button
-                key={theme.label}
-                onClick={() => setActiveThemeId(String(index))}
-                className={`px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
-                  activeThemeId === String(index) ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {theme.label}
-              </button>
+              <div key={theme.originalLabel} className="flex items-center">
+                <button
+                  onClick={() => setActiveThemeId(String(index))}
+                  className={`px-4 py-2.5 rounded-l-lg text-sm font-bold whitespace-nowrap transition-all ${
+                    activeThemeId === String(index) ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {theme.label}
+                </button>
+                {activeThemeId === String(index) && (
+                  <button
+                    onClick={() => { setThemeName(theme.label); setEditingTheme(true); }}
+                    className="p-2.5 bg-white text-slate-400 hover:text-blue-600 rounded-r-lg shadow-sm"
+                    title="Edit theme name"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                )}
+              </div>
             ))}
+          </div>
+        )}
+
+        {editingTheme && (
+          <div className="flex items-center gap-2">
+            <input
+              autoFocus
+              value={themeName}
+              onChange={(e) => setThemeName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveTheme()}
+              className="px-3 py-2 border border-blue-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              aria-label="Theme name"
+            />
+            <button onClick={handleSaveTheme} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"><Check size={16} /></button>
+            <button onClick={() => setEditingTheme(false)} className="p-2 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300"><X size={16} /></button>
           </div>
         )}
 

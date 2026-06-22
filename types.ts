@@ -252,6 +252,16 @@ export interface CustomTopicEntry {
   createdAt: string;
 }
 
+export interface ThemeOverride {
+  id?: string;
+  grade: string;
+  termId: string;
+  subject: string;
+  originalTheme: string;
+  theme: string;
+  updatedAt: string;
+}
+
 export interface DailyRegisterRecord {
   status: 'present' | 'absent';
   timestamp: string;
