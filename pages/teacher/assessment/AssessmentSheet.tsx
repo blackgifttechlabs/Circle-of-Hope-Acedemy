@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, Edit2, FileSpreadsheet, Printer, Save, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Download, Edit2, FileSpreadsheet, Printer, Save, X } from 'lucide-react';
 import { getCustomTopicEntries, getStudents, getStudentsForTeacherByClass, getTopicAssessments, getTopicOverrides, renameTopic, saveTopicAssessments } from '../../../services/dataService';
 import { CustomTopicEntry, Student, TopicAssessmentRecord, TopicOverride } from '../../../types';
 import ExcelJS from 'exceljs';
@@ -114,6 +114,7 @@ export default function AssessmentSheet({
   const [editingCompetency, setEditingCompetency] = useState<(SheetTopic & { termId: string }) | null>(null);
   const [competencyDraft, setCompetencyDraft] = useState('');
   const [savingCompetency, setSavingCompetency] = useState(false);
+  const [competencySaved, setCompetencySaved] = useState(false);
   const className = getSelectedTeachingClass(user, location.search);
   const standardWorkflow = isGrade1To7Class(className);
   const subjectLabel = getSubjectLabel(subject || '', className);
@@ -299,12 +300,14 @@ export default function AssessmentSheet({
     if (adminMode) return;
     setEditingCompetency({ ...topic, termId });
     setCompetencyDraft(getTopicLabelParts(topic.topic).full);
+    setCompetencySaved(false);
   };
 
   const closeCompetencyEditor = () => {
-    if (savingCompetency) return;
+    if (savingCompetency || competencySaved) return;
     setEditingCompetency(null);
     setCompetencyDraft('');
+    setCompetencySaved(false);
   };
 
   const saveCompetency = async () => {
@@ -331,9 +334,13 @@ export default function AssessmentSheet({
         }
       );
       if (success) {
-        setEditingCompetency(null);
-        setCompetencyDraft('');
-        await fetchSheetData();
+        setCompetencySaved(true);
+        window.setTimeout(() => {
+          setEditingCompetency(null);
+          setCompetencyDraft('');
+          setCompetencySaved(false);
+          fetchSheetData();
+        }, 1200);
       }
     } finally {
       setSavingCompetency(false);
@@ -925,6 +932,10 @@ export default function AssessmentSheet({
   animation: competencyRotateOpen 220ms ease-out both;
 }
 
+.competency-saved-icon {
+  animation: competencySavedPop 360ms cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
+}
+
 @keyframes competencyRotateOpen {
   from {
     opacity: 0;
@@ -933,6 +944,21 @@ export default function AssessmentSheet({
   to {
     opacity: 1;
     transform: rotate(0deg) scaleX(1) translateY(0);
+  }
+}
+
+@keyframes competencySavedPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.45) rotate(-18deg);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.12) rotate(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
   }
 }
 
@@ -1248,48 +1274,62 @@ export default function AssessmentSheet({
           <div className="competency-editor-panel w-full max-w-xl rounded-xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Edit competency</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  {competencySaved ? 'Saved' : 'Edit competency'}
+                </p>
                 <h2 className="text-base font-bold text-slate-900">
                   {editingCompetency.termId.replace('-', ' ').replace(/\b\w/g, (char) => char.toUpperCase())}
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={closeCompetencyEditor}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                aria-label="Close competency editor"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-4">
-              <textarea
-                autoFocus
-                value={competencyDraft}
-                onChange={(event) => setCompetencyDraft(event.target.value)}
-                className="min-h-36 w-full resize-y rounded-lg border border-slate-300 bg-white p-3 text-sm leading-6 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                aria-label="Competency text"
-              />
-              <div className="mt-4 flex justify-end gap-3">
+              {!competencySaved && (
                 <button
                   type="button"
                   onClick={closeCompetencyEditor}
-                  disabled={savingCompetency}
-                  className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  aria-label="Close competency editor"
                 >
-                  <X size={16} />
-                  Cancel
+                  <X size={18} />
                 </button>
-                <button
-                  type="button"
-                  onClick={saveCompetency}
-                  disabled={savingCompetency || !competencyDraft.trim()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {savingCompetency ? <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Save size={16} />}
-                  Save
-                </button>
-              </div>
+              )}
+            </div>
+            <div className="p-4">
+              {competencySaved ? (
+                <div className="flex min-h-48 flex-col items-center justify-center text-center">
+                  <CheckCircle2 size={72} className="competency-saved-icon text-emerald-600" />
+                  <h3 className="mt-4 text-xl font-bold text-slate-900">Saved</h3>
+                  <p className="mt-1 text-sm font-medium text-slate-500">Competency updated.</p>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    autoFocus
+                    value={competencyDraft}
+                    onChange={(event) => setCompetencyDraft(event.target.value)}
+                    className="min-h-36 w-full resize-y rounded-lg border border-slate-300 bg-white p-3 text-sm leading-6 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    aria-label="Competency text"
+                  />
+                  <div className="mt-4 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={closeCompetencyEditor}
+                      disabled={savingCompetency}
+                      className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                    >
+                      <X size={16} />
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveCompetency}
+                      disabled={savingCompetency || !competencyDraft.trim()}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                    >
+                      {savingCompetency ? <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Save size={16} />}
+                      Save
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
