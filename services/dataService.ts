@@ -1021,7 +1021,14 @@ export const approveApplicationInitial = async (app: Application): Promise<{pin:
     ].flat();
 
     for (const item of uploadedDocs) {
-      await addDoc(collection(db, STUDENT_DOCUMENTS_COLLECTION), JSON.parse(JSON.stringify(item)));
+      const documentRef = doc(collection(db, STUDENT_DOCUMENTS_COLLECTION));
+      const payload = await prepareChunkedDataUrlField(JSON.parse(JSON.stringify(item)), 'fileBase64', {
+        parentCollection: STUDENT_DOCUMENTS_COLLECTION,
+        parentId: documentRef.id,
+        fieldName: 'fileBase64',
+        studentId: customId,
+      });
+      await setDoc(documentRef, payload);
     }
 
     await syncPortalAuthUserSafely({
