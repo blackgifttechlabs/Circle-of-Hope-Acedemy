@@ -347,6 +347,16 @@ service cloud.firestore {
       allow create, update, delete: if isAnyAdmin() || isTeacher();
     }
 
+    match /custom_themes/{themeId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAnyAdmin() || isTeacher();
+    }
+
+    match /theme_overrides/{overrideId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAnyAdmin() || isTeacher();
+    }
+
     match /daily_register/{grade}/students/{studentId} {
       allow read: if canReadStudent(studentId) || isTeacher();
       allow create, update: if isAnyAdmin() || isAssignedTeacher(studentId);

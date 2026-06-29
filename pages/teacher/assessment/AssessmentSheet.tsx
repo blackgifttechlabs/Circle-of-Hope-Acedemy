@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, Edit2, FileSpreadsheet, Printer } from 'lucide-react';
-import { getCustomTopicEntries, getStudents, getStudentsForTeacherByClass, getTopicAssessments, getTopicOverrides, saveTopicAssessments } from '../../../services/dataService';
+import { ArrowLeft, Download, Edit2, FileSpreadsheet, Printer, Save, X } from 'lucide-react';
+import { getCustomTopicEntries, getStudents, getStudentsForTeacherByClass, getTopicAssessments, getTopicOverrides, renameTopic, saveTopicAssessments } from '../../../services/dataService';
 import { CustomTopicEntry, Student, TopicAssessmentRecord, TopicOverride } from '../../../types';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -73,6 +73,14 @@ const getSymbol = (average: number | null): string => {
 
 const MAX_TOPIC_CHARS = 22; // characters visible in one rotated line at 0.6rem
 
+type SheetTopic = {
+  topic: string;
+  originalTopic?: string;
+  theme?: string;
+  topicId?: string;
+  isCustom?: boolean;
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function AssessmentSheet({
   user,
@@ -103,6 +111,9 @@ export default function AssessmentSheet({
   const [editingTermId, setEditingTermId] = useState<string | null>(adminMode ? null : 'all');
   const [draftMarks, setDraftMarks] = useState<Record<string, string>>({});
   const [savingCell, setSavingCell] = useState<string | null>(null);
+  const [editingCompetency, setEditingCompetency] = useState<(SheetTopic & { termId: string }) | null>(null);
+  const [competencyDraft, setCompetencyDraft] = useState('');
+  const [savingCompetency, setSavingCompetency] = useState(false);
   const className = getSelectedTeachingClass(user, location.search);
   const standardWorkflow = isGrade1To7Class(className);
   const subjectLabel = getSubjectLabel(subject || '', className);
@@ -110,7 +121,7 @@ export default function AssessmentSheet({
 
   const sheetRef = useRef<HTMLDivElement>(null);
 
-  const getTopicsForTerm = (termId: string, termAssessments: TopicAssessmentRecord[]) => {
+  const getTopicCardsForTerm = (termId: string, termAssessments: TopicAssessmentRecord[]): SheetTopic[] => {
     const customTopics =
       termId === 'term-1' ? customTopicsT1 :
       termId === 'term-2' ? customTopicsT2 :
@@ -121,37 +132,46 @@ export default function AssessmentSheet({
       overridesT3;
 
     const defaultTopics = standardWorkflow
-      ? getDefaultTopicsForTheme(className, termId, subject || '', 'default').map((item) => item.label)
+      ? getDefaultTopicsForTheme(className, termId, subject || '', 'default')
       : getDefaultThemesForSubject(className, termId, subject || '')
           .flatMap((theme, index) =>
-            getDefaultTopicsForTheme(className, termId, subject || '', String(index)).map((item) => item.label)
+            getDefaultTopicsForTheme(className, termId, subject || '', String(index))
           );
 
-    const combinedTopics = defaultTopics.reduce<string[]>((acc, topic) => {
-      const override = overrides.find((item) => item.originalTopic === topic);
+    const combinedTopics = defaultTopics.reduce<SheetTopic[]>((acc, topic) => {
+      const override = overrides.find((item) => item.originalTopic === topic.label && (!topic.theme || item.theme === topic.theme || !item.theme));
       if (override?.deleted) return acc;
-      acc.push(override?.topic || topic);
+      acc.push({
+        topic: override?.topic || topic.label,
+        originalTopic: topic.label,
+        theme: topic.theme,
+        topicId: topic.id,
+      });
       return acc;
     }, []);
 
     customTopics.forEach((item) => {
-      if (!combinedTopics.includes(item.topic)) {
-        combinedTopics.push(item.topic);
+      if (!combinedTopics.some((topic) => topic.topic === item.topic && topic.theme === item.theme)) {
+        combinedTopics.push({ topic: item.topic, theme: item.theme, isCustom: true });
       }
     });
 
     termAssessments.forEach((item) => {
-      if (!combinedTopics.includes(item.topic)) {
-        combinedTopics.push(item.topic);
+      if (!combinedTopics.some((topic) => topic.topic === item.topic && topic.theme === item.theme)) {
+        combinedTopics.push({ topic: item.topic, theme: item.theme, topicId: item.topicId });
       }
     });
     return combinedTopics;
   };
 
+  const getTopicsForTerm = (termId: string, termAssessments: TopicAssessmentRecord[]) => (
+    getTopicCardsForTerm(termId, termAssessments).map((item) => item.topic)
+  );
+
   // ── Data fetching ────────────────────────────────────────────────────────
-  useEffect(() => {
+  const fetchSheetData = useCallback(() => {
     if (className && subject) {
-        setLoading(true);
+      setLoading(true);
       Promise.all([
         adminMode
           ? getStudents().then((data) => data.filter((student) => matchesTeachingClass(student.assignedClass || student.grade || student.level || '', className)))
@@ -188,6 +208,10 @@ export default function AssessmentSheet({
         });
     }
   }, [adminMode, className, subject, user.id]);
+
+  useEffect(() => {
+    fetchSheetData();
+  }, [fetchSheetData]);
 
   // ── Mark helpers ─────────────────────────────────────────────────────────
   const getStudentMark = (
@@ -268,6 +292,51 @@ export default function AssessmentSheet({
       console.error('Error saving assessment mark:', error);
     } finally {
       setSavingCell(null);
+    }
+  };
+
+  const openCompetencyEditor = (termId: string, topic: SheetTopic) => {
+    if (adminMode) return;
+    setEditingCompetency({ ...topic, termId });
+    setCompetencyDraft(getTopicLabelParts(topic.topic).full);
+  };
+
+  const closeCompetencyEditor = () => {
+    if (savingCompetency) return;
+    setEditingCompetency(null);
+    setCompetencyDraft('');
+  };
+
+  const saveCompetency = async () => {
+    if (!editingCompetency || !subject) return;
+    const nextName = competencyDraft.trim();
+    if (!nextName || nextName === editingCompetency.topic) {
+      closeCompetencyEditor();
+      return;
+    }
+
+    setSavingCompetency(true);
+    try {
+      const success = await renameTopic(
+        className,
+        editingCompetency.termId,
+        subject,
+        editingCompetency.topic,
+        nextName,
+        {
+          theme: editingCompetency.theme,
+          originalTopic: editingCompetency.originalTopic,
+          topicId: editingCompetency.topicId,
+          isCustom: editingCompetency.isCustom,
+        }
+      );
+      if (success) {
+        setEditingCompetency(null);
+        setCompetencyDraft('');
+        await fetchSheetData();
+      }
+    } finally {
+      setSavingCompetency(false);
     }
   };
 
@@ -537,7 +606,8 @@ export default function AssessmentSheet({
     for (const term of termsToGen) {
       const termId = term.name.toLowerCase().replace(' ', '-');
       const termTopics = getTopicsForTerm(termId, term.assessments);
-      const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
+      const longestTopicLength = termTopics.reduce((max, topic) => Math.max(max, getTopicLabelParts(topic).full.length), 0);
+      const headerHeight = Math.max(72, Math.min(118, Math.ceil(longestTopicLength / 18) * 16 + 22));
       const sheet = workbook.addWorksheet(term.name, {
         pageSetup: {
           paperSize: 9,
@@ -642,13 +712,13 @@ export default function AssessmentSheet({
       for (let i = 3; i <= totalCols; i++) {
         const relIdx = (i - 3);
         const isSummary = relIdx >= termTopics.length;
-        sheet.getColumn(i).width = isSummary ? 10 : 6;
+        sheet.getColumn(i).width = isSummary ? 10 : 14;
       }
 
       const HDR_ROW = 13;
       sheet.getRow(HDR_ROW).height = headerHeight;
       const hdrBaseStyle: Partial<ExcelJS.Style> = {
-        alignment: { textRotation: 90, vertical: 'bottom', horizontal: 'center', wrapText: false },
+        alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
         border: thinBorder,
       };
 
@@ -666,9 +736,8 @@ export default function AssessmentSheet({
 
       let col = 3;
       termTopics.forEach((topic) => {
-        const lines = getTopicHeaderLines(topic, standardWorkflow ? 22 : 24);
         const c = sheet.getCell(HDR_ROW, col++);
-        c.value = lines[0];
+        c.value = getTopicLabelParts(topic).full;
         c.font = { name: EXCEL_FONT_FAMILY, size: 8 };
         Object.assign(c, { ...hdrBaseStyle });
         c.border = thinBorder;
@@ -680,10 +749,9 @@ export default function AssessmentSheet({
         c.value = label;
         c.font = { name: EXCEL_FONT_FAMILY, bold: true, size: 8 };
         c.alignment = {
-          textRotation: 90,
-          vertical: 'bottom',
+          vertical: 'middle',
           horizontal: 'center',
-          wrapText: false,
+          wrapText: true,
         };
         c.border = isSymbol ? symBorder : thinBorder;
       });
@@ -837,6 +905,37 @@ export default function AssessmentSheet({
   max-height: calc(var(--topic-header-height, 7.5rem) - 0.75rem);
 }
 
+.competency-header-button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.competency-header-button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.competency-editor-panel {
+  transform-origin: top center;
+  animation: competencyRotateOpen 220ms ease-out both;
+}
+
+@keyframes competencyRotateOpen {
+  from {
+    opacity: 0;
+    transform: rotate(90deg) scaleX(0.24) translateY(-0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scaleX(1) translateY(0);
+  }
+}
+
 .rotate-header-bold {
   display: block;
   writing-mode: vertical-rl;
@@ -943,7 +1042,8 @@ export default function AssessmentSheet({
       <div className="space-y-8 print:space-y-0">
         {sheetTerms.map((term, termIdx) => {
           const termId = term.id;
-          const termTopics = getTopicsForTerm(termId, term.assessments);
+          const termTopicCards = getTopicCardsForTerm(termId, term.assessments);
+          const termTopics = termTopicCards.map((item) => item.topic);
           const headerHeight = getTopicHeaderHeight(termTopics, standardWorkflow);
 
           return (
@@ -1044,13 +1144,22 @@ export default function AssessmentSheet({
                     <th className="border border-black p-1 align-bottom text-left font-bold text-xs">
                       Student Name
                     </th>
-                    {termTopics.map((t, i) => (
+                    {termTopicCards.map((topicCard, i) => (
                       <th key={`h-${i}`} className="topic-th border border-black">
                         <div className="th-inner">
                           {(() => {
-                            const lines = getTopicHeaderLines(t, standardWorkflow ? 22 : 24);
+                            const lines = getTopicHeaderLines(topicCard.topic, standardWorkflow ? 22 : 24);
                             return (
-                              <span className="rotate-header">{lines[0]}</span>
+                              <button
+                                type="button"
+                                className={`rotate-header ${!adminMode ? 'competency-header-button' : ''}`}
+                                onClick={() => openCompetencyEditor(termId, topicCard)}
+                                title={!adminMode ? `Edit ${getTopicLabelParts(topicCard.topic).full}` : getTopicLabelParts(topicCard.topic).full}
+                                aria-label={`Edit competency ${getTopicLabelParts(topicCard.topic).full}`}
+                                disabled={adminMode}
+                              >
+                                {lines[0]}
+                              </button>
                             );
                           })()}
                         </div>
@@ -1133,6 +1242,58 @@ export default function AssessmentSheet({
           );
         })}
       </div>
+
+      {editingCompetency && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 print:hidden">
+          <div className="competency-editor-panel w-full max-w-xl rounded-xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Edit competency</p>
+                <h2 className="text-base font-bold text-slate-900">
+                  {editingCompetency.termId.replace('-', ' ').replace(/\b\w/g, (char) => char.toUpperCase())}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeCompetencyEditor}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Close competency editor"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4">
+              <textarea
+                autoFocus
+                value={competencyDraft}
+                onChange={(event) => setCompetencyDraft(event.target.value)}
+                className="min-h-36 w-full resize-y rounded-lg border border-slate-300 bg-white p-3 text-sm leading-6 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                aria-label="Competency text"
+              />
+              <div className="mt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeCompetencyEditor}
+                  disabled={savingCompetency}
+                  className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                >
+                  <X size={16} />
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveCompetency}
+                  disabled={savingCompetency || !competencyDraft.trim()}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {savingCompetency ? <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Save size={16} />}
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
