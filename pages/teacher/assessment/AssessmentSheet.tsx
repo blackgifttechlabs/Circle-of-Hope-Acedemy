@@ -115,6 +115,11 @@ export default function AssessmentSheet({
   const [competencyDraft, setCompetencyDraft] = useState('');
   const [savingCompetency, setSavingCompetency] = useState(false);
   const [competencySaved, setCompetencySaved] = useState(false);
+  const [topicsModalOpen, setTopicsModalOpen] = useState(false);
+  const [expandedTopicKey, setExpandedTopicKey] = useState<string | null>(null);
+  const [topicDrafts, setTopicDrafts] = useState<Record<string, string>>({});
+  const [savingTopicKey, setSavingTopicKey] = useState<string | null>(null);
+  const [savedTopicKey, setSavedTopicKey] = useState<string | null>(null);
   const className = getSelectedTeachingClass(user, location.search);
   const standardWorkflow = isGrade1To7Class(className);
   const subjectLabel = getSubjectLabel(subject || '', className);
@@ -308,6 +313,75 @@ export default function AssessmentSheet({
     setEditingCompetency(null);
     setCompetencyDraft('');
     setCompetencySaved(false);
+  };
+
+  const getSheetTopicKey = (termId: string, topic: SheetTopic) => (
+    `${termId}:${topic.theme || ''}:${topic.originalTopic || topic.topic}:${topic.topic}`
+  );
+
+  const openTopicsModal = () => {
+    setTopicsModalOpen(true);
+    setExpandedTopicKey(null);
+    setSavedTopicKey(null);
+  };
+
+  const closeTopicsModal = () => {
+    if (savingTopicKey) return;
+    setTopicsModalOpen(false);
+    setExpandedTopicKey(null);
+    setSavedTopicKey(null);
+  };
+
+  const toggleTopicRow = (termId: string, topic: SheetTopic) => {
+    const key = getSheetTopicKey(termId, topic);
+    setSavedTopicKey(null);
+    setExpandedTopicKey((current) => current === key ? null : key);
+    setTopicDrafts((current) => ({
+      ...current,
+      [key]: current[key] ?? getTopicLabelParts(topic.topic).full,
+    }));
+  };
+
+  const saveTopicFromModal = async (termId: string, topic: SheetTopic) => {
+    if (!subject) return;
+    const key = getSheetTopicKey(termId, topic);
+    const nextName = (topicDrafts[key] ?? '').trim();
+    if (!nextName || nextName === topic.topic) {
+      setExpandedTopicKey(null);
+      return;
+    }
+
+    setSavingTopicKey(key);
+    try {
+      const success = await renameTopic(
+        className,
+        termId,
+        subject,
+        topic.topic,
+        nextName,
+        {
+          theme: topic.theme,
+          originalTopic: topic.originalTopic,
+          topicId: topic.topicId,
+          isCustom: topic.isCustom,
+        }
+      );
+      if (success) {
+        setSavedTopicKey(key);
+        window.setTimeout(() => {
+          setExpandedTopicKey(null);
+          setSavedTopicKey(null);
+          setTopicDrafts((current) => {
+            const next = { ...current };
+            delete next[key];
+            return next;
+          });
+          fetchSheetData();
+        }, 900);
+      }
+    } finally {
+      setSavingTopicKey(null);
+    }
   };
 
   const saveCompetency = async () => {
@@ -932,6 +1006,10 @@ export default function AssessmentSheet({
   animation: competencyRotateOpen 220ms ease-out both;
 }
 
+.topics-editor-panel {
+  animation: topicsEditorOpen 220ms ease-out both;
+}
+
 .competency-saved-icon {
   animation: competencySavedPop 360ms cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
 }
@@ -944,6 +1022,17 @@ export default function AssessmentSheet({
   to {
     opacity: 1;
     transform: rotate(0deg) scaleX(1) translateY(0);
+  }
+}
+
+@keyframes topicsEditorOpen {
+  from {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -996,13 +1085,22 @@ export default function AssessmentSheet({
         </div>
         <div className="flex gap-3">
           {!adminMode && (
-            <button
-              onClick={() => setEditingTermId(editingTermId ? null : 'all')}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${editingTermId ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-            >
-              <Edit2 size={16} />
-              {editingTermId ? 'Finish Editing' : 'Edit Sheet'}
-            </button>
+            <>
+              <button
+                onClick={openTopicsModal}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+              >
+                <Edit2 size={16} />
+                Edit Topics
+              </button>
+              <button
+                onClick={() => setEditingTermId(editingTermId ? null : 'all')}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${editingTermId ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+              >
+                <Edit2 size={16} />
+                {editingTermId ? 'Finish Editing' : 'Edit Sheet'}
+              </button>
+            </>
           )}
           <ActionMenu
             label="Excel"
@@ -1268,6 +1366,130 @@ export default function AssessmentSheet({
           );
         })}
       </div>
+
+      {topicsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-sm p-4 print:hidden">
+          <div className="topics-editor-panel w-full max-w-5xl max-h-[88vh] overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Topic editor</p>
+                <h2 className="text-xl font-bold text-slate-900">{subjectLabel} Topics</h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeTopicsModal}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Close topic editor"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(88vh-5.5rem)] overflow-y-auto p-5">
+              <div className="space-y-5">
+                {sheetTerms.map((term) => {
+                  const topicCards = getTopicCardsForTerm(term.id, term.assessments);
+                  return (
+                    <section key={`topics-${term.id}`} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">{term.name}</h3>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500 border border-slate-200">
+                          {topicCards.length} topics
+                        </span>
+                      </div>
+
+                      <div className="space-y-3">
+                        {topicCards.map((topic, index) => {
+                          const key = getSheetTopicKey(term.id, topic);
+                          const isExpanded = expandedTopicKey === key;
+                          const isSaving = savingTopicKey === key;
+                          const isSaved = savedTopicKey === key;
+                          const fullLabel = getTopicLabelParts(topic.topic).full;
+
+                          return (
+                            <div
+                              key={key}
+                              className={`rounded-xl border bg-white transition-all duration-200 ${isExpanded ? 'border-blue-300 shadow-md' : 'border-slate-200 hover:border-blue-200 hover:shadow-sm'}`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => toggleTopicRow(term.id, topic)}
+                                className="flex w-full items-start justify-between gap-4 p-4 text-left"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                                    Topic {index + 1}{topic.theme ? ` · ${topic.theme}` : ''}
+                                  </p>
+                                  <p className="mt-1 text-base font-bold text-slate-900 break-words">{fullLabel}</p>
+                                </div>
+                                <span className={`inline-flex flex-shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-colors ${isExpanded ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                                  {isSaved ? <CheckCircle2 size={15} className="text-emerald-500" /> : <Edit2 size={15} />}
+                                  {isExpanded ? 'Editing' : 'Edit'}
+                                </span>
+                              </button>
+
+                              <div className={`grid transition-all duration-300 ease-out ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                                <div className="overflow-hidden">
+                                  <div className="border-t border-slate-100 p-4 pt-3">
+                                    {isSaved ? (
+                                      <div className="flex min-h-28 flex-col items-center justify-center text-center">
+                                        <CheckCircle2 size={56} className="competency-saved-icon text-emerald-600" />
+                                        <p className="mt-3 text-lg font-bold text-slate-900">Saved</p>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                                          Topic text
+                                        </label>
+                                        <textarea
+                                          value={topicDrafts[key] ?? fullLabel}
+                                          onChange={(event) => setTopicDrafts((current) => ({ ...current, [key]: event.target.value }))}
+                                          className="min-h-28 w-full resize-y rounded-xl border border-slate-300 bg-white p-3 text-sm leading-6 font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                          aria-label={`Edit ${fullLabel}`}
+                                        />
+                                        <div className="mt-3 flex justify-end gap-3">
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedTopicKey(null)}
+                                            disabled={isSaving}
+                                            className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                                          >
+                                            <X size={16} />
+                                            Cancel
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => saveTopicFromModal(term.id, topic)}
+                                            disabled={isSaving || !(topicDrafts[key] ?? fullLabel).trim()}
+                                            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                                          >
+                                            {isSaving ? <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Save size={16} />}
+                                            Save
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {topicCards.length === 0 && (
+                          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm font-medium text-slate-500">
+                            No topics available for this term.
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingCompetency && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 print:hidden">

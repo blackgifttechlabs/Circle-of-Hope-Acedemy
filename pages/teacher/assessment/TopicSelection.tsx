@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Check, Edit2, Plus, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Check, Edit2, Plus, Save, Trash2, X } from 'lucide-react';
 import {
   addCustomTopic,
   addCustomTheme,
   getCustomThemeEntries,
+  deleteTheme,
   deleteTopic,
   getCustomTopicEntries,
   getStudentsForTeacherByClass,
@@ -34,6 +35,13 @@ type TopicCard = {
   originalTopic?: string;
   theme?: string;
   componentId?: string;
+  isCustom?: boolean;
+};
+
+type ThemeTab = {
+  id: string;
+  label: string;
+  originalLabel: string;
   isCustom?: boolean;
 };
 
@@ -83,6 +91,8 @@ export default function TopicSelection({ user }: { user: any }) {
   const [isAddingTopic, setIsAddingTopic] = useState(false);
   const [newTopicName, setNewTopicName] = useState('');
   const [editingTopic, setEditingTopic] = useState<{ index: number; name: string } | null>(null);
+  const [savingTopic, setSavingTopic] = useState(false);
+  const [topicSaved, setTopicSaved] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ topic: TopicCard; index: number } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [themeOverrides, setThemeOverrides] = useState<Record<string, string>>({});
@@ -91,14 +101,23 @@ export default function TopicSelection({ user }: { user: any }) {
   const [customThemes, setCustomThemes] = useState<CustomThemeEntry[]>([]);
   const [isAddingTheme, setIsAddingTheme] = useState(false);
   const [newThemeName, setNewThemeName] = useState('');
+  const [showDeleteThemeConfirm, setShowDeleteThemeConfirm] = useState<ThemeTab | null>(null);
+  const [isDeletingTheme, setIsDeletingTheme] = useState(false);
 
   const termId = activeTerm.toLowerCase().replace(' ', '-');
   const defaultThemes = getDefaultThemesForSubject(className, termId, subject || '');
-  const themes = [
-    ...defaultThemes.map((theme) => ({ ...theme, label: themeOverrides[theme.label] || theme.label, originalLabel: theme.label })),
-    ...customThemes.map((theme) => ({ id: theme.id || theme.theme, label: theme.theme, originalLabel: theme.theme })),
+  const themes: ThemeTab[] = [
+    ...defaultThemes
+      .filter((theme) => themeOverrides[theme.label] !== '__DELETED__')
+      .map((theme) => ({ ...theme, label: themeOverrides[theme.label] || theme.label, originalLabel: theme.label })),
+    ...customThemes.map((theme) => ({ id: theme.id || theme.theme, label: theme.theme, originalLabel: theme.theme, isCustom: true })),
   ];
   const activeThemeLabel = themes[Number(activeThemeId)]?.originalLabel;
+  const getThemeDisplayLabel = (theme?: string) => {
+    if (!theme) return '';
+    const override = themeOverrides[theme];
+    return override && override !== '__DELETED__' ? override : theme;
+  };
 
   useEffect(() => {
     if (className) {
@@ -127,7 +146,7 @@ export default function TopicSelection({ user }: { user: any }) {
       getCustomThemeEntries(gradeKey, termId, subject),
     ]);
 
-    setThemeOverrides(Object.fromEntries(fetchedThemeOverrides.map((item) => [item.originalTheme, item.theme])));
+    setThemeOverrides(Object.fromEntries(fetchedThemeOverrides.map((item) => [item.originalTheme, item.deleted ? '__DELETED__' : item.theme])));
     setCustomThemes(fetchedCustomThemes);
 
     setAssessments(assessmentsData);
@@ -149,9 +168,10 @@ export default function TopicSelection({ user }: { user: any }) {
       })
       .filter(Boolean) as TopicCard[];
 
-    if (standardWorkflow) {
-      customTopics.forEach((customTopic) => {
-        if (!nextTopics.some((item) => item.topic === customTopic.topic)) {
+    customTopics
+      .filter((customTopic) => standardWorkflow || !activeThemeLabel || customTopic.theme === activeThemeLabel)
+      .forEach((customTopic) => {
+        if (!nextTopics.some((item) => item.topic === customTopic.topic && item.theme === customTopic.theme)) {
           nextTopics.push({
             topic: customTopic.topic,
             theme: customTopic.theme,
@@ -159,7 +179,6 @@ export default function TopicSelection({ user }: { user: any }) {
           });
         }
       });
-    }
 
     assessmentsData
       .filter((item) => !activeThemeLabel || item.theme === activeThemeLabel || !item.theme)
@@ -233,6 +252,7 @@ export default function TopicSelection({ user }: { user: any }) {
     const nextName = editingTopic.name.trim();
     if (!currentTopic || !nextName) return;
 
+    setSavingTopic(true);
     const success = await renameTopic(gradeKey, termId, subject, currentTopic.topic, nextName, {
       theme: currentTopic.theme,
       originalTopic: currentTopic.originalTopic,
@@ -241,9 +261,21 @@ export default function TopicSelection({ user }: { user: any }) {
     });
 
     if (success) {
-      setEditingTopic(null);
-      await fetchTopics();
+      setTopicSaved(true);
+      window.setTimeout(() => {
+        setEditingTopic(null);
+        setTopicSaved(false);
+        setSavingTopic(false);
+        fetchTopics();
+      }, 1100);
+    } else {
+      setSavingTopic(false);
     }
+  };
+
+  const closeTopicEditor = () => {
+    if (savingTopic || topicSaved) return;
+    setEditingTopic(null);
   };
 
   const handleSaveTheme = async () => {
@@ -251,11 +283,38 @@ export default function TopicSelection({ user }: { user: any }) {
     const nextName = themeName.trim();
     if (!activeTheme || !nextName || !subject) return;
 
-    const success = await renameTheme(gradeKey, termId, subject, activeTheme.originalLabel, nextName);
+    const success = await renameTheme(gradeKey, termId, subject, activeTheme.originalLabel, nextName, {
+      isCustom: activeTheme.isCustom,
+    });
     if (success) {
-      setThemeOverrides((current) => ({ ...current, [activeTheme.originalLabel]: nextName }));
+      if (activeTheme.isCustom) {
+        setCustomThemes((current) => current.map((theme) => (
+          theme.theme === activeTheme.originalLabel ? { ...theme, theme: nextName, id: theme.id } : theme
+        )));
+        setTopicCards((current) => current.map((topic) => (
+          topic.theme === activeTheme.originalLabel ? { ...topic, theme: nextName } : topic
+        )));
+      } else {
+        setThemeOverrides((current) => ({ ...current, [activeTheme.originalLabel]: nextName }));
+      }
       setEditingTheme(false);
     }
+  };
+
+  const handleDeleteTheme = async () => {
+    if (!showDeleteThemeConfirm || !subject) return;
+
+    setIsDeletingTheme(true);
+    const success = await deleteTheme(gradeKey, termId, subject, showDeleteThemeConfirm.originalLabel, {
+      isCustom: showDeleteThemeConfirm.isCustom,
+    });
+    if (success) {
+      setShowDeleteThemeConfirm(null);
+      setEditingTheme(false);
+      setActiveThemeId('0');
+      await fetchTopics();
+    }
+    setIsDeletingTheme(false);
   };
 
   return (
@@ -298,20 +357,31 @@ export default function TopicSelection({ user }: { user: any }) {
               <div key={theme.originalLabel} className="flex items-center">
                 <button
                   onClick={() => setActiveThemeId(String(index))}
-                  className={`px-4 py-2.5 rounded-l-lg text-sm font-bold whitespace-nowrap transition-all ${
+                  className={`px-4 py-2.5 ${activeThemeId === String(index) ? 'rounded-l-lg' : 'rounded-lg'} text-sm font-bold whitespace-nowrap transition-all ${
                     activeThemeId === String(index) ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   {theme.label}
                 </button>
                 {activeThemeId === String(index) && (
-                  <button
-                    onClick={() => { setThemeName(theme.label); setEditingTheme(true); }}
-                    className="p-2.5 bg-white text-slate-400 hover:text-blue-600 rounded-r-lg shadow-sm"
-                    title="Edit theme name"
-                  >
-                    <Edit2 size={14} />
-                  </button>
+                  <div className="flex bg-white rounded-r-lg shadow-sm">
+                    <button
+                      onClick={() => { setThemeName(theme.label); setEditingTheme(true); }}
+                      className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      title="Edit theme name"
+                      aria-label={`Edit ${theme.label}`}
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteThemeConfirm(theme)}
+                      className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-r-lg transition-colors"
+                      title="Delete theme"
+                      aria-label={`Delete ${theme.label}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -409,7 +479,7 @@ export default function TopicSelection({ user }: { user: any }) {
                   <div>
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Topic {index + 1}</span>
                     {!standardWorkflow && topicCard.theme && (
-                      <p className="text-xs text-slate-400 mt-1">{topicCard.theme}</p>
+                      <p className="text-xs text-slate-400 mt-1">{getThemeDisplayLabel(topicCard.theme)}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -419,6 +489,8 @@ export default function TopicSelection({ user }: { user: any }) {
                         setEditingTopic({ index, name: topicCard.topic });
                       }}
                       className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Edit topic"
+                      aria-label={`Edit ${getTopicLabelParts(topicCard.topic).full}`}
                     >
                       <Edit2 size={14} />
                     </button>
@@ -428,6 +500,8 @@ export default function TopicSelection({ user }: { user: any }) {
                         setShowDeleteConfirm({ topic: topicCard, index });
                       }}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="Delete topic"
+                      aria-label={`Delete ${getTopicLabelParts(topicCard.topic).full}`}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -440,50 +514,19 @@ export default function TopicSelection({ user }: { user: any }) {
                   </div>
                 </div>
 
-                {editingTopic?.index === index ? (
-                  <div className="mb-4 flex gap-2">
-                    <input
-                      autoFocus
-                      type="text"
-                      value={editingTopic.name}
-                      onChange={(e) => setEditingTopic({ ...editingTopic, name: e.target.value })}
-                      className="flex-1 px-3 py-2 border border-blue-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSaveEdit(index);
-                      }}
-                      className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      <Check size={16} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingTopic(null);
-                      }}
-                      className="p-2 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ) : (
-                  <h3
-                    onClick={() => {
-                      const params = new URLSearchParams();
-                      if (topicCard.theme) params.set('theme', topicCard.theme);
-                      if (topicCard.topicId) params.set('topicId', topicCard.topicId);
-                      if (topicCard.originalTopic) params.set('originalTopic', topicCard.originalTopic);
-                      const path = `/teacher/assess/${encodeURIComponent(subject || '')}/${encodeURIComponent(activeTerm)}/${encodeURIComponent(topicCard.topic)}${params.toString() ? `?${params.toString()}` : ''}`;
-                      navigate(withTeachingClass(path, className));
-                    }}
-                    className="text-lg font-bold text-slate-800 mb-4 group-hover:text-blue-700 cursor-pointer"
-                  >
-                    <TopicLabel topic={topicCard.topic} />
-                  </h3>
-                )}
+                <h3
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    if (topicCard.theme) params.set('theme', topicCard.theme);
+                    if (topicCard.topicId) params.set('topicId', topicCard.topicId);
+                    if (topicCard.originalTopic) params.set('originalTopic', topicCard.originalTopic);
+                    const path = `/teacher/assess/${encodeURIComponent(subject || '')}/${encodeURIComponent(activeTerm)}/${encodeURIComponent(topicCard.topic)}${params.toString() ? `?${params.toString()}` : ''}`;
+                    navigate(withTeachingClass(path, className));
+                  }}
+                  className="text-lg font-bold text-slate-800 mb-4 group-hover:text-blue-700 cursor-pointer"
+                >
+                  <TopicLabel topic={topicCard.topic} />
+                </h3>
 
                 <div className="mt-auto space-y-3">
                   <div className="flex justify-between text-sm">
@@ -535,6 +578,113 @@ export default function TopicSelection({ user }: { user: any }) {
                 className="px-4 py-2 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-70"
               >
                 {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingTopic && topicCards[editingTopic.index] && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden animate-[topicEditorIn_220ms_ease-out_both]">
+            <style>{`
+              @keyframes topicEditorIn {
+                from { opacity: 0; transform: translateY(1rem) scale(0.96); }
+                to { opacity: 1; transform: translateY(0) scale(1); }
+              }
+              @keyframes topicSavedPop {
+                0% { opacity: 0; transform: scale(0.45) rotate(-18deg); }
+                70% { opacity: 1; transform: scale(1.12) rotate(0deg); }
+                100% { opacity: 1; transform: scale(1) rotate(0deg); }
+              }
+            `}</style>
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  {topicSaved ? 'Saved' : 'Edit topic'}
+                </p>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Topic {editingTopic.index + 1}
+                </h2>
+              </div>
+              {!topicSaved && (
+                <button
+                  type="button"
+                  onClick={closeTopicEditor}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  aria-label="Close topic editor"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            <div className="p-5">
+              {topicSaved ? (
+                <div className="flex min-h-56 flex-col items-center justify-center text-center">
+                  <CheckCircle2 size={80} className="text-emerald-600 animate-[topicSavedPop_360ms_cubic-bezier(0.2,0.9,0.25,1.2)_both]" />
+                  <h3 className="mt-4 text-2xl font-bold text-slate-900">Saved</h3>
+                  <p className="mt-1 text-sm font-medium text-slate-500">Topic updated.</p>
+                </div>
+              ) : (
+                <>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    Topic name
+                  </label>
+                  <textarea
+                    autoFocus
+                    value={editingTopic.name}
+                    onChange={(e) => setEditingTopic({ ...editingTopic, name: e.target.value })}
+                    className="min-h-44 w-full resize-y rounded-xl border border-slate-300 bg-white p-4 text-base leading-7 font-bold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    aria-label="Topic name"
+                  />
+                  <div className="mt-5 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={closeTopicEditor}
+                      disabled={savingTopic}
+                      className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                    >
+                      <X size={16} />
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveEdit(editingTopic.index)}
+                      disabled={savingTopic || !editingTopic.name.trim()}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                    >
+                      {savingTopic ? <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Save size={16} />}
+                      Save
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteThemeConfirm && (
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
+            <h2 className="text-lg font-bold text-slate-900 mb-2">Delete theme</h2>
+            <p className="text-sm text-slate-600 leading-relaxed mb-6">
+              Delete <span className="font-bold">{showDeleteThemeConfirm.label}</span>? Topics and existing marks under this theme will also be removed.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteThemeConfirm(null)}
+                className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 font-bold hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteTheme}
+                disabled={isDeletingTheme}
+                className="px-4 py-2 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-70"
+              >
+                {isDeletingTheme ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

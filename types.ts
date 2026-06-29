@@ -259,6 +259,7 @@ export interface ThemeOverride {
   subject: string;
   originalTheme: string;
   theme: string;
+  deleted?: boolean;
   updatedAt: string;
 }
 

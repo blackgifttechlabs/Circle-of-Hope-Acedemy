@@ -3124,22 +3124,129 @@ export const renameTheme = async (
   termId: string,
   subject: string,
   originalTheme: string,
-  theme: string
+  theme: string,
+  options?: { isCustom?: boolean }
 ) => {
   try {
     const trimmedTheme = theme.trim();
     if (!trimmedTheme) return false;
+
+    if (options?.isCustom) {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'custom_themes', buildCustomThemeDocId(grade, termId, subject, originalTheme)));
+      batch.set(doc(db, 'custom_themes', buildCustomThemeDocId(grade, termId, subject, trimmedTheme)), {
+        grade,
+        termId,
+        subject,
+        theme: trimmedTheme,
+        createdAt: new Date().toISOString(),
+      });
+
+      const [customTopics, assessments] = await Promise.all([
+        getCustomTopicEntries(grade, termId, subject),
+        getTopicAssessments(grade, termId, subject),
+      ]);
+
+      customTopics
+        .filter((item) => item.theme === originalTheme)
+        .forEach((item) => {
+          const nextRef = doc(db, 'custom_topics', buildCustomTopicDocId(grade, termId, subject, item.topic, trimmedTheme));
+          batch.set(nextRef, {
+            grade,
+            termId,
+            subject,
+            topic: item.topic,
+            theme: trimmedTheme,
+            createdAt: item.createdAt || new Date().toISOString(),
+          });
+          if (item.id) {
+            batch.delete(doc(db, 'custom_topics', item.id));
+          }
+        });
+
+      assessments
+        .filter((item) => item.theme === originalTheme)
+        .forEach((item) => {
+          if (item.id) {
+            batch.update(doc(db, 'topic_assessments', item.id), {
+              theme: trimmedTheme,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        });
+
+      await batch.commit();
+      return true;
+    }
+
     await setDoc(doc(db, 'theme_overrides', buildThemeOverrideDocId(grade, termId, subject, originalTheme)), {
       grade,
       termId,
       subject,
       originalTheme,
       theme: trimmedTheme,
+      deleted: false,
       updatedAt: new Date().toISOString(),
     });
     return true;
   } catch (error) {
     console.error('Error renaming theme:', error);
+    return false;
+  }
+};
+
+export const deleteTheme = async (
+  grade: string,
+  termId: string,
+  subject: string,
+  theme: string,
+  options?: { isCustom?: boolean }
+) => {
+  try {
+    const trimmedTheme = theme.trim();
+    if (!trimmedTheme) return false;
+
+    const batch = writeBatch(db);
+
+    if (options?.isCustom) {
+      batch.delete(doc(db, 'custom_themes', buildCustomThemeDocId(grade, termId, subject, trimmedTheme)));
+    } else {
+      batch.set(doc(db, 'theme_overrides', buildThemeOverrideDocId(grade, termId, subject, trimmedTheme)), {
+        grade,
+        termId,
+        subject,
+        originalTheme: trimmedTheme,
+        theme: trimmedTheme,
+        deleted: true,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    const [customTopics, assessments] = await Promise.all([
+      getCustomTopicEntries(grade, termId, subject),
+      getTopicAssessments(grade, termId, subject),
+    ]);
+
+    customTopics
+      .filter((item) => item.theme === trimmedTheme)
+      .forEach((item) => {
+        if (item.id) {
+          batch.delete(doc(db, 'custom_topics', item.id));
+        }
+      });
+
+    assessments
+      .filter((item) => item.theme === trimmedTheme)
+      .forEach((item) => {
+        if (item.id) {
+          batch.delete(doc(db, 'topic_assessments', item.id));
+        }
+      });
+
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error('Error deleting theme:', error);
     return false;
   }
 };
