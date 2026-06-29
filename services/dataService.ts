@@ -3163,13 +3163,18 @@ export const renameTopic = async (
 
     const batch = writeBatch(db);
     matchingAssessments.forEach((item) => {
+      const { id: _id, ...assessmentData } = item;
       const nextRef = doc(
         db,
         'topic_assessments',
         buildTopicDocId(item.studentId, termId, subject, trimmedTopic, item.theme || options?.theme)
       );
       batch.set(nextRef, {
-        ...item,
+        ...assessmentData,
+        grade,
+        recordedClass: grade,
+        termId,
+        subject,
         topic: trimmedTopic,
         updatedAt: new Date().toISOString(),
       }, { merge: true });

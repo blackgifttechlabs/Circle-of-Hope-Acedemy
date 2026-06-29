@@ -110,6 +110,22 @@ service cloud.firestore {
       return isAdmin() || isAssignedTeacher(studentId);
     }
 
+    function canWriteTopicAssessmentData(data) {
+      return isTeacher()
+        && data.studentId is string
+        && (
+          isAssignedTeacher(data.studentId)
+          || (
+            data.recordedClass is string
+            && isAssignedClass(data.recordedClass)
+          )
+          || (
+            data.grade is string
+            && isAssignedClass(data.grade)
+          )
+        );
+    }
+
     function publicApplicationCreate() {
       return request.resource.data.status == 'PENDING'
         && request.resource.data.submissionDate is timestamp
@@ -320,7 +336,7 @@ service cloud.firestore {
 
     match /assessment_records/{grade}/students/{studentId}/terms/{termId} {
       allow read: if canReadStudent(studentId);
-      allow create, update: if isAnyAdmin() || isAssignedTeacher(studentId);
+      allow create, update: if isAnyAdmin() || isAssignedTeacher(studentId) || isAssignedClass(grade);
       allow delete: if isAdmin();
     }
 
@@ -330,11 +346,9 @@ service cloud.firestore {
         || isAssignedTeacher(resource.data.studentId)
         || isTeacher();
       allow create, update: if isAnyAdmin()
-        || (
-          request.resource.data.studentId is string
-          && isAssignedTeacher(request.resource.data.studentId)
-        );
-      allow delete: if isAnyAdmin();
+        || canWriteTopicAssessmentData(request.resource.data);
+      allow delete: if isAnyAdmin()
+        || isTeacher();
     }
 
     match /custom_topics/{topicId} {
