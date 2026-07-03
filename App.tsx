@@ -7,6 +7,7 @@ import { AboutUsPage } from './pages/AboutUsPage';
 import { LoginPage } from './pages/LoginPage';
 import { ApplyPage } from './pages/ApplyPage';
 import { VtcApplyPage } from './pages/VtcApplyPage';
+import { ApplyInternshipPage } from './pages/ApplyInternshipPage';
 import { SchoolTour } from './pages/SchoolTour';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { TermsOfServicePage } from './pages/TermsOfServicePage';
@@ -19,6 +20,8 @@ import { ApplicationsPage } from './pages/admin/Applications';
 import { ApplicationDetailsPage } from './pages/admin/ApplicationDetails';
 import { VtcApplicationsPage } from './pages/admin/VtcApplications';
 import { VtcApplicationDetails } from './pages/admin/VtcApplicationDetails';
+import { InternshipApplicationsPage } from './pages/admin/InternshipApplications';
+import { InternshipApplicationDetailsPage } from './pages/admin/InternshipApplicationDetails';
 import { SettingsPage } from './pages/admin/Settings';
 import { ViewLessonPlans } from './pages/admin/ViewLessonPlans';
 import { ViewAssessmentProgress } from './pages/admin/ViewAssessmentProgress';
@@ -216,6 +219,7 @@ const App: React.FC = () => {
           <Route path="/about-us" element={<AboutUsPage />} />
           <Route path="/apply" element={<ApplyPage />} />
           <Route path="/vtc-apply" element={<VtcApplyPage />} />
+          <Route path="/apply-internship" element={<ApplyInternshipPage />} />
           <Route path="/tour" element={<SchoolTour />} />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/terms-of-service" element={<TermsOfServicePage />} />
@@ -232,6 +236,8 @@ const App: React.FC = () => {
                       <Route path="applications/:id" element={<ApplicationDetailsPage />} />
                       <Route path="vtc-applications" element={<VtcApplicationsPage />} />
                       <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
+                      <Route path="internships" element={<InternshipApplicationsPage />} />
+                      <Route path="internships/:id" element={<InternshipApplicationDetailsPage />} />
                       <Route path="payments" element={<PaymentsPage user={user} />} />
                       <Route path="students" element={<StudentsPage user={user} />} />
                       <Route path="students/:id" element={<Navigate to="../students" />} />
@@ -245,6 +251,8 @@ const App: React.FC = () => {
                       <Route path="applications/:id" element={<ApplicationDetailsPage />} />
                       <Route path="vtc-applications" element={<VtcApplicationsPage />} />
                       <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
+                      <Route path="internships" element={<InternshipApplicationsPage />} />
+                      <Route path="internships/:id" element={<InternshipApplicationDetailsPage />} />
                       <Route path="teachers" element={<TeachersPage user={user} />} />
                       <Route path="teachers/:id/progress" element={<TeacherProgressPage />} />
                       <Route path="lesson-plans" element={<ViewLessonPlans />} />

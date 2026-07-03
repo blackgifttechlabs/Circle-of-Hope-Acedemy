@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, GraduationCap, LogOut, X,
   FileText, Settings, Activity, ClipboardList, ChevronLeft,
   ChevronRight, Calendar, BarChart3, CreditCard, BookOpen,
-  HeartPulse, Pill, AlertTriangle
+  HeartPulse, Briefcase
 } from 'lucide-react';
 import { UserRole } from '../types';
 import {
@@ -32,6 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   const [homeworkBadgeCount, setHomeworkBadgeCount] = useState(0);
   const [lessonPlanBadgeCount, setLessonPlanBadgeCount] = useState(0);
   const [vtcBadgeCount, setVtcBadgeCount] = useState(0);
+  const [internshipBadgeCount, setInternshipBadgeCount] = useState(0);
   const [isCollapsed, setIsCollapsed]     = useState(false);
   const [studentDivision, setStudentDivision] = useState<string | null>(null);
   const [studentStatus, setStudentStatus] = useState<string | null>(null);
@@ -99,6 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
             : lessonPlans.filter((item) => getMillis(item.uploadedAt) > lastViewedLessonPlansAt).length
         );
         setVtcBadgeCount(counts.pendingVtcApps);
+        setInternshipBadgeCount(counts.pendingInternshipApps || 0);
       };
 
       const handleUpdate = () => {
@@ -161,6 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
     { label: 'Dashboard',        path: '/admin/dashboard',        icon: <LayoutDashboard size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Applications',     path: '/admin/applications',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: applicationBadgeCount },
     { label: 'VTC Applications', path: '/admin/vtc-applications', icon: <FileText        size={17} strokeWidth={2.2} />, badge: vtcBadgeCount },
+    { label: 'Internship',       path: '/admin/internships',      icon: <Briefcase       size={17} strokeWidth={2.2} />, badge: internshipBadgeCount },
     { label: 'Teachers',         path: '/admin/teachers',         icon: <Users           size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Lesson Plans',     path: '/admin/lesson-plans',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: lessonPlanBadgeCount },
     { label: 'Assessments',      path: '/admin/assessment-progress', icon: <BarChart3   size={17} strokeWidth={2.2} />, badge: 0 },
@@ -175,6 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   const subAdminLinks = [
     { label: 'Applications',     path: '/admin/applications',     icon: <FileText      size={17} strokeWidth={2.2} />, badge: applicationBadgeCount },
     { label: 'VTC Applications', path: '/admin/vtc-applications', icon: <FileText      size={17} strokeWidth={2.2} />, badge: vtcBadgeCount },
+    { label: 'Internship',       path: '/admin/internships',      icon: <Briefcase     size={17} strokeWidth={2.2} />, badge: internshipBadgeCount },
     { label: 'Payments',         path: '/admin/payments',         icon: <CreditCard    size={17} strokeWidth={2.2} />, badge: paymentBadgeCount },
     { label: 'Students',         path: '/admin/students',         icon: <GraduationCap size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Matron Records',   path: '/admin/matron-records',   icon: <HeartPulse    size={17} strokeWidth={2.2} />, badge: 0 },

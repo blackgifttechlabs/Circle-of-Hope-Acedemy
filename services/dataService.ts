@@ -1,7 +1,7 @@
 import { db, auth } from '../firebase';
 import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, ThemeOverride, CustomThemeEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, ThemeOverride, CustomThemeEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment, InternshipApplication } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 import { getPaymentOptionLabel, isRegistrationFeeOption } from '../utils/paymentOptions';
@@ -13,6 +13,7 @@ const TEACHERS_COLLECTION = 'teachers';
 export const STUDENTS_COLLECTION = 'students';
 const APPLICATIONS_COLLECTION = 'applications';
 const VTC_APPLICATIONS_COLLECTION = 'vtcApplications';
+const INTERNSHIP_APPLICATIONS_COLLECTION = 'internshipApplications';
 const SETTINGS_COLLECTION = 'settings';
 const RECEIPTS_COLLECTION = 'receipts';
 const ASSESSMENT_RECORDS_COLLECTION = 'assessment_records';
@@ -2359,6 +2360,46 @@ export const updateVtcApplication = async (id: string, data: any) => {
   }
 };
 
+export const submitInternshipApplication = async (applicationData: Partial<InternshipApplication>) => {
+  try {
+    await addDoc(collection(db, INTERNSHIP_APPLICATIONS_COLLECTION), {
+      ...JSON.parse(JSON.stringify(applicationData)),
+      status: 'PENDING',
+      submissionDate: Timestamp.now()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error submitting internship application:", error);
+    return false;
+  }
+};
+
+export const getInternshipApplications = async (): Promise<InternshipApplication[]> => {
+  const q = query(collection(db, INTERNSHIP_APPLICATIONS_COLLECTION), orderBy('submissionDate', 'desc'));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InternshipApplication));
+};
+
+export const getInternshipApplicationById = async (id: string): Promise<InternshipApplication | null> => {
+  const docRef = doc(db, INTERNSHIP_APPLICATIONS_COLLECTION, id);
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return { id: docSnap.id, ...docSnap.data() } as InternshipApplication;
+  }
+  return null;
+};
+
+export const updateInternshipApplication = async (id: string, data: Partial<InternshipApplication>) => {
+  try {
+    const docRef = doc(db, INTERNSHIP_APPLICATIONS_COLLECTION, id);
+    await updateDoc(docRef, data);
+    return true;
+  } catch (error) {
+    console.error("Error updating internship application:", error);
+    return false;
+  }
+};
+
 export const getPendingActionCounts = async () => {
     try {
         const appsQuery = query(collection(db, APPLICATIONS_COLLECTION), where("status", "==", "PENDING"));
@@ -2373,6 +2414,9 @@ export const getPendingActionCounts = async () => {
         const vtcAppsQuery = query(collection(db, VTC_APPLICATIONS_COLLECTION), where("status", "==", "PENDING"));
         const vtcAppsSnap = await getDocs(vtcAppsQuery);
 
+        const internshipAppsQuery = query(collection(db, INTERNSHIP_APPLICATIONS_COLLECTION), where("status", "==", "PENDING"));
+        const internshipAppsSnap = await getDocs(internshipAppsQuery);
+
         const homeworkQuery = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), where('status', '==', 'SUBMITTED'));
         const homeworkSnap = await getDocs(homeworkQuery);
         
@@ -2381,12 +2425,13 @@ export const getPendingActionCounts = async () => {
             pendingVerifications: verifySnap.size,
             pendingPaymentProofs: paymentProofSnap.size,
             pendingVtcApps: vtcAppsSnap.size,
+            pendingInternshipApps: internshipAppsSnap.size,
             pendingHomeworkSubmissions: homeworkSnap.size,
-            total: appsSnap.size + verifySnap.size + paymentProofSnap.size + vtcAppsSnap.size + homeworkSnap.size
+            total: appsSnap.size + verifySnap.size + paymentProofSnap.size + vtcAppsSnap.size + internshipAppsSnap.size + homeworkSnap.size
         };
     } catch (e) {
         console.error("Error fetching counts", e);
-        return { pendingApps: 0, pendingVerifications: 0, pendingPaymentProofs: 0, pendingVtcApps: 0, pendingHomeworkSubmissions: 0, total: 0 };
+        return { pendingApps: 0, pendingVerifications: 0, pendingPaymentProofs: 0, pendingVtcApps: 0, pendingInternshipApps: 0, pendingHomeworkSubmissions: 0, total: 0 };
     }
 };
 

@@ -676,6 +676,30 @@ export interface VtcApplication {
   pin?: string;
 }
 
+export type InternshipApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface InternshipApplication {
+  id?: string;
+  firstName: string;
+  surname: string;
+  emailAddress: string;
+  phoneNumber: string;
+  opportunityType: 'Student Placement' | 'Internship' | 'Student Exchange' | 'Staff Exchange' | 'Senior Expert Programme' | 'Other';
+  organizationOrSchool?: string;
+  country?: string;
+  city?: string;
+  availability?: string;
+  background?: string;
+  motivation?: string;
+  notes?: string;
+  status: InternshipApplicationStatus;
+  adminMessage?: string;
+  responseMethod?: 'Email' | 'WhatsApp';
+  reviewedAt?: any;
+  reviewedBy?: string;
+  submissionDate: any;
+}
+
 export interface Matron {
   id: string;
   name: string;

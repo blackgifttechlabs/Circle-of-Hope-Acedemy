@@ -7,6 +7,14 @@ export const LandingHeader: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
+  const navItems = [
+    { label: 'Home', path: '/' },
+    { label: 'Apply', path: '/apply' },
+    { label: 'Apply Internship', path: '/apply-internship' },
+    { label: 'About Us', path: '/about-us' },
+    { label: 'Tour', path: '/tour' },
+  ];
+
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
@@ -57,14 +65,14 @@ export const LandingHeader: React.FC = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-8 lg:gap-10 h-full">
-            {['Home', 'Apply', 'About Us', 'Tour'].map((item) => (
+          <div className="hidden md:flex items-center gap-5 lg:gap-7 h-full">
+            {navItems.map((item) => (
               <button 
-                key={item}
-                onClick={() => navigate(item === 'Home' ? '/' : `/${item.toLowerCase().replace(' ', '-')}`)}
+                key={item.path}
+                onClick={() => navigate(item.path)}
                 className="relative h-full flex items-center text-xs font-bold font-archivo text-coha-900 uppercase tracking-[0.15em] transition-all group overflow-hidden px-1"
               >
-                <span className="relative z-10 group-hover:text-coha-500 transition-colors duration-300">{item}</span>
+                <span className="relative z-10 group-hover:text-coha-500 transition-colors duration-300">{item.label}</span>
                 {/* Cool Hover Effect: Sliding Underline & Glow */}
                 <span className="absolute bottom-0 left-0 w-full h-[3px] bg-coha-900 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
               </button>
@@ -100,16 +108,16 @@ export const LandingHeader: React.FC = () => {
       {/* Mobile Menu Overlay */}
       <div className={`fixed inset-0 z-40 bg-white transition-transform duration-300 md:hidden flex flex-col pt-20 px-6 ${mobileMenuOpen ? 'translate-y-0' : '-translate-y-full'}`}>
           <div className="flex flex-col gap-6 mt-4">
-              {['Home', 'Apply', 'About Us', 'Tour'].map((item) => (
+              {navItems.map((item) => (
                 <button 
-                  key={item}
+                  key={item.path}
                   onClick={() => {
-                    navigate(item === 'Home' ? '/' : `/${item.toLowerCase().replace(' ', '-')}`);
+                    navigate(item.path);
                     setMobileMenuOpen(false);
                   }}
                   className="text-2xl font-archivo text-coha-900 uppercase tracking-tighter text-left border-b border-gray-100 pb-4 hover:text-coha-500 hover:pl-4 transition-all"
                 >
-                  {item}
+                  {item.label}
                 </button>
               ))}
               <button 

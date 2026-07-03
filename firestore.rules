@@ -142,6 +142,15 @@ service cloud.firestore {
         && request.resource.data.cellNo is string;
     }
 
+    function publicInternshipApplicationCreate() {
+      return request.resource.data.status == 'PENDING'
+        && request.resource.data.submissionDate is timestamp
+        && request.resource.data.firstName is string
+        && request.resource.data.surname is string
+        && request.resource.data.emailAddress is string
+        && request.resource.data.phoneNumber is string;
+    }
+
     function validFileChunkShape() {
       return request.resource.data.fileId is string
         && request.resource.data.index is int
@@ -246,6 +255,12 @@ service cloud.firestore {
             'status'
           ])
         );
+      allow delete: if isAdmin();
+    }
+
+    match /internshipApplications/{applicationId} {
+      allow create: if publicInternshipApplicationCreate() || isAnyAdmin();
+      allow read, update: if isAnyAdmin();
       allow delete: if isAdmin();
     }
 
