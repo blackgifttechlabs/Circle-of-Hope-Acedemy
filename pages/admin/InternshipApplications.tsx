@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, Check, Eye, Mail, MessageCircle, Search, X } from 'lucide-react';
+import { Briefcase, Check, Eye, History, Mail, MessageCircle, Search, X } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Toast } from '../../components/ui/Toast';
 import { getInternshipApplications, updateInternshipApplication } from '../../services/dataService';
@@ -145,16 +145,21 @@ Circle of Hope Academy`;
           <h2 className="text-2xl font-bold text-coha-900">Internship Applications</h2>
           <p className="text-gray-600">Review opportunity, placement, exchange, and senior expert programme applications.</p>
         </div>
-        <div className="flex flex-wrap bg-white shadow-sm border border-gray-200">
-          {(['PENDING', 'APPROVED', 'REJECTED'] as ViewMode[]).map((status) => (
-            <button
-              key={status}
-              onClick={() => setViewMode(status)}
-              className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === status ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
-              {status === 'PENDING' ? 'New' : status}
-            </button>
-          ))}
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex flex-wrap bg-white shadow-sm border border-gray-200">
+            {(['PENDING', 'APPROVED', 'REJECTED'] as ViewMode[]).map((status) => (
+              <button
+                key={status}
+                onClick={() => setViewMode(status)}
+                className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === status ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              >
+                {status === 'PENDING' ? 'New' : status}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => navigate('/admin/applications-history')} className="px-4 py-2 text-sm font-bold uppercase bg-slate-800 text-white hover:bg-slate-900 shadow-sm flex items-center gap-2 transition-colors">
+            <History size={16} /> Previous Applications
+          </button>
         </div>
       </div>
 

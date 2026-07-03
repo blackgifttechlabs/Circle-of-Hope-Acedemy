@@ -17,6 +17,7 @@ import { TeacherProgressPage } from './pages/admin/TeacherProgress';
 import { StudentsPage } from './pages/admin/Students';
 import { StudentDetailsPage } from './pages/admin/StudentDetails';
 import { ApplicationsPage } from './pages/admin/Applications';
+import { ApplicationHistoryPage } from './pages/admin/ApplicationHistory';
 import { ApplicationDetailsPage } from './pages/admin/ApplicationDetails';
 import { VtcApplicationsPage } from './pages/admin/VtcApplications';
 import { VtcApplicationDetails } from './pages/admin/VtcApplicationDetails';
@@ -233,6 +234,7 @@ const App: React.FC = () => {
                   {isSubAdmin ? (
                     <>
                       <Route path="applications" element={<ApplicationsPage />} />
+                      <Route path="applications-history" element={<ApplicationHistoryPage />} />
                       <Route path="applications/:id" element={<ApplicationDetailsPage />} />
                       <Route path="vtc-applications" element={<VtcApplicationsPage />} />
                       <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />
@@ -248,6 +250,7 @@ const App: React.FC = () => {
                     <>
                       <Route path="dashboard" element={<AdminDashboard />} />
                       <Route path="applications" element={<ApplicationsPage />} />
+                      <Route path="applications-history" element={<ApplicationHistoryPage />} />
                       <Route path="applications/:id" element={<ApplicationDetailsPage />} />
                       <Route path="vtc-applications" element={<VtcApplicationsPage />} />
                       <Route path="vtc-applications/:id" element={<VtcApplicationDetails />} />

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getApplications, getPendingActionCounts } from '../../services/dataService';
 import { Application } from '../../types';
-import { Search, CreditCard } from 'lucide-react';
+import { Search, CreditCard, History } from 'lucide-react';
 
 export const ApplicationsPage: React.FC = () => {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -58,6 +58,9 @@ export const ApplicationsPage: React.FC = () => {
             <button onClick={() => navigate('/admin/vtc-applications')} className="px-4 py-2 text-sm font-bold uppercase bg-purple-600 text-white hover:bg-purple-700 shadow-sm flex items-center gap-2 transition-colors">
                 VTC Applications
                 {counts.pendingVtcApps > 0 && <span className="bg-white text-purple-600 text-[10px] px-1.5 rounded-full">{counts.pendingVtcApps}</span>}
+            </button>
+            <button onClick={() => navigate('/admin/applications-history')} className="px-4 py-2 text-sm font-bold uppercase bg-slate-800 text-white hover:bg-slate-900 shadow-sm flex items-center gap-2 transition-colors">
+                <History size={16} /> Previous Applications
             </button>
         </div>
       </div>
