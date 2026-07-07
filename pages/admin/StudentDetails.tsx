@@ -43,6 +43,7 @@ import { CustomSelect } from '../../components/ui/CustomSelect';
 import { printStudentProfile } from '../../utils/printStudentProfile';
 import { printGrade0Report } from '../../utils/printGrade0Report';
 import { Grade1To7ReportCard, getGrade1To7ReportCards, printGrade1To7Report } from '../../utils/printGrade1To7Report';
+import { isPrePrimaryOrSpecialNeedsRecord } from '../../utils/assessmentRecordFilters';
 
 const calculateAge = (dobString: string): string => {
   if (!dobString) return 'N/A';
@@ -345,22 +346,15 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
   };
 
   const renderAssessmentSection = () => {
-    if (gradeReports.length > 0) {
-      const prePrimaryRecords = assessmentRecords.filter((record) => /Grade 0/i.test(record.recordedClass || record.grade || ''));
-      if (gradeReports.length === 0) {
-        return (
-          <div className="text-center py-12 text-gray-400 font-black uppercase tracking-widest text-xs italic border-2 border-dashed border-gray-200">
-            No assessment reports found for this student.
-          </div>
-        );
-      }
-
+    const prePrimaryRecords = assessmentRecords.filter(isPrePrimaryOrSpecialNeedsRecord);
+    if (gradeReports.length > 0 || prePrimaryRecords.length > 0) {
       return (
         <div className="space-y-8">
-          <div>
-            <p className="mb-4 text-[10px] font-black uppercase tracking-[0.24em] text-gray-400">Mainstream Reports</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {gradeReports.map((record) => {
+          {gradeReports.length > 0 && (
+            <div>
+              <p className="mb-4 text-[10px] font-black uppercase tracking-[0.24em] text-gray-400">Mainstream Reports</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {gradeReports.map((record) => {
                 const reportKey = `${record.recordedClass}__${record.termId}`;
                 const isReportLoading = reportLoadingMap[reportKey] === true;
                 return (
@@ -414,13 +408,14 @@ export const StudentDetailsPage: React.FC<{ user?: any }> = ({ user }) => {
                     </button>
                   </div>
                 );
-              })}
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {prePrimaryRecords.length > 0 && (
             <div>
-              <p className="mb-4 text-[10px] font-black uppercase tracking-[0.24em] text-gray-400">Pre-Primary Reports</p>
+              <p className="mb-4 text-[10px] font-black uppercase tracking-[0.24em] text-gray-400">Pre-Primary / Special Needs Reports</p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {prePrimaryRecords.map((record) => {
                   const reportKey = `${record.recordedClass || record.grade}__${record.termId}`;

@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, Check, Eye, History, Mail, MessageCircle, Search, X } from 'lucide-react';
+import { Briefcase, CalendarDays, Check, Eye, Mail, MessageCircle, MousePointerClick, Phone, Search, User, X } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Toast } from '../../components/ui/Toast';
 import { getInternshipApplications, updateInternshipApplication } from '../../services/dataService';
 import { InternshipApplication, InternshipApplicationStatus } from '../../types';
 import { openGmailDraft } from '../../utils/emailDrafts';
+import { ApplicationWorkspace } from '../../components/admin/ApplicationWorkspace';
+import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePrimitives';
 
 type ViewMode = InternshipApplicationStatus;
 
@@ -25,6 +27,7 @@ const fmtDate = (value: any) => {
 export const InternshipApplicationsPage: React.FC = () => {
   const navigate = useNavigate();
   const [applications, setApplications] = useState<InternshipApplication[]>([]);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('PENDING');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedApp, setSelectedApp] = useState<InternshipApplication | null>(null);
@@ -37,7 +40,9 @@ export const InternshipApplicationsPage: React.FC = () => {
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
     setApplications(await getInternshipApplications());
+    setLoading(false);
   };
 
   const defaultMessage = (app: InternshipApplication, status: InternshipApplicationStatus) => {
@@ -104,6 +109,11 @@ Circle of Hope Academy`;
     return app.status === viewMode && haystack.includes(needle);
   });
 
+  const statusCounts = applications.reduce<Record<ViewMode, number>>((acc, app) => {
+    acc[app.status] = (acc[app.status] || 0) + 1;
+    return acc;
+  }, { PENDING: 0, APPROVED: 0, REJECTED: 0 });
+
   return (
     <div>
       <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} variant={toast.type} />
@@ -140,65 +150,56 @@ Circle of Hope Academy`;
         </div>
       )}
 
-      <div className="mb-6 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-coha-900">Internship Applications</h2>
-          <p className="text-gray-600">Review opportunity, placement, exchange, and senior expert programme applications.</p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="flex flex-wrap bg-white shadow-sm border border-gray-200">
+      <ApplicationWorkspace activeTab="internship">
+        <div className="apps-toolbar" style={{ paddingTop: '76px' }}>
+          <div className="apps-search-wrap" style={{ marginRight: 'auto' }}>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input className="apps-search-input" placeholder="Search internship applications..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          </div>
+          <div className="apps-tabs" style={{ marginLeft: 'auto', justifyContent: 'flex-end' }}>
             {(['PENDING', 'APPROVED', 'REJECTED'] as ViewMode[]).map((status) => (
               <button
                 key={status}
                 onClick={() => setViewMode(status)}
-                className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === status ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                className={`apps-tab ${viewMode === status ? 'active' : ''}`}
               >
                 {status === 'PENDING' ? 'New' : status}
+                <span className={`pill ${statusCounts[status] === 0 ? 'zero' : ''}`}>{statusCounts[status]}</span>
               </button>
             ))}
           </div>
-          <button onClick={() => navigate('/admin/applications-history')} className="px-4 py-2 text-sm font-bold uppercase bg-slate-800 text-white hover:bg-slate-900 shadow-sm flex items-center gap-2 transition-colors">
-            <History size={16} /> Previous Applications
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-200 shadow-sm">
-        <div className="border-b border-gray-200 p-4">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-            <input className="w-full border border-gray-300 py-2 pl-10 pr-4 outline-none" placeholder="Search internship applications..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-          </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400">
+          <table className="apps-table">
+            <thead>
               <tr>
-                <th className="px-6 py-4">Applicant</th>
-                <th className="px-6 py-4">Opportunity</th>
-                <th className="px-6 py-4">Contact</th>
-                <th className="px-6 py-4">Submitted</th>
-                <th className="px-6 py-4">Actions</th>
+                <TableHeaderCell icon={User}>Applicant</TableHeaderCell>
+                <TableHeaderCell icon={Briefcase}>Opportunity</TableHeaderCell>
+                <TableHeaderCell icon={Phone}>Contact</TableHeaderCell>
+                <TableHeaderCell icon={CalendarDays}>Submitted</TableHeaderCell>
+                <TableHeaderCell icon={MousePointerClick}>Actions</TableHeaderCell>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredApps.length === 0 ? (
+            <tbody>
+              {loading ? (
+                <TableSkeletonRows rows={10} columns={5} />
+              ) : filteredApps.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-500">No internship applications found.</td>
                 </tr>
               ) : filteredApps.map((app) => (
-                <tr key={app.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-bold text-coha-900">{app.firstName} {app.surname}</td>
-                  <td className="px-6 py-4">
+                <tr key={app.id}>
+                  <td className="apps-name">{app.firstName} {app.surname}</td>
+                  <td>
                     <div className="flex items-center gap-2 text-sm font-bold text-slate-800"><Briefcase size={16} /> {app.opportunityType}</div>
                     <div className="mt-1 text-xs text-slate-500">{app.organizationOrSchool || '-'}</div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td>
                     <div className="text-sm font-semibold">{app.phoneNumber}</div>
                     <div className="text-xs text-gray-500">{app.emailAddress}</div>
                   </td>
-                  <td className="px-6 py-4 text-xs text-gray-500">{fmtDate(app.submissionDate)}</td>
-                  <td className="px-6 py-4">
+                  <td className="text-xs text-gray-500">{fmtDate(app.submissionDate)}</td>
+                  <td>
                     <div className="flex items-center gap-2">
                       <button onClick={() => navigate(`/admin/internships/${app.id}`)} className="rounded-lg p-2 text-blue-600 hover:bg-blue-50" title="View">
                         <Eye size={18} />
@@ -230,7 +231,7 @@ Circle of Hope Academy`;
             </tbody>
           </table>
         </div>
-      </div>
+      </ApplicationWorkspace>
     </div>
   );
 };

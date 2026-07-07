@@ -1,25 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getApplications, getPendingActionCounts } from '../../services/dataService';
+import { getApplications } from '../../services/dataService';
 import { Application } from '../../types';
-import { Search, CreditCard, History } from 'lucide-react';
+import { Search, MoreHorizontal, ListChecks, CreditCard, Hash, User, GraduationCap, Users, CalendarDays, BadgeCheck, MousePointerClick } from 'lucide-react';
+import { ApplicationWorkspace } from '../../components/admin/ApplicationWorkspace';
+import { getAdminApplicationUnreadCounts } from '../../utils/adminApplicationNotifications';
+import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePrimitives';
 
 export const ApplicationsPage: React.FC = () => {
   const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'PENDING' | 'REJECTED'>('PENDING');
+  const [pendingPaymentCount, setPendingPaymentCount] = useState(0);
   const navigate = useNavigate();
-  
-  const [counts, setCounts] = useState({ pendingApps: 0, pendingVerifications: 0, pendingVtcApps: 0, total: 0 });
 
   useEffect(() => {
     loadData();
-    getPendingActionCounts().then(setCounts);
+    getAdminApplicationUnreadCounts('admin').then((counts) => setPendingPaymentCount(counts.payments));
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
     const data = await getApplications();
     setApplications(data);
+    setLoading(false);
   };
 
   const filteredApps = applications.filter(app => {
@@ -27,78 +32,101 @@ export const ApplicationsPage: React.FC = () => {
         const fullName = `${app.firstName} ${app.surname}`.toLowerCase();
         const parent = (app.fatherName || app.motherName || '').toLowerCase();
         const term = searchTerm.toLowerCase();
-        return fullName.includes(term) || parent.includes(term) || (app.grade || '').toLowerCase().includes(term);
+        return (
+          fullName.includes(term) ||
+          parent.includes(term) ||
+          (app.id || '').toLowerCase().includes(term) ||
+          (app.status || '').toLowerCase().includes(term) ||
+          (app.grade || '').toLowerCase().includes(term) ||
+          (app.level || '').toLowerCase().includes(term)
+        );
       })();
       return matchesSearch && app.status === statusFilter;
   });
 
+  const pendingCount = applications.filter((item) => item.status === 'PENDING').length;
+  const rejectedCount = applications.filter((item) => item.status === 'REJECTED').length;
+
   return (
-    <div>
-      <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-        <div>
-            <h2 className="text-2xl font-bold text-coha-900">Admission Portal</h2>
-            <p className="text-gray-600">Review learner applications. Payment-proof approvals are now handled from the dedicated payments page.</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex flex-wrap bg-white shadow-sm border border-gray-200">
-                <button onClick={() => setStatusFilter('PENDING')} className={`px-4 py-2 text-sm font-bold uppercase flex items-center gap-2 ${statusFilter === 'PENDING' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                    New Apps {counts.pendingApps > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 rounded-full">{counts.pendingApps}</span>}
-                </button>
-                <button onClick={() => setStatusFilter('REJECTED')} className={`px-4 py-2 text-sm font-bold uppercase ${statusFilter === 'REJECTED' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                    Rejected
-                </button>
+    <ApplicationWorkspace activeTab="student">
+
+         <div className="apps-toolbar" style={{ paddingTop: '76px' }}>
+            <div className="apps-search-wrap" style={{ marginRight: 'auto' }}>
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  className="apps-search-input"
+                  placeholder="Filter applications..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
             </div>
-            <button
-              onClick={() => navigate('/admin/payments')}
-              className="px-4 py-2 text-sm font-bold uppercase bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm flex items-center gap-2 transition-colors"
-            >
-              <CreditCard size={16} /> Pending Payments
-              {counts.pendingVerifications > 0 && <span className="bg-white text-emerald-700 text-[10px] px-1.5 rounded-full">{counts.pendingVerifications}</span>}
-            </button>
-            <button onClick={() => navigate('/admin/vtc-applications')} className="px-4 py-2 text-sm font-bold uppercase bg-purple-600 text-white hover:bg-purple-700 shadow-sm flex items-center gap-2 transition-colors">
-                VTC Applications
-                {counts.pendingVtcApps > 0 && <span className="bg-white text-purple-600 text-[10px] px-1.5 rounded-full">{counts.pendingVtcApps}</span>}
-            </button>
-            <button onClick={() => navigate('/admin/applications-history')} className="px-4 py-2 text-sm font-bold uppercase bg-slate-800 text-white hover:bg-slate-900 shadow-sm flex items-center gap-2 transition-colors">
-                <History size={16} /> Previous Applications
-            </button>
-        </div>
-      </div>
-      <div className="bg-white border border-gray-200 shadow-sm animate-fade-in">
-         <div className="p-4 border-b border-gray-200">
-            <div className="relative max-w-md">
-                <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input className="w-full pl-10 pr-4 py-2 border border-gray-300 outline-none" placeholder="Search applications..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <div className="apps-tabs" style={{ marginLeft: 'auto', justifyContent: 'flex-end' }}>
+              <button
+                className={`apps-tab ${statusFilter === 'PENDING' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('PENDING')}
+              >
+                <ListChecks size={16} />
+                Student Apps <span className={`pill ${pendingCount === 0 ? 'zero' : ''}`}>{pendingCount}</span>
+              </button>
+              <button
+                className={`apps-tab ${statusFilter === 'REJECTED' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('REJECTED')}
+              >
+                Rejected <span className={`pill ${rejectedCount === 0 ? 'zero' : ''}`}>{rejectedCount}</span>
+              </button>
+              <button className="apps-tab" onClick={() => navigate('/admin/payments')}>
+                <CreditCard size={16} />
+                Pending Payments
+                <span className={`pill ${pendingPaymentCount === 0 ? 'zero' : ''}`}>{pendingPaymentCount}</span>
+              </button>
             </div>
          </div>
+
          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-                <thead className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 tracking-widest">
+            <table className="apps-table">
+                <thead>
                     <tr>
-                        <th className="px-6 py-4">ID</th>
-                        <th className="px-6 py-4">Learner</th>
-                        <th className="px-6 py-4">Class Applied</th>
-                        <th className="px-6 py-4">Parent</th>
-                        <th className="px-6 py-4">Submitted</th>
-                        <th className="px-6 py-4">Action</th>
+                        <TableHeaderCell icon={ListChecks} className="!w-9"><input type="checkbox" className="apps-checkbox" disabled /></TableHeaderCell>
+                        <TableHeaderCell icon={Hash}>ID</TableHeaderCell>
+                        <TableHeaderCell icon={User}>Learner</TableHeaderCell>
+                        <TableHeaderCell icon={GraduationCap}>Class Applied</TableHeaderCell>
+                        <TableHeaderCell icon={Users}>Parent</TableHeaderCell>
+                        <TableHeaderCell icon={CalendarDays}>Submitted</TableHeaderCell>
+                        <TableHeaderCell icon={BadgeCheck}>Status</TableHeaderCell>
+                        <TableHeaderCell icon={MousePointerClick}>Action</TableHeaderCell>
+                        <TableHeaderCell icon={MoreHorizontal} className="!w-9"></TableHeaderCell>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                    {filteredApps.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50 group">
-                            <td className="px-6 py-4 font-mono text-xs text-gray-400">{item.id}</td>
-                            <td className="px-6 py-4 font-bold text-coha-900">{item.firstName} {item.surname}</td>
-                            <td className="px-6 py-4 font-bold text-gray-800">{item.grade || item.level || '-'}</td>
-                            <td className="px-6 py-4 text-xs font-bold text-gray-600">{item.fatherName || item.motherName || '-'}</td>
-                            <td className="px-6 py-4 text-xs text-gray-500">{item.submissionDate?.toDate ? item.submissionDate.toDate().toLocaleDateString() : '-'}</td>
-                            <td className="px-6 py-4">
-                                <button onClick={() => navigate(`/admin/applications/${item.id}`)} className="text-coha-500 font-bold hover:underline uppercase text-[10px] tracking-widest">Open</button>
+                <tbody>
+                    {loading ? (
+                      <TableSkeletonRows rows={10} columns={9} showCheckbox />
+                    ) : filteredApps.map((item) => (
+                        <tr key={item.id}>
+                            <td>
+                              <input type="checkbox" className="apps-checkbox" />
+                            </td>
+                            <td className="apps-id">{item.id}</td>
+                            <td className="apps-name">{item.firstName} {item.surname}</td>
+                            <td className="font-bold text-gray-800">{item.grade || item.level || '-'}</td>
+                            <td className="text-xs font-bold text-gray-600">{item.fatherName || item.motherName || '-'}</td>
+                            <td className="text-xs text-gray-500">{item.submissionDate?.toDate ? item.submissionDate.toDate().toLocaleDateString() : '-'}</td>
+                            <td>
+                              <span className={`status-dot-wrap ${statusFilter === 'REJECTED' ? 'status-rejected' : 'status-pending'}`}>
+                                <span className="status-dot"></span>
+                                {statusFilter === 'REJECTED' ? 'REJECTED' : 'PENDING'}
+                              </span>
+                            </td>
+                            <td>
+                                <button onClick={() => navigate(`/admin/applications/${item.id}`)} className="apps-open-btn">Open</button>
+                            </td>
+                            <td>
+                              <span className="apps-row-menu"><MoreHorizontal size={16} /></span>
                             </td>
                         </tr>
                     ))}
-                    {filteredApps.length === 0 && (
+                    {!loading && filteredApps.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">
+                        <td colSpan={9} className="px-6 py-10 text-center text-sm text-gray-500">
                           No applications found for this filter.
                         </td>
                       </tr>
@@ -106,7 +134,6 @@ export const ApplicationsPage: React.FC = () => {
                 </tbody>
             </table>
          </div>
-      </div>
-    </div>
+    </ApplicationWorkspace>
   );
 };

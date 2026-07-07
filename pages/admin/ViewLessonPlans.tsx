@@ -1,13 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, LayoutGrid, List as ListIcon, Eye, Users } from 'lucide-react';
+import { ArrowLeft, BookOpen, CalendarDays, Eye, FileText, GraduationCap, Hash, MousePointerClick, UserCheck, Users } from 'lucide-react';
 import { WeeklyLessonPlan, SystemSettings, Teacher } from '../../types';
 import { getAllLessonPlans, getSystemSettings, getTeachers } from '../../services/dataService';
 import { getPromotionalSubjects, getNonPromotionalSubjects } from '../../utils/subjects';
+import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePrimitives';
+import { FolderTabs } from '../../components/admin/FolderTabs';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 const CORE_SUBJECTS = ['REL. ED.', 'MATHEMATICS', 'ENGLISH', 'HANDWRITING'];
 const EXTENDED_SUBJECTS = ['ENV. STUDIES', 'ARTS', 'PHYSICAL EDUCATION'];
+
+const getClassNumber = (className: string) => {
+  const match = className.match(/\d+/);
+  return match ? Number(match[0]) : 999;
+};
+
+const orderedClassesFromSettings = (settings: SystemSettings | null) => {
+  if (!settings) return [];
+  const levels = [...(settings.specialNeedsLevels || [])].sort((a, b) => getClassNumber(a) - getClassNumber(b));
+  const grades = [...(settings.grades || [])].sort((a, b) => getClassNumber(a) - getClassNumber(b));
+  return [...levels, ...grades];
+};
 
 const SUB_HEADINGS: Record<string, Record<string, string>> = {
   'MATHEMATICS': {
@@ -49,7 +63,6 @@ export const ViewLessonPlans: React.FC = () => {
   
   const [activeClass, setActiveClass] = useState<string>('');
   const [activeTeacherId, setActiveTeacherId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedPlan, setSelectedPlan] = useState<WeeklyLessonPlan | null>(null);
   const [activeTab, setActiveTab] = useState<'core' | 'extended'>('core');
 
@@ -70,7 +83,7 @@ export const ViewLessonPlans: React.FC = () => {
         setTeachers(allTeachers);
         
         if (sysSettings) {
-          const allClasses = [...(sysSettings.grades || []), ...(sysSettings.specialNeedsLevels || [])];
+          const allClasses = orderedClassesFromSettings(sysSettings);
           if (allClasses.length > 0) {
             setActiveClass(allClasses[0]);
           }
@@ -94,7 +107,7 @@ export const ViewLessonPlans: React.FC = () => {
     }
   }, [activeClass, teachers]);
 
-  const allClasses = settings ? [...(settings.grades || []), ...(settings.specialNeedsLevels || [])] : [];
+  const allClasses = orderedClassesFromSettings(settings);
   const teachersForClass = teachers.filter(t => (t.assignedClasses || [t.assignedClass || '']).includes(activeClass));
   const activeTeacher = teachers.find(t => t.id === activeTeacherId);
   const filteredPlans = plans.filter(p => p.classLevel === activeClass && p.teacherId === activeTeacherId);
@@ -236,143 +249,159 @@ export const ViewLessonPlans: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate('/admin/teachers')}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <ArrowLeft size={20} className="text-gray-600" />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">View Lesson Plans</h1>
-            <p className="text-sm text-gray-500">Review submitted lesson plans by class.</p>
-          </div>
-        </div>
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          <button 
-            onClick={() => setViewMode('list')}
-            className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            <ListIcon size={16} />
-          </button>
-          <button 
-            onClick={() => setViewMode('grid')}
-            className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            <LayoutGrid size={16} />
-          </button>
-        </div>
+      <div className="bg-white px-6 pt-4">
+        <FolderTabs
+          tabs={allClasses.map((className) => ({
+            id: className,
+            label: className,
+            icon: className.toLowerCase().includes('level') ? GraduationCap : BookOpen,
+          }))}
+          activeId={activeClass}
+          onChange={setActiveClass}
+          loading={loading}
+        />
       </div>
 
-      <div className="px-6 pt-4 bg-white border-b border-gray-200 overflow-x-auto">
-        <div className="flex gap-6 min-w-max">
-          {allClasses.map(className => (
-            <button 
-              key={className}
-              onClick={() => setActiveClass(className)}
-              className={`pb-3 text-sm font-bold transition-colors relative ${activeClass === className ? 'text-blue-600' : 'text-gray-500 hover:text-gray-800'}`}
-            >
-              {className}
-              {activeClass === className && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t-full" />}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto px-6 pb-6 pt-0">
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+          <div className="w-full overflow-hidden border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left [&_td]:border-r [&_td]:border-slate-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-purple-900/30 [&_th:last-child]:border-r-0">
+              <thead>
+                <tr>
+                  <TableHeaderCell icon={FileText}>Theme</TableHeaderCell>
+                  <TableHeaderCell icon={Hash}>Week</TableHeaderCell>
+                  <TableHeaderCell icon={CalendarDays}>Dates</TableHeaderCell>
+                  <TableHeaderCell icon={GraduationCap}>Level / Grade</TableHeaderCell>
+                  <TableHeaderCell icon={UserCheck}>Teacher</TableHeaderCell>
+                  <TableHeaderCell icon={MousePointerClick}>Action</TableHeaderCell>
+                </tr>
+              </thead>
+              <tbody>
+                <TableSkeletonRows rows={8} columns={6} />
+              </tbody>
+            </table>
           </div>
         ) : teachersForClass.length === 0 ? (
-          <div className="text-center py-20 text-gray-500">
-            <Users size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-lg font-medium text-gray-600">No teachers assigned</p>
-            <p className="text-sm">There are no teachers assigned to {activeClass} yet.</p>
+          <div className="w-full overflow-hidden border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left">
+              <thead>
+                <tr>
+                  <TableHeaderCell icon={Users}>Teacher</TableHeaderCell>
+                  <TableHeaderCell icon={BookOpen}>Subject</TableHeaderCell>
+                  <TableHeaderCell icon={GraduationCap}>Class</TableHeaderCell>
+                  <TableHeaderCell icon={MousePointerClick}>Action</TableHeaderCell>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-sm font-semibold text-slate-500">
+                    No teachers are assigned to {activeClass || 'this class'} yet.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         ) : !activeTeacherId ? (
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-xl font-bold text-gray-800 mb-6">Select a Teacher</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="w-full overflow-hidden border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left [&_td]:border-r [&_td]:border-slate-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-purple-900/30 [&_th:last-child]:border-r-0">
+              <thead>
+                <tr>
+                  <TableHeaderCell icon={Users}>Teacher</TableHeaderCell>
+                  <TableHeaderCell icon={BookOpen}>Subject</TableHeaderCell>
+                  <TableHeaderCell icon={GraduationCap}>Assigned Class</TableHeaderCell>
+                  <TableHeaderCell icon={MousePointerClick}>Action</TableHeaderCell>
+                </tr>
+              </thead>
+              <tbody>
               {teachersForClass.map(teacher => (
-                <div 
-                  key={teacher.id}
-                  onClick={() => setActiveTeacherId(teacher.id)}
-                  className="bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer flex items-center gap-4"
-                >
-                  <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-lg shrink-0">
-                    {teacher.name.charAt(0)}
-                  </div>
-                  <div className="overflow-hidden">
-                    <h3 className="font-bold text-gray-900 truncate">{teacher.name}</h3>
-                    <p className="text-sm text-gray-500 truncate">{teacher.subject || 'Teacher'}</p>
-                  </div>
-                </div>
+                <tr key={teacher.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-6 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-700 text-sm font-black text-white">
+                        {teacher.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="font-black text-slate-900">{teacher.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-3 text-sm font-semibold text-slate-600">{teacher.subject || 'Teacher'}</td>
+                  <td className="px-6 py-3 text-sm font-semibold text-slate-600">{activeClass}</td>
+                  <td className="px-6 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTeacherId(teacher.id)}
+                      className="inline-flex items-center gap-2 rounded-[8px] bg-purple-700 px-4 py-2 text-xs font-black uppercase tracking-widest text-white shadow-sm transition hover:bg-purple-800"
+                    >
+                      <Eye size={14} /> View Plans
+                    </button>
+                  </td>
+                </tr>
               ))}
-            </div>
+              </tbody>
+            </table>
           </div>
         ) : (
-          <div className="max-w-6xl mx-auto">
+          <div className="w-full">
             {teachersForClass.length > 1 && (
-              <div className="mb-6 flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg p-4">
+              <div className="mb-6 flex items-center justify-between border border-purple-100 bg-purple-50 p-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-blue-200 text-blue-700 rounded-full flex items-center justify-center font-bold shrink-0">
-                    {activeTeacher?.name?.charAt(0)}
+                  <div className="w-10 h-10 bg-purple-700 text-white rounded-full flex items-center justify-center font-bold shrink-0">
+                    {activeTeacher?.name?.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Viewing plans for</p>
-                    <p className="font-bold text-blue-900">{activeTeacher?.name}</p>
+                    <p className="text-xs text-purple-700 font-bold uppercase tracking-wider">Viewing plans for</p>
+                    <p className="font-bold text-purple-950">{activeTeacher?.name}</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setActiveTeacherId(null)}
-                  className="text-sm font-semibold text-blue-700 hover:text-blue-900 bg-white hover:bg-blue-50 px-4 py-2 rounded-lg shadow-sm border border-blue-200 transition-colors"
+                  className="text-sm font-semibold text-purple-700 hover:text-purple-900 bg-white hover:bg-purple-50 px-4 py-2 rounded-[8px] shadow-sm border border-purple-200 transition-colors"
                 >
                   Change Teacher
                 </button>
               </div>
             )}
 
-            {filteredPlans.length === 0 ? (
-              <div className="text-center py-20 text-gray-500 bg-white rounded-xl border border-gray-200">
-                <FileText size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-lg font-medium text-gray-600">No lesson plans found</p>
-                <p className="text-sm">There are no lesson plans submitted by {activeTeacher?.name} yet.</p>
-              </div>
-            ) : (
-              <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' : 'space-y-3 max-w-4xl mx-auto'}>
+            <div className="overflow-hidden border border-slate-200 bg-white shadow-sm">
+              <table className="w-full text-left [&_td]:border-r [&_td]:border-slate-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-purple-900/30 [&_th:last-child]:border-r-0">
+                <thead>
+                  <tr>
+                    <TableHeaderCell icon={FileText}>Theme</TableHeaderCell>
+                    <TableHeaderCell icon={Hash}>Week</TableHeaderCell>
+                    <TableHeaderCell icon={CalendarDays}>Dates</TableHeaderCell>
+                    <TableHeaderCell icon={GraduationCap}>Level / Grade</TableHeaderCell>
+                    <TableHeaderCell icon={CalendarDays}>Submitted</TableHeaderCell>
+                    <TableHeaderCell icon={MousePointerClick}>Action</TableHeaderCell>
+                  </tr>
+                </thead>
+                <tbody>
                 {filteredPlans.map(plan => (
-                  <div 
-                    key={plan.id} 
-                    onClick={() => setSelectedPlan(plan)}
-                    className="group bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer flex flex-col"
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <h3 className="font-bold text-gray-900 line-clamp-2">{plan.theme}</h3>
-                      <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded-md whitespace-nowrap ml-3">
-                        Wk {plan.weekNumber}
-                      </span>
-                    </div>
-                    
-                    <div className="space-y-2 mb-4 flex-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Dates:</span>
-                        <span className="font-medium text-gray-900">{plan.dates}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Submitted:</span>
-                        <span className="font-medium text-gray-900">{new Date(plan.uploadedAt).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-gray-100 flex items-center justify-center text-blue-600 text-sm font-medium group-hover:text-blue-700 transition-colors">
-                      <Eye size={16} className="mr-1.5" /> View Full Plan
-                    </div>
-                  </div>
+                  <tr key={plan.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="px-6 py-3 font-black text-slate-900">{plan.theme}</td>
+                    <td className="px-6 py-3 text-sm font-semibold text-slate-600">Week {plan.weekNumber}</td>
+                    <td className="px-6 py-3 text-sm font-semibold text-slate-600">{plan.dates}</td>
+                    <td className="px-6 py-3 text-sm font-semibold text-slate-600">{plan.grade || plan.classLevel}</td>
+                    <td className="px-6 py-3 text-sm font-semibold text-slate-600">{new Date(plan.uploadedAt).toLocaleDateString()}</td>
+                    <td className="px-6 py-3">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPlan(plan)}
+                        className="inline-flex items-center gap-2 rounded-[8px] bg-purple-700 px-4 py-2 text-xs font-black uppercase tracking-widest text-white shadow-sm transition hover:bg-purple-800"
+                      >
+                        <Eye size={14} /> View
+                      </button>
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            )}
+                {filteredPlans.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm font-semibold text-slate-500">
+                      No lesson plans have been submitted by {activeTeacher?.name} yet.
+                    </td>
+                  </tr>
+                )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

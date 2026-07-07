@@ -211,6 +211,17 @@ service cloud.firestore {
       ]);
     }
 
+    function parentAssessmentFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assessment'])
+        && resource.data.assessment is map
+        && request.resource.data.assessment is map
+        && request.resource.data.assessment.diff(resource.data.assessment).affectedKeys().hasOnly([
+          'parentSelfCare',
+          'parentSelfCareScore',
+          'parentAssessmentDate'
+        ]);
+    }
+
     match /settings/{documentId} {
       allow read: if signedIn();
       allow create, update, delete: if isAdmin();
@@ -231,7 +242,7 @@ service cloud.firestore {
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
         || isAssignedTeacher(studentId)
-        || (hasStudent(studentId) && parentMutableStudentFieldsOnly());
+        || (hasStudent(studentId) && (parentMutableStudentFieldsOnly() || parentAssessmentFieldsOnly()));
     }
 
     match /applications/{applicationId} {
@@ -353,6 +364,11 @@ service cloud.firestore {
       allow read: if canReadStudent(studentId);
       allow create, update: if isAnyAdmin() || isAssignedTeacher(studentId) || isAssignedClass(grade);
       allow delete: if isAdmin();
+    }
+
+    match /{path=**}/terms/{termId} {
+      allow read: if resource.data.studentId is string && canReadStudent(resource.data.studentId);
+      allow create, update, delete: if false;
     }
 
     match /topic_assessments/{assessmentId} {

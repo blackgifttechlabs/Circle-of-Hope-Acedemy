@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Briefcase, GraduationCap, Search, Wrench } from 'lucide-react';
+import { BadgeCheck, CalendarDays, GraduationCap, Hash, MousePointerClick, Phone, Search, User } from 'lucide-react';
 import { getApplications, getInternshipApplications, getStudents, getVtcApplications } from '../../services/dataService';
 import { Application, InternshipApplication, Student, VtcApplication } from '../../types';
+import { ApplicationWorkspace } from '../../components/admin/ApplicationWorkspace';
+import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePrimitives';
 
 type HistoryTab = 'STUDENT' | 'VTC' | 'INTERNSHIP';
 
@@ -161,95 +163,71 @@ export const ApplicationHistoryPage: React.FC = () => {
     return matchesTab && matchesSearch;
   });
 
-  const counts = {
-    STUDENT: rows.filter((row) => row.type === 'STUDENT').length,
-    VTC: rows.filter((row) => row.type === 'VTC').length,
-    INTERNSHIP: rows.filter((row) => row.type === 'INTERNSHIP').length,
-  };
-
-  const tabs = [
-    { id: 'STUDENT' as const, label: 'Student Applications', icon: GraduationCap, count: counts.STUDENT },
-    { id: 'VTC' as const, label: 'VTC Applications', icon: Wrench, count: counts.VTC },
-    { id: 'INTERNSHIP' as const, label: 'Internships', icon: Briefcase, count: counts.INTERNSHIP },
-  ];
+  const typeCounts = rows.reduce<Record<HistoryTab, number>>((acc, row) => {
+    acc[row.type] = (acc[row.type] || 0) + 1;
+    return acc;
+  }, { STUDENT: 0, VTC: 0, INTERNSHIP: 0 });
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
-        <div>
-          <button onClick={() => navigate('/admin/applications')} className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900">
-            <ArrowLeft size={16} /> Back to Applications
-          </button>
-          <h2 className="text-2xl font-bold text-coha-900">Previous Applications</h2>
-          <p className="text-gray-600">Complete application history with the current review, payment, and completion status.</p>
-        </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`inline-flex items-center gap-2 border px-4 py-2 text-sm font-black uppercase transition-colors ${activeTab === tab.id ? 'border-coha-900 bg-coha-900 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
-            >
-              <Icon size={16} /> {tab.label}
-              <span className={`rounded-full px-2 py-0.5 text-[10px] ${activeTab === tab.id ? 'bg-white text-coha-900' : 'bg-gray-100 text-gray-500'}`}>{tab.count}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="bg-white border border-gray-200 shadow-sm">
-        <div className="border-b border-gray-200 p-4">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+    <ApplicationWorkspace activeTab="history">
+      <div className="apps-toolbar" style={{ paddingTop: '76px' }}>
+          <div className="apps-search-wrap" style={{ marginRight: 'auto' }}>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
-              className="w-full border border-gray-300 py-2 pl-10 pr-4 outline-none"
+              className="apps-search-input"
               placeholder="Search previous applications..."
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
             />
           </div>
-        </div>
+          <div className="apps-tabs" style={{ marginLeft: 'auto', justifyContent: 'flex-end' }}>
+            {(['STUDENT', 'VTC', 'INTERNSHIP'] as HistoryTab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`apps-tab ${activeTab === tab ? 'active' : ''}`}
+              >
+                {tab === 'STUDENT' ? 'Student History' : tab === 'VTC' ? 'VTC History' : 'Internship History'}
+                <span className={`pill ${typeCounts[tab] === 0 ? 'zero' : ''}`}>{typeCounts[tab]}</span>
+              </button>
+            ))}
+          </div>
+      </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400">
+          <table className="apps-table">
+            <thead>
               <tr>
-                <th className="px-6 py-4">ID</th>
-                <th className="px-6 py-4">Applicant</th>
-                <th className="px-6 py-4">Class / Programme</th>
-                <th className="px-6 py-4">Contact</th>
-                <th className="px-6 py-4">Submitted</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Action</th>
+                <TableHeaderCell icon={Hash}>ID</TableHeaderCell>
+                <TableHeaderCell icon={User}>Applicant</TableHeaderCell>
+                <TableHeaderCell icon={GraduationCap}>Class / Programme</TableHeaderCell>
+                <TableHeaderCell icon={Phone}>Contact</TableHeaderCell>
+                <TableHeaderCell icon={CalendarDays}>Submitted</TableHeaderCell>
+                <TableHeaderCell icon={BadgeCheck}>Status</TableHeaderCell>
+                <TableHeaderCell icon={MousePointerClick}>Action</TableHeaderCell>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-500">Loading application history...</td>
-                </tr>
+                <TableSkeletonRows rows={10} columns={7} />
               ) : filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-500">No applications found.</td>
                 </tr>
               ) : filteredRows.map((row) => (
-                <tr key={`${row.type}-${row.id}`} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-mono text-xs text-gray-400">{row.id}</td>
-                  <td className="px-6 py-4 font-bold text-coha-900">{row.name}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-gray-800">{row.classOrProgram}</td>
-                  <td className="px-6 py-4 text-xs font-semibold text-gray-600">{row.contact}</td>
-                  <td className="px-6 py-4 text-xs text-gray-500">{fmtDate(row.submittedAt)}</td>
-                  <td className="px-6 py-4">
+                <tr key={`${row.type}-${row.id}`}>
+                  <td className="apps-id">{row.id}</td>
+                  <td className="apps-name">{row.name}</td>
+                  <td className="font-bold text-gray-800">{row.classOrProgram}</td>
+                  <td className="text-xs font-semibold text-gray-600">{row.contact}</td>
+                  <td className="text-xs text-gray-500">{fmtDate(row.submittedAt)}</td>
+                  <td>
                     <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${row.statusTone}`}>
                       {row.statusLabel}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <button onClick={() => navigate(row.detailsPath)} className="text-coha-500 font-bold hover:underline uppercase text-[10px] tracking-widest">
+                  <td>
+                    <button onClick={() => navigate(row.detailsPath)} className="apps-open-btn">
                       Open
                     </button>
                   </td>
@@ -258,7 +236,6 @@ export const ApplicationHistoryPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
+    </ApplicationWorkspace>
   );
 };

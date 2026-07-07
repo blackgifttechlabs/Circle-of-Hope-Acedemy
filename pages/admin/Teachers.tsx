@@ -21,6 +21,9 @@ import {
   Repeat,
   X,
   CheckCircle2,
+  BadgeCheck,
+  Hash,
+  MousePointerClick,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -40,6 +43,7 @@ import {
 } from '../../services/dataService';
 import { Student, SystemSettings, Teacher } from '../../types';
 import { getTeacherAssignedClasses } from '../../utils/teacherClassSelection';
+import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePrimitives';
 
 const CLASS_BUTTON_THEMES = [
   { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', active: 'bg-blue-600 text-white border-blue-600', icon: GraduationCap },
@@ -56,9 +60,11 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [formStep, setFormStep] = useState<1 | 2>(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [loading, setLoading] = useState(false);
+  const [tableLoading, setTableLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toast, setToast] = useState({ show: false, msg: '', type: 'success' as 'success' | 'error' | 'info' });
@@ -84,6 +90,7 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
   const [adminPasswordLoading, setAdminPasswordLoading] = useState(false);
 
   const fetchData = async () => {
+    if (teachers.length === 0) setTableLoading(true);
     const [teachersData, settingsData, studentsData] = await Promise.all([
       getTeachers(),
       getSystemSettings(),
@@ -94,6 +101,7 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
     setStudents(studentsData.filter((student) => (
       student.studentStatus === 'ENROLLED' || student.studentStatus === 'ASSESSMENT' || !student.studentStatus
     )));
+    setTableLoading(false);
     return { teachersData, settingsData, studentsData };
   };
 
@@ -170,11 +178,22 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
     setAssignedStudentIds(teacher.assignedStudentIds || []);
     setEditingId(teacher.id);
     setClassSearchMap(Object.fromEntries(teacherClasses.map((className) => [className, ''])));
+    setFormStep(1);
+    setShowForm(true);
+  };
+
+  const openTeacherForm = () => {
+    if (showForm) {
+      handleFormClose();
+      return;
+    }
+    setFormStep(1);
     setShowForm(true);
   };
 
   const handleFormClose = () => {
     setShowForm(false);
+    setFormStep(1);
     setName('');
     setSubject('');
     setAssignedClasses([]);
@@ -233,19 +252,27 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
 
   const toggleClass = (className: string) => {
     setAssignedClasses((prev) => {
-      const nextClasses = prev.includes(className)
-        ? prev.filter((item) => item !== className)
-        : [...prev, className];
+      const wasSelected = prev.includes(className);
+      const nextClasses = wasSelected ? prev.filter((item) => item !== className) : [...prev, className];
+      const classStudentIds = students
+        .filter((student) => studentClass(student) === className)
+        .map((student) => student.id);
 
       setClassSearchMap((current) => {
         const nextMap = { ...current };
-        if (!prev.includes(className)) {
+        if (!wasSelected) {
           nextMap[className] = '';
         } else {
           delete nextMap[className];
         }
         return nextMap;
       });
+
+      setAssignedStudentIds((current) => (
+        wasSelected
+          ? current.filter((id) => !classStudentIds.includes(id))
+          : Array.from(new Set([...current, ...classStudentIds]))
+      ));
 
       return nextClasses;
     });
@@ -429,12 +456,8 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
   return (
     <div>
       <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} variant={toast.type} />
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-coha-900">Teachers</h2>
-          <p className="text-gray-600">Teacher allocations</p>
-        </div>
-        <Button onClick={() => (showForm ? handleFormClose() : setShowForm(true))}>
+      <div className="flex justify-end mb-5">
+        <Button onClick={openTeacherForm}>
           <Plus size={20} /> {editingId ? 'Edit Teacher' : 'Add Teacher'}
         </Button>
       </div>
@@ -526,13 +549,13 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-auto">
-                  <table className="w-full text-left">
-                    <thead className="sticky top-0 bg-white text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                  <table className="w-full text-left [&_td]:border-r [&_td]:border-slate-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-purple-900/30 [&_th:last-child]:border-r-0">
+                    <thead className="sticky top-0">
                       <tr>
-                        <th className="px-6 py-4">Student</th>
-                        <th className="w-[220px] px-6 py-4">Class</th>
-                        <th className="px-6 py-4">Parent</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
+                        <TableHeaderCell icon={Users}>Student</TableHeaderCell>
+                        <TableHeaderCell icon={GraduationCap} className="w-[220px]">Class</TableHeaderCell>
+                        <TableHeaderCell icon={HeartHandshake}>Parent</TableHeaderCell>
+                        <TableHeaderCell icon={MousePointerClick} className="text-right">Actions</TableHeaderCell>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -695,157 +718,200 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
       )}
 
       {showForm && (
-        <div className="bg-white p-6 mb-8 border-t-4 border-coha-500 shadow-lg animate-fade-in space-y-6">
-          <div>
-            <h3 className="text-lg font-bold">{editingId ? 'Edit Teacher Details' : 'Add New Teacher'}</h3>
-            <p className="text-sm text-gray-500 mt-1">Class assignments</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Full Name"
-                placeholder="e.g. Mrs. Sarah Smith"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-              <Input
-                label="Subject / Role"
-                placeholder="e.g. Mathematics"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                required
-              />
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-md">
+          <form
+            onSubmit={handleSubmit}
+            className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[18px] border border-white/60 bg-white shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-6 py-5">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-purple-700">
+                  Step {formStep} of 2
+                </p>
+                <h3 className="mt-1 text-2xl font-black text-slate-950">
+                  {editingId ? 'Edit Teacher' : 'Add Teacher'}
+                </h3>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  {formStep === 1 ? 'Enter the teacher details first.' : 'Choose classes and assign learners.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleFormClose}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:text-slate-900"
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            <div>
-              <p className="text-sm font-bold text-coha-900 mb-3">Classes This Teacher Handles</p>
-              <div className="flex flex-wrap gap-3">
-                {classOptions.map((option, index) => {
-                  const selected = assignedClasses.includes(option.value);
-                  const theme = CLASS_BUTTON_THEMES[index % CLASS_BUTTON_THEMES.length];
-                  const Icon = theme.icon;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => toggleClass(option.value)}
-                      className={`relative inline-flex min-h-14 items-center gap-3 border px-4 py-3 pr-12 text-left text-sm font-bold transition-colors ${
-                        selected
-                          ? theme.active
-                          : `${theme.bg} ${theme.text} ${theme.border} hover:brightness-95`
-                      }`}
-                      aria-pressed={selected}
-                    >
-                      <Icon size={16} />
-                      <span>{option.label}</span>
-                      {selected && (
-                        <span className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white text-green-600 shadow-sm ring-2 ring-white/70">
-                          <CheckCircle2 size={25} strokeWidth={3.2} />
-                        </span>
+            <div className="grid grid-cols-2 border-b border-slate-200 bg-white">
+              <div className={`h-1 ${formStep >= 1 ? 'bg-purple-700' : 'bg-slate-100'}`} />
+              <div className={`h-1 ${formStep >= 2 ? 'bg-purple-700' : 'bg-slate-100'}`} />
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+              {formStep === 1 ? (
+                <div className="mx-auto max-w-3xl space-y-5">
+                  <Input
+                    label="Teacher Name"
+                    placeholder="e.g. Mrs. Sarah Smith"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                  <Input
+                    label="Role"
+                    placeholder="e.g. Mathematics Teacher"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    required
+                  />
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="rounded-[12px] border border-slate-200 bg-white p-4">
+                    <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <p className="text-sm font-black text-coha-900">Add Another Class</p>
+                        <p className="text-xs font-semibold text-slate-500">Selecting a class automatically checks all listed students in that class.</p>
+                      </div>
+                      {assignedClasses.length === 0 && (
+                        <p className="text-xs font-bold text-red-500">Select at least one class or level.</p>
                       )}
-                    </button>
-                  );
-                })}
-              </div>
-              {assignedClasses.length === 0 && (
-                <p className="text-xs text-red-500 mt-2">Select at least one class or level.</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+                      {classOptions.map((option, index) => {
+                        const selected = assignedClasses.includes(option.value);
+                        const theme = CLASS_BUTTON_THEMES[index % CLASS_BUTTON_THEMES.length];
+                        const Icon = theme.icon;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => toggleClass(option.value)}
+                            className={`relative inline-flex min-h-12 items-center gap-2 rounded-[10px] border px-3 py-2 pr-10 text-left text-xs font-black transition-colors ${
+                              selected
+                                ? theme.active
+                                : `${theme.bg} ${theme.text} ${theme.border} hover:brightness-95`
+                            }`}
+                            aria-pressed={selected}
+                          >
+                            <Icon size={15} />
+                            <span className="truncate">{option.label}</span>
+                            {selected && (
+                              <span className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white text-green-600 shadow-sm">
+                                <CheckCircle2 size={17} strokeWidth={3} />
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {assignedClasses.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                      {assignedClasses.map((className, index) => {
+                        const classStudents = getStudentsForClass(className);
+                        const allListedStudentsSelected = classStudents.length > 0 && classStudents.every((student) => assignedStudentIds.includes(student.id));
+                        const theme = CLASS_BUTTON_THEMES[index % CLASS_BUTTON_THEMES.length];
+                        const Icon = theme.icon;
+
+                        return (
+                          <div key={className} className="min-w-0 overflow-hidden rounded-[12px] border border-slate-200 bg-white shadow-sm">
+                            <div className={`border-b px-4 py-3 ${theme.border} ${theme.bg}`}>
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                  <Icon size={16} className={theme.text} />
+                                  <p className={`font-black ${theme.text}`}>{className}</p>
+                                </div>
+                                <span className="text-xs font-black text-slate-500">{classStudents.length} students</span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2 border-b border-slate-100 p-3 sm:flex-row">
+                              <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                                <input
+                                  className="h-10 w-full rounded-[8px] border border-slate-200 pl-9 pr-3 text-sm outline-none focus:border-coha-500"
+                                  placeholder={`Search ${className} students...`}
+                                  value={classSearchMap[className] || ''}
+                                  onChange={(e) => setClassSearch(className, e.target.value)}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => toggleAllStudentsForClass(className)}
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-purple-200 hover:text-purple-700"
+                              >
+                                <CheckSquare size={15} />
+                                {allListedStudentsSelected ? 'Clear Listed' : 'Check Listed'}
+                              </button>
+                            </div>
+
+                            <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                              {classStudents.map((student) => {
+                                const checked = assignedStudentIds.includes(student.id);
+                                return (
+                                  <label key={student.id} className={`flex cursor-pointer items-center gap-3 px-4 py-2.5 ${checked ? 'bg-purple-50/70' : 'bg-white hover:bg-slate-50'}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => toggleStudent(student.id)}
+                                      className="h-4 w-4 accent-purple-700"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-sm font-black text-slate-900">{student.name}</p>
+                                      <p className="truncate text-xs font-semibold text-slate-500">{student.id}{student.assignedTeacherName ? ` · ${student.assignedTeacherName}` : ''}</p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                              {classStudents.length === 0 && (
+                                <div className="px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                                  No students found for this class.
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-[12px] border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm font-semibold text-slate-500">
+                      Select a class to reveal its students.
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
-            <div className="border border-gray-200">
-              <div className="p-4 border-b border-gray-200 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-sm font-bold text-coha-900">Assign Students</p>
-                  <p className="text-xs text-gray-500 mt-1">Each selected class opens its own learner assignment panel. Up to three class panels are shown per row.</p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-gray-50/70">
-                {assignedClasses.length > 0 ? (
-                  <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-                    {assignedClasses.map((className, index) => {
-                      const classStudents = getStudentsForClass(className);
-                      const allListedStudentsSelected = classStudents.length > 0 && classStudents.every((student) => assignedStudentIds.includes(student.id));
-                      const theme = CLASS_BUTTON_THEMES[index % CLASS_BUTTON_THEMES.length];
-                      const Icon = theme.icon;
-
-                      return (
-                        <div key={className} className="border border-gray-200 bg-white shadow-sm min-w-0">
-                          <div className={`px-4 py-3 border-b ${theme.border} ${theme.bg}`}>
-                            <div className="flex items-center gap-2">
-                              <Icon size={16} className={theme.text} />
-                              <p className={`font-bold ${theme.text}`}>{className}</p>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">{classStudents.length} listed student{classStudents.length !== 1 ? 's' : ''}</p>
-                          </div>
-
-                          <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-2">
-                            <div className="relative flex-1">
-                              <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-                              <input
-                                className="w-full h-11 pl-10 pr-4 border border-gray-300 focus:border-coha-500 outline-none"
-                                placeholder={`Search ${className} students...`}
-                                value={classSearchMap[className] || ''}
-                                onChange={(e) => setClassSearch(className, e.target.value)}
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => toggleAllStudentsForClass(className)}
-                              className="h-11 px-4 border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:border-coha-500 inline-flex items-center justify-center gap-2 whitespace-nowrap"
-                            >
-                              <CheckSquare size={16} />
-                              {allListedStudentsSelected ? 'Clear Listed Students' : 'Select All Listed Students'}
-                            </button>
-                          </div>
-
-                          <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-                            {classStudents.map((student) => {
-                              const checked = assignedStudentIds.includes(student.id);
-                              return (
-                                <label key={student.id} className={`flex items-center gap-3 px-4 py-3 cursor-pointer ${checked ? 'bg-blue-50' : 'bg-white hover:bg-gray-50'}`}>
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => toggleStudent(student.id)}
-                                    className="h-4 w-4"
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-coha-900 truncate">{student.name}</p>
-                                    <p className="text-xs text-gray-500">{student.id}{student.assignedTeacherName ? ` · ${student.assignedTeacherName}` : ''}</p>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                            {classStudents.length === 0 && (
-                              <div className="px-4 py-8 text-center text-sm text-gray-500">
-                                No students found for this class.
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <Button type="button" variant="outline" onClick={handleFormClose}>Cancel</Button>
+              <div className="flex justify-end gap-2">
+                {formStep === 2 && (
+                  <Button type="button" variant="outline" onClick={() => setFormStep(1)}>
+                    Back
+                  </Button>
+                )}
+                {formStep === 1 ? (
+                  <Button
+                    type="button"
+                    disabled={!name.trim() || !subject.trim()}
+                    onClick={() => setFormStep(2)}
+                  >
+                    Next
+                  </Button>
                 ) : (
-                  <div className="px-4 py-8 text-center text-sm text-gray-500 bg-white border border-dashed border-gray-300">
-                    Select one or more classes to open learner assignment panels.
-                  </div>
+                  <Button
+                    type="submit"
+                    loading={formLoading}
+                    disabled={formLoading || !name.trim() || !subject.trim() || assignedClasses.length === 0}
+                  >
+                    Finish
+                  </Button>
                 )}
               </div>
-            </div>
-
-            <div className="md:col-span-2 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={handleFormClose}>Cancel</Button>
-              <Button
-                type="submit"
-                loading={formLoading}
-                disabled={formLoading || !name.trim() || !subject.trim() || assignedClasses.length === 0}
-              >
-                {editingId ? 'Update Teacher' : 'Save Teacher'}
-              </Button>
             </div>
           </form>
         </div>
@@ -890,29 +956,31 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 text-gray-600 uppercase text-xs font-bold">
+          <table className="w-full text-left [&_td]:border-r [&_td]:border-slate-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-purple-900/30 [&_th:last-child]:border-r-0">
+            <thead>
               <tr>
-                <th className="px-6 py-4 bg-white">Name</th>
-                <th className="px-6 py-4 bg-gray-50">Subject</th>
-                <th className="px-6 py-4 bg-white">Assigned Classes</th>
-                <th className="px-6 py-4 bg-gray-50">Students</th>
-                <th className="px-6 py-4 bg-white">Password</th>
-                <th className="px-6 py-4 text-right bg-gray-50">Actions</th>
+                <TableHeaderCell icon={Users}>Name</TableHeaderCell>
+                <TableHeaderCell icon={BookOpen}>Subject</TableHeaderCell>
+                <TableHeaderCell icon={GraduationCap}>Assigned Classes</TableHeaderCell>
+                <TableHeaderCell icon={Hash}>Students</TableHeaderCell>
+                <TableHeaderCell icon={BadgeCheck}>Password</TableHeaderCell>
+                <TableHeaderCell icon={MousePointerClick} className="text-right">Actions</TableHeaderCell>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredTeachers.map((teacher) => {
+              {tableLoading ? (
+                <TableSkeletonRows rows={10} columns={6} />
+              ) : filteredTeachers.map((teacher) => {
                 const teacherClasses = getTeacherAssignedClasses(teacher);
                 return (
                   <tr key={teacher.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-bold text-coha-900 bg-white">{teacher.name}</td>
-                    <td className="px-6 py-4 bg-gray-50">{teacher.subject}</td>
-                    <td className="px-6 py-4 bg-white">
+                    <td className="px-6 py-3 font-semibold text-black">{teacher.name}</td>
+                    <td className="px-6 py-3 text-sm text-slate-700">{teacher.subject}</td>
+                    <td className="px-6 py-3">
                       {teacherClasses.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {teacherClasses.map((className) => (
-                            <span key={className} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 font-bold rounded">
+                            <span key={className} className="text-xs font-semibold text-slate-700">
                               {className}
                             </span>
                           ))}
@@ -921,22 +989,22 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
                         <span className="text-gray-400 italic">Unassigned</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 bg-gray-50">
+                    <td className="px-6 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="inline-flex items-center gap-2 text-sm font-bold text-green-600">
+                        <div className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
                         <Users size={14} className="text-gray-400" />
                           {getTeacherStudents(teacher).length}
                         </div>
                         <button
                           type="button"
                           onClick={() => openStudentModal(teacher)}
-                          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700"
+                          className="text-xs font-black uppercase tracking-widest text-[#2E1065] underline underline-offset-4 hover:text-purple-800"
                         >
-                          <Eye size={14} /> View Students
+                          View
                         </button>
                       </div>
                     </td>
-                    <td className="px-6 py-4 bg-white">
+                    <td className="px-6 py-3">
                       <div className="flex items-center gap-3">
                         <span
                           className={`min-w-[120px] select-none font-mono font-black tracking-[0.2em] text-coha-900 transition ${
@@ -955,7 +1023,7 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
                         </button>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right bg-gray-50">
+                    <td className="px-6 py-3 text-right">
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => navigate(`/admin/teachers/${teacher.id}/progress`)}
@@ -966,10 +1034,10 @@ export const TeachersPage: React.FC<{ user?: any }> = ({ user }) => {
                         </button>
                         <button
                           onClick={() => openStudentModal(teacher)}
-                          className={`${actionButtonClass} bg-emerald-600 hover:bg-emerald-700`}
+                          className="text-xs font-black uppercase tracking-widest text-[#2E1065] underline underline-offset-4 hover:text-purple-800"
                           title="View Students"
                         >
-                          <Users size={14} /> Students
+                          View
                         </button>
                         <button
                           onClick={() => handleEdit(teacher)}

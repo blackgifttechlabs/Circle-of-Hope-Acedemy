@@ -6,6 +6,7 @@ import { Calendar, Activity, Brain, CheckCircle, ClipboardList, Clock, FileText,
 import { printGrade0Report } from '../../utils/printGrade0Report';
 import { Grade1To7ReportCard, getGrade1To7ReportCards, printGrade1To7Report } from '../../utils/printGrade1To7Report';
 import { ParentBottomNav } from '../../components/ParentBottomNav';
+import { isPrePrimaryOrSpecialNeedsRecord } from '../../utils/assessmentRecordFilters';
 
 interface ParentAssessmentProgressProps {
   user: any;
@@ -66,7 +67,7 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
   };
 
   if (student.division === 'Mainstream' || student.studentStatus === 'ENROLLED') {
-      const prePrimaryRecords = assessmentRecords.filter((record) => /Grade 0/i.test(record.recordedClass || record.grade || ''));
+      const prePrimaryRecords = assessmentRecords.filter(isPrePrimaryOrSpecialNeedsRecord);
       return (
         <div className="-m-5 min-h-screen bg-[#f7f8fa] text-slate-900">
             <div className="max-w-7xl mx-auto px-3 sm:px-5 pb-24 pt-3">
@@ -146,7 +147,7 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
 
                       {prePrimaryRecords.length > 0 && (
                         <div>
-                          <p className="mb-4 text-[10px] font-black uppercase tracking-[0.24em] text-gray-400">Pre-Primary Reports</p>
+                          <p className="mb-4 text-[10px] font-black uppercase tracking-[0.24em] text-gray-400">Pre-Primary / Special Needs Reports</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {prePrimaryRecords.map(record => {
                               const reportKey = `${record.recordedClass || record.grade}__${record.termId}`;

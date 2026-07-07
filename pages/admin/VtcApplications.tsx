@@ -2,16 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getVtcApplications, updateVtcApplication } from '../../services/dataService';
 import { VtcApplication } from '../../types';
-import { Search, Check, X, Eye, Mail, MessageCircle, History } from 'lucide-react';
+import { Search, Check, X, Eye, Mail, MessageCircle, User, Hash, Phone, BadgeCheck, MousePointerClick } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Toast } from '../../components/ui/Toast';
 import { openGmailDraft } from '../../utils/emailDrafts';
+import { ApplicationWorkspace } from '../../components/admin/ApplicationWorkspace';
+import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePrimitives';
 
 type ViewMode = 'PENDING' | 'PAYMENT_REQUIRED' | 'VERIFYING' | 'APPROVED' | 'VERIFIED' | 'REJECTED';
 
 export const VtcApplicationsPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('PENDING');
   const [applications, setApplications] = useState<VtcApplication[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [toast, setToast] = useState({ msg: '', show: false, type: 'success' as 'success' | 'error' });
   const navigate = useNavigate();
@@ -25,8 +28,10 @@ export const VtcApplicationsPage: React.FC = () => {
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
     const data = await getVtcApplications();
     setApplications(data);
+    setLoading(false);
   };
 
   const handleStatusChange = async (app: VtcApplication, newStatus: VtcApplication['status']) => {
@@ -107,8 +112,22 @@ COHA VTC Administration`;
 
   const filteredApps = applications.filter(app => {
     const matchesSearch = `${app.firstName} ${app.surname}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          app.identityNumber.includes(searchTerm);
+                          (app.identityNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (app.emailAddress || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (app.cellNo || '').toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch && app.status === viewMode;
+  });
+
+  const statusCounts = applications.reduce<Record<ViewMode, number>>((acc, app) => {
+    acc[app.status] = (acc[app.status] || 0) + 1;
+    return acc;
+  }, {
+    PENDING: 0,
+    PAYMENT_REQUIRED: 0,
+    VERIFYING: 0,
+    APPROVED: 0,
+    VERIFIED: 0,
+    REJECTED: 0,
   });
 
   return (
@@ -138,61 +157,55 @@ COHA VTC Administration`;
           </div>
       )}
 
-      <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-        <div>
-            <h2 className="text-2xl font-bold text-coha-900">VTC Applications</h2>
-            <p className="text-gray-600">Manage Vocational Training Centre applications.</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex flex-wrap bg-white shadow-sm border border-gray-200">
-                <button onClick={() => setViewMode('PENDING')} className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === 'PENDING' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>New</button>
-                <button onClick={() => setViewMode('PAYMENT_REQUIRED')} className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === 'PAYMENT_REQUIRED' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Payment Req</button>
-                <button onClick={() => setViewMode('VERIFYING')} className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === 'VERIFYING' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Verify</button>
-                <button onClick={() => setViewMode('APPROVED')} className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === 'APPROVED' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Approved</button>
-                <button onClick={() => setViewMode('VERIFIED')} className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === 'VERIFIED' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Verified</button>
-                <button onClick={() => setViewMode('REJECTED')} className={`px-4 py-2 text-sm font-bold uppercase ${viewMode === 'REJECTED' ? 'bg-coha-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Rejected</button>
+      <ApplicationWorkspace activeTab="vtc">
+         <div className="apps-toolbar" style={{ paddingTop: '76px' }}>
+            <div className="apps-search-wrap" style={{ marginRight: 'auto' }}>
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input className="apps-search-input" placeholder="Search applicants..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-            <button onClick={() => navigate('/admin/applications')} className="px-4 py-2 text-sm font-bold uppercase bg-purple-600 text-white hover:bg-purple-700 shadow-sm flex items-center gap-2 transition-colors">
-                Students Application
-            </button>
-            <button onClick={() => navigate('/admin/applications-history')} className="px-4 py-2 text-sm font-bold uppercase bg-slate-800 text-white hover:bg-slate-900 shadow-sm flex items-center gap-2 transition-colors">
-                <History size={16} /> Previous Applications
-            </button>
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-200 shadow-sm animate-fade-in">
-         <div className="p-4 border-b border-gray-200">
-            <div className="relative max-w-md">
-                <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input className="w-full pl-10 pr-4 py-2 border border-gray-300 outline-none" placeholder="Search applicants..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <div className="apps-tabs" style={{ marginLeft: 'auto', justifyContent: 'flex-end' }}>
+              {([
+                ['PENDING', 'New'],
+                ['PAYMENT_REQUIRED', 'Payment Req'],
+                ['VERIFYING', 'Verify'],
+                ['APPROVED', 'Approved'],
+                ['VERIFIED', 'Verified'],
+                ['REJECTED', 'Rejected'],
+              ] as [ViewMode, string][]).map(([mode, label]) => (
+                <button key={mode} onClick={() => setViewMode(mode)} className={`apps-tab ${viewMode === mode ? 'active' : ''}`}>
+                  {label}
+                  <span className={`pill ${statusCounts[mode] === 0 ? 'zero' : ''}`}>{statusCounts[mode]}</span>
+                </button>
+              ))}
             </div>
          </div>
          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-                <thead className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 tracking-widest">
+            <table className="apps-table">
+                <thead>
                     <tr>
-                        <th className="px-6 py-4">Applicant</th>
-                        <th className="px-6 py-4">ID Number</th>
-                        <th className="px-6 py-4">Contact</th>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4">Actions</th>
+                        <TableHeaderCell icon={User}>Applicant</TableHeaderCell>
+                        <TableHeaderCell icon={Hash}>ID Number</TableHeaderCell>
+                        <TableHeaderCell icon={Phone}>Contact</TableHeaderCell>
+                        <TableHeaderCell icon={BadgeCheck}>Status</TableHeaderCell>
+                        <TableHeaderCell icon={MousePointerClick}>Actions</TableHeaderCell>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                    {filteredApps.length === 0 ? (
+                <tbody>
+                    {loading ? (
+                      <TableSkeletonRows rows={10} columns={5} />
+                    ) : filteredApps.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="px-6 py-8 text-center text-gray-500 font-medium">No applications found in this category.</td>
                       </tr>
                     ) : filteredApps.map((app) => (
-                        <tr key={app.id} className="hover:bg-gray-50 group">
-                            <td className="px-6 py-4 font-bold text-coha-900">{app.firstName} {app.surname}</td>
-                            <td className="px-6 py-4 font-mono text-sm">{app.identityNumber}</td>
-                            <td className="px-6 py-4">
+                        <tr key={app.id} className="group">
+                            <td className="apps-name">{app.firstName} {app.surname}</td>
+                            <td className="apps-id">{app.identityNumber}</td>
+                            <td>
                               <div className="text-sm">{app.cellNo}</div>
                               <div className="text-xs text-gray-500">{app.emailAddress}</div>
                             </td>
-                            <td className="px-6 py-4">
+                            <td>
                               <span className={`px-2 py-1 text-[10px] font-black uppercase tracking-wider rounded-full 
                                 ${app.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 
                                   app.status === 'APPROVED' ? 'bg-green-100 text-green-800' : 
@@ -201,7 +214,8 @@ COHA VTC Administration`;
                                 {app.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 flex items-center gap-2">
+                            <td>
+                              <div className="flex items-center gap-2">
                                 <button onClick={() => navigate(`/admin/vtc-applications/${app.id}`)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View Details">
                                   <Eye size={18} />
                                 </button>
@@ -241,13 +255,14 @@ COHA VTC Administration`;
                                     </button>
                                   </>
                                 )}
+                              </div>
                             </td>
                         </tr>
                     ))}
                 </tbody>
             </table>
          </div>
-      </div>
+      </ApplicationWorkspace>
     </div>
   );
 };

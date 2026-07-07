@@ -466,10 +466,12 @@ export const generateAssessmentSheetPdf = async ({
 export const generateAllSubjectsAssessmentPdf = async ({
   className,
   subjectIds,
+  termIds,
   mode = 'download',
 }: {
   className: string;
   subjectIds?: string[];
+  termIds?: string[];
   mode?: 'download' | 'print';
 }) => {
   const subjects = subjectIds?.length
@@ -483,7 +485,9 @@ export const generateAllSubjectsAssessmentPdf = async ({
 
   for (const subject of subjects) {
     const snapshot = await buildAssessmentReportSnapshot(className, subject);
-    snapshot.terms.forEach((term) => {
+    snapshot.terms
+      .filter((term) => !termIds?.length || termIds.includes(term.id))
+      .forEach((term) => {
       appendAssessmentTermToDoc(doc, snapshot, term, logo, firstPage);
       firstPage = false;
     });

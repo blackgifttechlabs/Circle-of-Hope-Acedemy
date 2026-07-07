@@ -14,6 +14,7 @@ service-account*.json
 *service*key*.json
 *service*account*.json
 firebase-adminsdk*.json
+pages/admin/servicekey.json
 *.pem
 *.p12
 *.p8

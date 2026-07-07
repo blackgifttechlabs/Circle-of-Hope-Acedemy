@@ -10,7 +10,7 @@ import {
   transferStudentToTeacherAndClass,
 } from '../../services/dataService';
 import { Student, SystemSettings, Division, Teacher } from '../../types';
-import { Search, Eye, Download, Filter, Key, Repeat, UserPlus, Users, Home, UserCheck } from 'lucide-react';
+import { Search, Eye, Download, Filter, Key, Repeat, UserPlus, Users, Home, UserCheck, Hash, GraduationCap, BadgeCheck, MousePointerClick } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
 import { printStudentList } from '../../utils/printStudentList';
 import { getTeacherAssignedClasses } from '../../utils/teacherClassSelection';
@@ -19,8 +19,10 @@ import {
   STUDENT_GENDER_SUGGESTIONS,
   STUDENT_SURNAME_SUGGESTIONS,
 } from '../../utils/studentSuggestions';
+import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePrimitives';
 
 const STUDENT_REFRESH_COOLDOWN_MS = 60_000;
+const AVATAR_COLORS = ['bg-purple-700', 'bg-emerald-600', 'bg-sky-600', 'bg-amber-600', 'bg-rose-600', 'bg-indigo-600', 'bg-teal-600'];
 
 export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
   const isSubAdmin = !!user && (user.adminRole === 'sub_admin' || user.id !== 'admin');
@@ -507,31 +509,33 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left border-separate border-spacing-0">
-            <thead className="bg-coha-900 text-white uppercase text-[10px] font-black tracking-widest">
+          <table className="w-full min-w-[920px] text-left border-separate border-spacing-0 [&_td]:border-r [&_td]:border-slate-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-purple-900/30 [&_th:last-child]:border-r-0">
+            <thead>
               <tr>
-                <th className="px-6 py-4">ID</th>
-                <th className="px-6 py-4">Student</th>
-                {!isSubAdmin && <th className="px-6 py-4">Login PIN</th>}
-                <th className="px-6 py-4">Division</th>
-                <th className="px-6 py-4">Current Grade</th>
-                <th className="px-6 py-4">Teacher</th>
-                {!isSubAdmin && <th className="px-6 py-4">Actions</th>}
+                <TableHeaderCell icon={Hash}>ID</TableHeaderCell>
+                <TableHeaderCell icon={Users}>Student</TableHeaderCell>
+                {!isSubAdmin && <TableHeaderCell icon={Key}>Login PIN</TableHeaderCell>}
+                <TableHeaderCell icon={BadgeCheck}>Division</TableHeaderCell>
+                <TableHeaderCell icon={GraduationCap}>Current Grade</TableHeaderCell>
+                <TableHeaderCell icon={UserCheck}>Teacher</TableHeaderCell>
+                {!isSubAdmin && <TableHeaderCell icon={MousePointerClick}>Actions</TableHeaderCell>}
               </tr>
             </thead>
             <tbody>
-              {filteredStudents.map((student, index) => (
+              {loading ? (
+                <TableSkeletonRows rows={12} columns={isSubAdmin ? 5 : 7} />
+              ) : filteredStudents.map((student, index) => (
                 <tr
                   key={student.id}
                   className={`group border-b border-slate-100 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-sky-50/80`}
                 >
-                  <td className="px-6 py-4 font-mono text-xs font-black text-slate-500 border-b border-slate-100">{student.id}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-3 font-mono text-xs font-black text-slate-500 border-b border-slate-100">{student.id}</td>
+                  <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
                       {student.profileImageBase64 ? (
-                        <img src={student.profileImageBase64} alt={student.name} className="w-10 h-10 rounded-[10px] object-cover border border-slate-200 shadow-sm" />
+                        <img src={student.profileImageBase64} alt={student.name} className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-sm" />
                       ) : (
-                        <div className="w-10 h-10 rounded-[10px] bg-gradient-to-br from-emerald-500 via-sky-500 to-coha-700 text-white flex items-center justify-center text-sm font-black shadow-sm">
+                        <div className={`w-9 h-9 rounded-full ${AVATAR_COLORS[index % AVATAR_COLORS.length]} text-white flex items-center justify-center text-sm font-black shadow-sm`}>
                           {student.name.charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -544,36 +548,28 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                     </div>
                   </td>
                   {!isSubAdmin && (
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
                         <Key size={12} className="text-amber-500" />
-                        <span className="font-mono font-black text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-[6px]">{student.parentPin}</span>
+                        <span className="font-mono font-black text-slate-700">{student.parentPin}</span>
                       </div>
                     </td>
                   )}
-                  <td className="px-6 py-4">
-                     <span className={`px-2.5 py-1 text-[10px] font-black uppercase rounded-[6px] border ${student.division === Division.SPECIAL_NEEDS ? 'bg-sky-50 text-sky-800 border-sky-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}>
-                         {student.division || 'Mainstream'}
-                     </span>
+                  <td className="px-6 py-3">
+                     <span className="text-xs font-bold text-slate-700">{student.division || 'Mainstream'}</span>
                   </td>
-                  <td className="px-6 py-4 font-medium text-sm">
-                      <span className="inline-flex rounded-[6px] bg-coha-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-widest text-coha-800 border border-coha-100">
-                        {student.assignedClass || student.grade || student.level || 'Unassigned'}
-                      </span>
+                  <td className="px-6 py-3 font-medium text-sm">
+                      <span className="text-xs font-bold text-slate-700">{student.assignedClass || student.grade || student.level || 'Unassigned'}</span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
+                  <td className="px-6 py-3 text-sm text-gray-600">
                     {student.assignedTeacherName ? (
-                      <span className="inline-flex rounded-[6px] bg-teal-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-widest text-teal-800 border border-teal-100">
-                        {student.assignedTeacherName}
-                      </span>
+                      <span className="text-xs font-bold text-slate-700">{student.assignedTeacherName}</span>
                     ) : (
-                      <span className="inline-flex rounded-[6px] bg-red-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-widest text-red-700 border border-red-100">
-                        Unassigned
-                      </span>
+                      <span className="text-xs font-bold text-red-600">Unassigned</span>
                     )}
                   </td>
                   {!isSubAdmin && (
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-3">
                       <div className="flex gap-2 flex-wrap">
                           {viewMode === 'ASSESSMENT' ? (
                               <>
@@ -605,7 +601,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                   )}
                 </tr>
               ))}
-               {filteredStudents.length === 0 && (
+               {!loading && filteredStudents.length === 0 && (
                 <tr>
                   <td colSpan={isSubAdmin ? 5 : 7} className="px-6 py-12 text-center text-slate-500">
                     <div className="mx-auto max-w-sm rounded-[10px] border border-dashed border-slate-200 bg-slate-50 p-6">

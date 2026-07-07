@@ -1,15 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
-  Banknote,
+  BadgeCheck,
+  CalendarDays,
   CheckCircle2,
+  Clock,
   CreditCard,
+  FileText,
+  GraduationCap,
+  Hash,
   Image as ImageIcon,
   Mail,
   MessageCircle,
+  MousePointerClick,
   ReceiptText,
   Search,
+  User,
+  Users,
   WalletCards,
+  Wallet,
   X,
   XCircle,
 } from 'lucide-react';
@@ -24,12 +33,13 @@ import {
   searchStudents,
 } from '../../services/dataService';
 import { PaymentProof, Receipt, Student, SystemSettings } from '../../types';
-import { Loader } from '../../components/ui/Loader';
 import { Toast } from '../../components/ui/Toast';
 import { getStudentParentEmail, getStudentParentPhone } from '../../utils/admissionMessaging';
 import { openGmailDraft } from '../../utils/emailDrafts';
 import { getPaymentOptionLabel, getPaymentOptions, REGISTRATION_FEE_OPTION } from '../../utils/paymentOptions';
 import { printSchoolReceipt } from '../../utils/printSchoolReceipt';
+import { ApplicationWorkspace } from '../../components/admin/ApplicationWorkspace';
+import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePrimitives';
 
 interface PaymentsPageProps {
   user?: any;
@@ -98,12 +108,6 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ user }) => {
       receipt.paymentLabel?.toLowerCase().includes(term)
     ));
   }, [receipts, receiptSearch]);
-  const receiptTotal = useMemo(
-    () => receipts.reduce((sum, receipt) => sum + (parseFloat(receipt.amount || '0') || 0), 0),
-    [receipts]
-  );
-  const approvedProofs = useMemo(() => proofs.filter((proof) => proof.status === 'APPROVED').length, [proofs]);
-
   const copyToClipboard = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -370,11 +374,8 @@ This receipt is available in the parent portal.`;
       setBusy(false);
     }
   };
-
-  if (loading) return <Loader />;
-
   return (
-    <div className="-m-5 min-h-full bg-gradient-to-br from-slate-50 via-white to-purple-50/50 p-5 md:p-8">
+    <ApplicationWorkspace activeTab="payments">
       <Toast message={toast.msg} isVisible={toast.show} onClose={() => setToast({ ...toast, show: false })} variant={toast.type} />
       {expandedProof && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={() => setExpandedProof(null)}>
@@ -394,105 +395,175 @@ This receipt is available in the parent portal.`;
           </div>
         </div>
       )}
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#1d0b45] via-purple-800 to-fuchsia-700 p-6 text-white shadow-xl shadow-purple-900/15">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-purple-100">Finance Desk</p>
-              <h2 className="mt-2 text-3xl font-black tracking-tight">Payments</h2>
-              <p className="mt-2 max-w-2xl text-sm font-semibold text-purple-100">Confirm incoming proofs, enter office payments, and keep the receipt log in one place.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                { label: 'Pending', value: pendingProofs.length, icon: AlertCircle, tone: 'bg-amber-400 text-amber-950' },
-                { label: 'Approved', value: approvedProofs, icon: CheckCircle2, tone: 'bg-emerald-400 text-emerald-950' },
-                { label: 'Receipts', value: receipts.length, icon: ReceiptText, tone: 'bg-sky-300 text-sky-950' },
-                { label: 'Recorded', value: fmtMoney(receiptTotal), icon: Banknote, tone: 'bg-fuchsia-300 text-fuchsia-950' },
-              ].map((item) => (
-                <div key={item.label} className="min-w-[130px] rounded-2xl bg-white/12 p-4 ring-1 ring-white/15">
-                  <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-xl ${item.tone}`}>
-                    <item.icon size={17} />
-                  </div>
-                  <p className="text-lg font-black leading-tight">{item.value}</p>
-                  <p className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-purple-100">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+      <div className="space-y-6">
+        <div className="apps-toolbar !mt-0 !px-0" style={{ paddingTop: '76px' }}>
+          <div className="apps-tabs" style={{ marginLeft: 'auto', justifyContent: 'flex-end' }}>
           {[
-            { id: 'INCOMING' as const, label: `Incoming (${pendingProofs.length})`, icon: AlertCircle, color: 'from-amber-500 to-orange-500' },
+            { id: 'INCOMING' as const, label: `Pending Payments (${pendingProofs.length})`, icon: AlertCircle, color: 'from-amber-500 to-orange-500' },
             { id: 'ADD' as const, label: 'Add Payment', icon: WalletCards, color: 'from-emerald-500 to-teal-500' },
             { id: 'RECEIPTS' as const, label: `Receipts (${receipts.length})`, icon: ReceiptText, color: 'from-purple-700 to-fuchsia-600' },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`inline-flex h-12 items-center gap-2 rounded-xl px-4 text-xs font-black uppercase tracking-[0.14em] transition-all ${activeTab === tab.id ? `bg-gradient-to-r ${tab.color} text-white shadow-lg` : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`apps-tab ${activeTab === tab.id ? 'active' : ''}`}
             >
               <tab.icon size={16} />
               {tab.label}
             </button>
           ))}
+          </div>
         </div>
 
       {activeTab === 'INCOMING' && (
-        <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6">
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 bg-gradient-to-r from-amber-50 to-orange-50 px-5 py-4">
-              <p className="text-xs font-black uppercase tracking-[0.25em] text-amber-700">Needs Confirmation</p>
+        <div className={`grid grid-cols-1 gap-6 transition-all duration-300 ${selectedProof ? 'xl:grid-cols-[minmax(0,1fr)_520px]' : ''}`}>
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 bg-white px-5 py-4">
+              <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-400">Needs Confirmation</p>
               <p className="mt-1 text-sm font-semibold text-slate-500">{pendingProofs.length} payment proof{pendingProofs.length === 1 ? '' : 's'} waiting</p>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto">
-              {pendingProofs.length === 0 && <p className="p-5 text-sm text-gray-500">No incoming payment proofs need confirmation.</p>}
-              {pendingProofs.map((proof) => (
-                <button
-                  key={proof.id}
-                  onClick={() => setSelectedProof(proof)}
-                  className={`w-full border-b border-slate-100 px-5 py-4 text-left transition hover:bg-amber-50/60 ${selectedProof?.id === proof.id ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : 'bg-white'}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-bold text-gray-900">{proof.studentName}</p>
-                      <p className="text-xs text-gray-500 mt-1">{proof.parentName}</p>
-                      <p className="text-xs font-semibold text-amber-700 mt-1">{getPaymentOptionLabel(proof.termId, settings)} - {proof.amountClaimed || 'Amount pending'}</p>
-                    </div>
-                    <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-amber-700">{proof.status}</span>
-                  </div>
-                </button>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="apps-table">
+                <thead>
+                  <tr>
+                    <TableHeaderCell icon={User}>Student</TableHeaderCell>
+                    <TableHeaderCell icon={Users}>Parent</TableHeaderCell>
+                    <TableHeaderCell icon={GraduationCap}>Class</TableHeaderCell>
+                    <TableHeaderCell icon={ReceiptText}>Payment For</TableHeaderCell>
+                    <TableHeaderCell icon={CreditCard}>Amount</TableHeaderCell>
+                    <TableHeaderCell icon={CalendarDays}>Submitted</TableHeaderCell>
+                    <TableHeaderCell icon={BadgeCheck}>Status</TableHeaderCell>
+                    <TableHeaderCell icon={MousePointerClick}>Action</TableHeaderCell>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <TableSkeletonRows rows={10} columns={8} />
+                  ) : pendingProofs.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-500">No incoming payment proofs need confirmation.</td>
+                    </tr>
+                  )}
+                  {!loading && pendingProofs.map((proof) => (
+                    <tr
+                      key={proof.id}
+                      className={selectedProof?.id === proof.id ? 'bg-[#2b1d4e]/10' : ''}
+                    >
+                      <td className="apps-name">{proof.studentName}</td>
+                      <td className="text-xs font-bold text-gray-600">{proof.parentName}</td>
+                      <td className="text-xs text-gray-500">{proof.studentClass || '-'}</td>
+                      <td className="font-bold text-gray-800">{getPaymentOptionLabel(proof.termId, settings) || proof.termId}</td>
+                      <td className="font-black text-gray-900">{proof.amountClaimed || '-'}</td>
+                      <td className="text-xs text-gray-500">{fmtDate(proof.submittedAt)}</td>
+                      <td>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2b1d4e] px-3 py-1 text-[11px] font-black uppercase tracking-wide text-white">
+                          <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                          Pending
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex flex-col items-stretch gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedProof(proof)}
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-[11px] font-black uppercase tracking-[0.08em] text-purple-700 hover:bg-purple-50"
+                          >
+                            <ImageIcon size={14} /> View Receipt
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProof(proof)}
+                            className="inline-flex h-9 items-center justify-center rounded-xl bg-[#2b1d4e] px-3 text-[11px] font-black uppercase tracking-[0.08em] text-white shadow-sm hover:bg-[#3c2a68]"
+                          >
+                            Approve
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            {!selectedProof ? (
-              <div className="p-8 text-sm text-gray-500">Select an incoming payment proof to review.</div>
-            ) : (
-              <div className="grid grid-cols-1 2xl:grid-cols-[1.05fr_0.95fr]">
-                <div className="border-b border-slate-200 bg-slate-50/70 p-5 2xl:border-b-0 2xl:border-r">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-500">Receipt Image</p>
-                      <p className="mt-1 text-xs font-semibold text-slate-400">Click the receipt to enlarge it.</p>
-                    </div>
-                    <ImageIcon size={20} className="text-purple-700" />
-                  </div>
-                  <button type="button" onClick={() => selectedProof.imageBase64 && setExpandedProof(selectedProof)} className="flex min-h-[280px] w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-inner transition hover:border-purple-300 hover:shadow-lg">
-                    {selectedProof.imageBase64 ? (
-                      <img src={selectedProof.imageBase64} alt={selectedProof.studentName} className="max-h-[320px] w-full object-contain" />
-                    ) : (
-                      <div className="text-gray-400 flex flex-col items-center gap-2">
-                        <ImageIcon size={28} />
-                        <span>No image found</span>
-                      </div>
-                    )}
+          {selectedProof && (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" style={{ animation: 'slideInReview .28s ease-out' }}>
+              <div>
+                <div className="relative overflow-hidden px-5 pb-6 pt-8 text-white">
+                  <div className="absolute inset-0 bg-[#2b1d4e]" />
+                  <div className="absolute inset-0 bg-[#3c2a68] [clip-path:polygon(30%_0,100%_0,100%_100%,60%_100%)]" />
+                  <div className="absolute inset-0 bg-[#1f1438] [clip-path:polygon(55%_0,100%_0,100%_60%)]" />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProof(null)}
+                    className="absolute right-4 top-4 z-10 rounded-xl bg-white/12 px-3 py-2 text-xs font-black uppercase text-white hover:bg-white/20"
+                  >
+                    Close
                   </button>
+                  <div className="relative z-10 flex flex-col items-center text-center">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/40 bg-white/10 text-lg font-black uppercase backdrop-blur-sm">
+                      {selectedProof.studentName
+                        ?.split(' ')
+                        .map((part) => part[0])
+                        .slice(0, 2)
+                        .join('')}
+                    </div>
+                    <p className="mt-3 text-[10px] font-black uppercase tracking-[0.28em] text-purple-100">Payment Approval</p>
+                    <h3 className="mt-1 text-xl font-black leading-tight">{selectedProof.studentName}</h3>
+                    <p className="mt-1 text-xs font-semibold text-purple-100">{getPaymentOptionLabel(selectedProof.termId, settings) || selectedProof.termId}</p>
+                  </div>
                 </div>
 
                 <div className="p-5">
-                  <p className="mb-4 text-xs font-black uppercase tracking-[0.25em] text-purple-700">Review Payment</p>
+                  <div className="mb-5 grid grid-cols-[1fr_auto_1fr] gap-4">
+                    <div className="space-y-3">
+                      {[
+                        { label: 'Student Name', value: selectedStudent?.name || selectedProof.studentName, icon: User },
+                        { label: 'Level / Class', value: selectedStudent?.assignedClass || selectedStudent?.level || selectedStudent?.grade || selectedProof.studentClass || '-', icon: GraduationCap },
+                        { label: 'Parent / Guardian', value: selectedStudent?.parentName || selectedProof.parentName || '-', icon: Users },
+                        { label: 'Student ID', value: selectedStudent?.id || selectedProof.studentId, icon: Hash },
+                      ].map(({ label, value, icon: Icon }) => (
+                        <div key={label} className="flex items-center gap-3 rounded-2xl border border-[#2b1d4e]/15 bg-[#2b1d4e]/[0.06] px-3 py-2.5">
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3c2a68] text-white">
+                            <Icon size={14} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#2b1d4e]">{label}</p>
+                            <p className="truncate text-sm font-black text-slate-900">{value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="w-px bg-[#2b1d4e]/15" />
+
+                    <div className="space-y-3">
+                      {[
+                        { label: 'Claimed Amount', value: selectedProof.amountClaimed || '-', icon: Wallet },
+                        { label: 'Submitted', value: fmtDate(selectedProof.submittedAt), icon: Clock },
+                      ].map(({ label, value, icon: Icon }) => (
+                        <div key={label} className="flex items-center gap-3 rounded-2xl border border-[#2b1d4e]/15 bg-[#2b1d4e]/[0.06] px-3 py-2.5">
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3c2a68] text-white">
+                            <Icon size={14} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#2b1d4e]">{label}</p>
+                            <p className="truncate text-sm font-black text-slate-900">{value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setExpandedProof(selectedProof)}
+                    className="mb-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white text-sm font-black text-purple-700 hover:bg-purple-50"
+                  >
+                    <ImageIcon size={16} /> View receipt image
+                  </button>
+
+                  <p className="mb-4 text-xs font-black uppercase tracking-[0.25em] text-purple-700">Confirm Details</p>
                   <div className="space-y-4">
                     <StudentSearchBox
                       label="Search student"
@@ -527,7 +598,13 @@ This receipt is available in the parent portal.`;
 
                     <div className="flex gap-3 pt-2">
                       <button disabled={busy || !selectedStudent || !reviewAmount || !reviewTermId} onClick={handleApprove} className="flex-1 h-12 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/15">
-                        <CheckCircle2 size={18} /> Approve & create receipt
+                        {busy ? (
+                          <span className="h-5 w-5 rounded-full border-2 border-white/40 border-t-white animate-spin" aria-label="Approving" />
+                        ) : (
+                          <>
+                            <CheckCircle2 size={18} /> Approve & create receipt
+                          </>
+                        )}
                       </button>
                       <button disabled={busy} onClick={handleReject} className="px-5 h-12 rounded-xl border border-red-200 bg-red-50 text-red-600 text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2">
                         <XCircle size={18} /> Reject
@@ -536,25 +613,25 @@ This receipt is available in the parent portal.`;
                   </div>
                 </div>
               </div>
-            )}
           </div>
+          )}
         </div>
       )}
 
       {activeTab === 'ADD' && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 max-w-5xl">
-          <div className="flex items-start gap-3 mb-6">
-            <div className="h-11 w-11 rounded-xl bg-coha-900 text-white flex items-center justify-center">
-              <CreditCard size={20} />
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-5">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#2E1065] text-white">
+                <CreditCard size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Add Office Payment</h3>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">Search the student, enter the amount, then process the receipt.</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xl font-black text-gray-900">Add Office Payment</h3>
-              <p className="text-sm text-gray-500 mt-1">Search the student, enter the amount, choose fees or another payment type, then process the receipt.</p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="space-y-4">
+            <div className="space-y-5 p-6">
               <StudentSearchBox
                 label="Search student"
                 value={manualSearch}
@@ -563,28 +640,25 @@ This receipt is available in the parent portal.`;
                 selectedStudent={manualStudent}
                 onSelect={selectManualStudent}
               />
-              <PaymentStudentCard student={manualStudent} />
-            </div>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Payment Type</label>
-                  <select value={manualCategory} onChange={(e) => setManualCategory(e.target.value as PaymentCategory)} className="mt-2 w-full h-11 border border-gray-200 rounded-xl px-3 text-sm">
+                  <label className="text-xs font-black uppercase tracking-[0.2em] text-black">Payment Type</label>
+                  <select value={manualCategory} onChange={(e) => setManualCategory(e.target.value as PaymentCategory)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-purple-400">
                     <option value="FEES">School Fees</option>
                     <option value="OTHER">Other Payment</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Amount Paid</label>
-                  <input value={manualAmount} onChange={(e) => setManualAmount(e.target.value)} className="mt-2 w-full h-11 border border-gray-200 rounded-xl px-3 text-sm" placeholder="Enter amount" />
+                  <label className="text-xs font-black uppercase tracking-[0.2em] text-black">Amount Paid</label>
+                  <input value={manualAmount} onChange={(e) => setManualAmount(e.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-purple-400" placeholder="Enter amount" />
                 </div>
               </div>
 
               {manualCategory === 'FEES' ? (
                 <div>
-                  <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Term / Fee</label>
-                  <select value={manualTermId} onChange={(e) => setManualTermId(e.target.value)} className="mt-2 w-full h-11 border border-gray-200 rounded-xl px-3 text-sm">
+                  <label className="text-xs font-black uppercase tracking-[0.2em] text-black">Term / Fee</label>
+                  <select value={manualTermId} onChange={(e) => setManualTermId(e.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-purple-400">
                     {paymentOptions.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
@@ -592,18 +666,70 @@ This receipt is available in the parent portal.`;
                 </div>
               ) : (
                 <div>
-                  <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Other Payment For</label>
-                  <input value={manualOtherLabel} onChange={(e) => setManualOtherLabel(e.target.value)} className="mt-2 w-full h-11 border border-gray-200 rounded-xl px-3 text-sm" placeholder="Uniform, stationery, transport..." />
+                  <label className="text-xs font-black uppercase tracking-[0.2em] text-black">Other Payment For</label>
+                  <input value={manualOtherLabel} onChange={(e) => setManualOtherLabel(e.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-purple-400" placeholder="Uniform, stationery, transport..." />
                 </div>
               )}
 
               <div>
-                <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Notes</label>
-                <textarea value={manualNotes} onChange={(e) => setManualNotes(e.target.value)} rows={4} className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-3 text-sm" placeholder="Optional receipt note" />
+                <label className="text-xs font-black uppercase tracking-[0.2em] text-black">Notes</label>
+                <textarea value={manualNotes} onChange={(e) => setManualNotes(e.target.value)} rows={4} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold outline-none focus:border-purple-400" placeholder="Optional receipt note" />
               </div>
+            </div>
+          </div>
 
-              <button disabled={busy || !manualStudent || !manualAmount} onClick={handleManualPayment} className="w-full h-12 rounded-xl bg-coha-900 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center justify-center gap-2">
-                <ReceiptText size={18} /> Process Payment & Create Receipt
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="mb-3 text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Student</p>
+              {manualStudent ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[#2E1065] text-sm font-black uppercase text-white">
+                    {manualStudent.name?.split(' ').map((part) => part[0]).slice(0, 2).join('')}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-slate-900">{manualStudent.name}</p>
+                    <p className="truncate text-xs font-semibold text-slate-500">{manualStudent.assignedClass || manualStudent.grade || manualStudent.level || '-'}</p>
+                    <p className="truncate text-xs font-semibold text-slate-400">{manualStudent.parentName || 'Parent / Guardian'}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs font-semibold text-slate-400">
+                  Search and select a student to see their details here.
+                </div>
+              )}
+            </div>
+
+            <div className="overflow-hidden rounded-2xl shadow-sm">
+              <div className="bg-gradient-to-br from-[#2E1065] to-[#4c2889] p-5 text-white">
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-200">Amount to Record</p>
+                <p className="mt-2 text-3xl font-black">
+                  {manualAmount ? fmtMoney(parseFloat(manualAmount) || 0) : 'N$ 0.00'}
+                </p>
+                <div className="mt-4 space-y-1.5 border-t border-white/15 pt-4 text-xs font-semibold text-purple-100">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Payment for</span>
+                    <span className="truncate text-right text-white">
+                      {manualCategory === 'FEES' ? (getPaymentOptionLabel(manualTermId, settings) || 'School Fees') : (manualOtherLabel || 'Other payment')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Recorded by</span>
+                    <span className="truncate text-right text-white">{user?.name || 'Admin'}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                disabled={busy || !manualStudent || !manualAmount}
+                onClick={handleManualPayment}
+                className="inline-flex h-14 w-full items-center justify-center gap-2 bg-slate-900 text-sm font-black text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busy ? (
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : (
+                  <>
+                    <ReceiptText size={18} /> Process Payment & Create Receipt
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -624,35 +750,37 @@ This receipt is available in the parent portal.`;
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-50 text-gray-500 text-[10px] font-black uppercase tracking-widest">
+            <table className="apps-table">
+              <thead>
                 <tr>
-                  <th className="px-5 py-4">Receipt</th>
-                  <th className="px-5 py-4">Student</th>
-                  <th className="px-5 py-4">Payment For</th>
-                  <th className="px-5 py-4">Date</th>
-                  <th className="px-5 py-4">By</th>
-                  <th className="px-5 py-4 text-right">Amount</th>
-                  <th className="px-5 py-4 text-right">Action</th>
+                  <TableHeaderCell icon={Hash}>Receipt</TableHeaderCell>
+                  <TableHeaderCell icon={User}>Student</TableHeaderCell>
+                  <TableHeaderCell icon={ReceiptText}>Payment For</TableHeaderCell>
+                  <TableHeaderCell icon={CalendarDays}>Date</TableHeaderCell>
+                  <TableHeaderCell icon={User}>By</TableHeaderCell>
+                  <TableHeaderCell icon={CreditCard} className="text-right">Amount</TableHeaderCell>
+                  <TableHeaderCell icon={MousePointerClick} className="text-right">Action</TableHeaderCell>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredReceipts.map((receipt) => (
-                  <tr key={receipt.id || receipt.number} className="hover:bg-gray-50">
-                    <td className="px-5 py-4 font-mono text-sm font-black text-coha-900">{receipt.number}</td>
-                    <td className="px-5 py-4">
+              <tbody>
+                {loading ? (
+                  <TableSkeletonRows rows={10} columns={7} />
+                ) : filteredReceipts.map((receipt) => (
+                  <tr key={receipt.id || receipt.number}>
+                    <td className="apps-id">{receipt.number}</td>
+                    <td>
                       <p className="font-bold text-gray-900">{receipt.studentName || receipt.usedByStudentId || '-'}</p>
                       <p className="text-xs text-gray-500">{receipt.studentClass || '-'}</p>
                     </td>
-                    <td className="px-5 py-4">
+                    <td>
                       <span className={`inline-flex px-2 py-1 rounded-lg text-[10px] font-black uppercase ${receipt.paymentCategory === 'OTHER' ? 'bg-purple-50 text-purple-700' : 'bg-green-50 text-green-700'}`}>
                         {getReceiptLabel(receipt)}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-xs font-semibold text-gray-500">{fmtDate(receipt.generatedAt || receipt.createdAt || receipt.date)}</td>
-                    <td className="px-5 py-4 text-sm text-gray-600">{receipt.generatedBy || '-'}</td>
-                    <td className="px-5 py-4 text-right font-black text-gray-900">{fmtMoney(parseFloat(receipt.amount || '0'))}</td>
-                    <td className="px-5 py-4 text-right">
+                    <td className="text-xs font-semibold text-gray-500">{fmtDate(receipt.generatedAt || receipt.createdAt || receipt.date)}</td>
+                    <td className="text-sm text-gray-600">{receipt.generatedBy || '-'}</td>
+                    <td className="text-right font-black text-gray-900">{fmtMoney(parseFloat(receipt.amount || '0'))}</td>
+                    <td className="text-right">
                       <button
                         onClick={() => handleViewReceipt(receipt)}
                         disabled={busy}
@@ -663,7 +791,7 @@ This receipt is available in the parent portal.`;
                     </td>
                   </tr>
                 ))}
-                {filteredReceipts.length === 0 && (
+                {!loading && filteredReceipts.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-500">No receipts found.</td>
                   </tr>
@@ -707,7 +835,7 @@ This receipt is available in the parent portal.`;
         </div>
       )}
     </div>
-    </div>
+    </ApplicationWorkspace>
   );
 };
 
@@ -720,7 +848,7 @@ const StudentSearchBox: React.FC<{
   onSelect: (student: Student) => void;
 }> = ({ label, value, onChange, results, selectedStudent, onSelect }) => (
   <div>
-    <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">{label}</label>
+    <label className="text-xs font-black uppercase tracking-[0.2em] text-black">{label}</label>
     <div className="mt-2 relative">
       <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
       <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full h-11 border border-gray-200 rounded-xl pl-10 pr-3 text-sm" placeholder="Search student name" />

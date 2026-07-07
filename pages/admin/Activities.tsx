@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, CalendarDays, Download, RefreshCw, Search } from 'lucide-react';
+import { Activity, BadgeCheck, CalendarDays, Download, FileText, RefreshCw, Search, User } from 'lucide-react';
 import { getActivityLogs, getSystemSettings } from '../../services/dataService';
 import { ActivityLog, SystemSettings } from '../../types';
-import { Loader } from '../../components/ui/Loader';
 import { printActivityReport } from '../../utils/printActivityReport';
+import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePrimitives';
 
 type ActivityFilter = 'TODAY' | 'CUSTOM' | 'WEEK' | 'MONTH' | 'TERM';
 
@@ -106,8 +106,6 @@ export const ActivitiesPage: React.FC = () => {
     });
   }, [logs, filterRange, search]);
 
-  if (loading) return <Loader />;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
@@ -191,18 +189,20 @@ export const ActivitiesPage: React.FC = () => {
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-gray-50 text-gray-500 text-[10px] font-black uppercase tracking-widest">
+            <thead>
               <tr>
-                <th className="px-5 py-4">Action Time</th>
-                <th className="px-5 py-4">User</th>
-                <th className="px-5 py-4">Role</th>
-                <th className="px-5 py-4">Category</th>
-                <th className="px-5 py-4">Action</th>
-                <th className="px-5 py-4">Details</th>
+                <TableHeaderCell icon={CalendarDays}>Action Time</TableHeaderCell>
+                <TableHeaderCell icon={User}>User</TableHeaderCell>
+                <TableHeaderCell icon={BadgeCheck}>Role</TableHeaderCell>
+                <TableHeaderCell icon={Activity}>Category</TableHeaderCell>
+                <TableHeaderCell icon={FileText}>Action</TableHeaderCell>
+                <TableHeaderCell icon={FileText}>Details</TableHeaderCell>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredLogs.map((log) => (
+              {loading ? (
+                <TableSkeletonRows rows={10} columns={6} />
+              ) : filteredLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50 align-top">
                   <td className="px-5 py-4 text-xs font-semibold text-gray-600 whitespace-nowrap">{formatDateTime(log.createdAt)}</td>
                   <td className="px-5 py-4">
@@ -219,7 +219,7 @@ export const ActivitiesPage: React.FC = () => {
                   <td className="px-5 py-4 text-sm text-gray-600 min-w-[280px]">{log.details || '-'}</td>
                 </tr>
               ))}
-              {filteredLogs.length === 0 && (
+              {!loading && filteredLogs.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-500">No activities found for this filter.</td>
                 </tr>

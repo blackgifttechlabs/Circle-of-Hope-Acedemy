@@ -62,6 +62,7 @@ import { getAdminProfile, logoutAuthSession } from './services/dataService';
 import { Toast } from './components/ui/Toast';
 import { InactivityLock } from './components/InactivityLock';
 import { AdminAssistant } from './components/AdminAssistant';
+import { AdminPageHeader } from './components/admin/AdminPageHeader';
 import { isGrade1To7Class } from './utils/assessmentWorkflow';
 import { getSelectedTeachingClass } from './utils/teacherClassSelection';
 import { getFriendlyErrorMessage } from './utils/friendlyErrors';
@@ -88,7 +89,10 @@ const AppLayout: React.FC<{
         />
       </div>
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        <main className="flex-1 px-[10px] py-5 sm:p-5 overflow-y-auto">
+        {role === UserRole.ADMIN && (
+          <AdminPageHeader user={user} onMenuClick={() => setSidebarOpen(true)} />
+        )}
+        <main className={`flex-1 overflow-y-auto ${role === UserRole.ADMIN ? 'px-[10px] pb-5 pt-0 sm:px-5 sm:pb-5 sm:pt-0' : 'px-[10px] py-5 sm:p-5'}`}>
           {children}
         </main>
         {role === UserRole.ADMIN && (

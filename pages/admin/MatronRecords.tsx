@@ -6,16 +6,16 @@ import {
   getDismissedAlerts
 } from '../../services/dataService';
 import { Student, MatronLog, Matron, SystemSettings, StudentMedication, MedicationAdministration, HomeworkSubmission, HomeworkAssignment } from '../../types';
-import { Loader } from '../../components/ui/Loader';
 import {
   AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Download,
-  FileText, Printer, User, Filter, Clock, BookOpen, HeartPulse, Search, Activity, X as XIcon
+  FileText, Printer, User, Filter, Clock, BookOpen, HeartPulse, Search, Activity, X as XIcon, MousePointerClick
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePrimitives';
 
 const buildMatronAlerts = (
   students: Student[],
@@ -470,8 +470,6 @@ export const MatronRecords: React.FC = () => {
     };
   };
 
-  if (loading) return <Loader />;
-
   return (
     <div className="p-6 bg-slate-50 min-h-screen font-sans">
       <style>{`
@@ -587,17 +585,19 @@ export const MatronRecords: React.FC = () => {
       <div className="bg-white rounded-[10px] shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full min-w-[920px] text-left border-separate border-spacing-0">
-          <thead className="bg-coha-900 text-white border-b border-coha-900">
+          <thead>
             <tr>
-              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Student & Room</th>
-              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Medication</th>
-              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Homework</th>
-              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Recent Log</th>
-              <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right">Activity</th>
+              <TableHeaderCell icon={User}>Student & Room</TableHeaderCell>
+              <TableHeaderCell icon={HeartPulse}>Medication</TableHeaderCell>
+              <TableHeaderCell icon={BookOpen}>Homework</TableHeaderCell>
+              <TableHeaderCell icon={FileText}>Recent Log</TableHeaderCell>
+              <TableHeaderCell icon={MousePointerClick} className="text-right">Activity</TableHeaderCell>
             </tr>
           </thead>
           <tbody>
-            {filteredStudents.map((student, index) => {
+            {loading ? (
+              <TableSkeletonRows rows={10} columns={5} />
+            ) : filteredStudents.map((student, index) => {
               const compliance = getCompliance(student.id);
               const logs = studentLogs[student.id] || [];
               const lastLog = logs[0];
