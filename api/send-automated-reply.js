@@ -387,11 +387,13 @@ export default async function handler(req, res) {
 
   try {
     getAdminApp();
-    await verifyAdminRequest(req);
 
     const { applicationId, applicationType = 'STUDENT', replyType = 'APPLICATION_APPROVED', pin, studentId, portalUrl } = req.body || {};
     if (!applicationId || applicationType !== 'STUDENT' || !['APPLICATION_RECEIVED', 'APPLICATION_APPROVED'].includes(replyType)) {
       return res.status(400).json({ success: false, message: 'Unsupported automated reply request.' });
+    }
+    if (replyType === 'APPLICATION_APPROVED') {
+      await verifyAdminRequest(req);
     }
 
     const db = admin.firestore();
@@ -407,6 +409,9 @@ export default async function handler(req, res) {
     }
 
     const app = { id: applicationSnap.id, ...applicationSnap.data() };
+    if (replyType === 'APPLICATION_RECEIVED' && app.status !== 'PENDING') {
+      return res.status(400).json({ success: false, message: 'Application received replies are only sent for pending applications.' });
+    }
     const recipientEmail = getParentEmail(app);
     const recipientName = getParentName(app);
     const learnerName = getLearnerName(app);

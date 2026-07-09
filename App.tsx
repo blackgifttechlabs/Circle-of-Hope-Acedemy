@@ -123,8 +123,8 @@ const AppLayout: React.FC<{
             <div className="pointer-events-auto rounded-[8px] border border-emerald-200 bg-white px-4 py-3 shadow-[0_18px_45px_rgba(15,23,42,0.18)]">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-black text-slate-950">Auto Replying approved application</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">The approval email with portal details is being sent and logged.</p>
+                  <p className="text-sm font-black text-slate-950">Auto Replying application</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">An automated application email is being sent and logged.</p>
                 </div>
                 <button
                   onClick={() => setAutoReplyNoticeVisible(false)}

@@ -252,7 +252,7 @@ service cloud.firestore {
     }
 
     match /automated_replies/{replyId} {
-      allow read: if isAnyAdmin();
+      allow get, list: if isAnyAdmin();
       allow create, update, delete: if false;
     }
 

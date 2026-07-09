@@ -2318,6 +2318,25 @@ export const submitApplication = async (applicationData: Partial<Application>) =
       status: 'PENDING',
       submissionDate: Timestamp.now()
     });
+
+    if (typeof window !== 'undefined') {
+      const noticePayload = JSON.stringify({ applicationId: docRef.id, replyType: 'APPLICATION_RECEIVED', createdAt: Date.now() });
+      window.dispatchEvent(new CustomEvent('coha-automated-reply-started', { detail: { applicationId: docRef.id, replyType: 'APPLICATION_RECEIVED' } }));
+      localStorage.setItem('coha_automated_reply_started', noticePayload);
+    }
+
+    fetch('/api/send-automated-reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        applicationId: docRef.id,
+        applicationType: 'STUDENT',
+        replyType: 'APPLICATION_RECEIVED',
+      }),
+    }).catch((error) => {
+      console.error('Automated application received reply request failed:', error);
+    });
+
     return true;
   } catch (error) {
     console.error("Error submitting application:", error);
