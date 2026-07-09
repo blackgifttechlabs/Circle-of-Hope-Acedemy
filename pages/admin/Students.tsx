@@ -10,10 +10,12 @@ import {
   transferStudentToTeacherAndClass,
 } from '../../services/dataService';
 import { Student, SystemSettings, Division, Teacher } from '../../types';
-import { Search, Eye, Download, Filter, Key, Repeat, UserPlus, Users, Home, UserCheck, Hash, GraduationCap, BadgeCheck, MousePointerClick } from 'lucide-react';
+import { Search, Eye, Download, Filter, Key, Repeat, UserPlus, Users, Home, UserCheck, Hash, GraduationCap, BadgeCheck, MousePointerClick, Mail } from 'lucide-react';
 import { Toast } from '../../components/ui/Toast';
 import { printStudentList } from '../../utils/printStudentList';
 import { getTeacherAssignedClasses } from '../../utils/teacherClassSelection';
+import { getStudentParentEmail } from '../../utils/admissionMessaging';
+import { openGmailDraft } from '../../utils/emailDrafts';
 import {
   STUDENT_FIRST_NAME_SUGGESTIONS,
   STUDENT_GENDER_SUGGESTIONS,
@@ -315,6 +317,47 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
     setTransferTeacherId(student.assignedTeacherId || '');
   };
 
+  const buildRegistrationPaymentDraft = (student: Student) => {
+    const studentName = student.name || 'the student';
+    const portalUrl = `${window.location.origin}/login`;
+    const subject = 'Registration Payment Proof Required';
+    const body = `Dear Parent/Guardian,
+
+Your child, ${studentName}, has been added to the Circle of Hope Academy parent portal.
+
+Please log in again and upload proof of registration payment so that we can verify the payment and complete the enrolment process.
+
+Login instructions:
+
+1. Go to the Circle of Hope Academy portal: ${portalUrl}
+2. Select Parent login.
+3. Search for ${studentName}.
+4. Select the student profile.
+5. Enter PIN: ${student.parentPin || 'provided by the school'}.
+6. Open the payment section and upload the proof of registration payment.
+
+Once submitted, our administration team will review the proof and proceed with the next enrolment step.
+
+Kind regards,
+Circle of Hope Academy`;
+
+    return { subject, body };
+  };
+
+  const openRegistrationPaymentDraft = async (student: Student) => {
+    const draft = buildRegistrationPaymentDraft(student);
+    const parentEmail = getStudentParentEmail(student);
+
+    if (parentEmail) {
+      openGmailDraft({ to: parentEmail, ...draft });
+      setToast({ show: true, msg: `Email draft opened for ${student.name}.` });
+      return;
+    }
+
+    await navigator.clipboard?.writeText(`Subject: ${draft.subject}\n\n${draft.body}`);
+    setToast({ show: true, msg: `Draft copied. No parent email is saved for ${student.name}.` });
+  };
+
   const handleTransfer = async () => {
     if (!transferStudent || !transferClass || !transferTeacherId) return;
     setLoading(true);
@@ -585,6 +628,12 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                                   className="text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-500 hover:text-white font-black text-xs uppercase tracking-widest flex items-center gap-1 rounded-[8px] px-3 py-2 transition-all"
                                 >
                                   <Eye size={16} /> Payments
+                                </button>
+                                <button
+                                  onClick={() => openRegistrationPaymentDraft(student)}
+                                  className="text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-600 hover:text-white font-black text-xs uppercase tracking-widest flex items-center gap-1 rounded-[8px] px-3 py-2 transition-all"
+                                >
+                                  <Mail size={16} /> Resend Draft
                                 </button>
                               </>
                           ) : (
