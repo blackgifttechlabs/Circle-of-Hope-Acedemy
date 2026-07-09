@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getApplicationById, updateApplication, getSystemSettings, approveApplicationInitial } from '../../services/dataService';
+import { getApplicationById, updateApplication, getSystemSettings, approveApplicationInitial, sendAutomatedApplicationReply } from '../../services/dataService';
 import { Application, SystemSettings } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Loader } from '../../components/ui/Loader';
@@ -102,6 +102,18 @@ export const ApplicationDetailsPage: React.FC = () => {
         setApp({ ...app, ...updatedData });
         setApprovalDraft(result);
         setReplyType('email');
+        const noticePayload = JSON.stringify({ applicationId: id, createdAt: Date.now() });
+        window.dispatchEvent(new CustomEvent('coha-automated-reply-started', { detail: { applicationId: id } }));
+        localStorage.setItem('coha_automated_reply_started', noticePayload);
+        sendAutomatedApplicationReply({
+            applicationId: id,
+            pin: result.pin,
+            studentId: result.studentId,
+            portalUrl,
+        }).catch((error) => {
+          console.error('Automated approval reply request failed:', error);
+          setToast({ msg: 'Approved, but the automated email could not be started.', show: true, type: 'error' });
+        });
         setApprovalModalOpen(true);
     } catch (error) {
         console.error("Error approving:", error);

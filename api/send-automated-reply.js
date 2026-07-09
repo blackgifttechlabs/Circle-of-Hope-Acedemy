@@ -49,6 +49,12 @@ const getParentName = (app) => app.fatherName || app.motherName || 'Parent / Gua
 const getLearnerName = (app) => `${app.firstName || ''} ${app.surname || ''}`.trim() || 'the learner';
 const getLearnerClass = (app) => app.grade || app.level || 'Assigned class pending';
 const getParentEmail = (app) => app.fatherEmail || app.motherEmail || app.emergencyEmail || '';
+const getPortalLoginUrl = (req) => {
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto || 'https';
+  const host = req.headers.host || process.env.APP_PUBLIC_URL?.replace(/^https?:\/\//, '') || '';
+  return `${proto}://${host}/login`;
+};
 
 const buildApplicationReceivedEmailText = (app, schoolName) => `Dear ${getParentName(app)},
 
@@ -205,6 +211,133 @@ const buildApplicationReceivedEmailHtml = (app, schoolName) => {
   </div>`;
 };
 
+const buildApplicationApprovalEmailText = (app, schoolName, pin, studentId, portalUrl) => `Dear ${getParentName(app)},
+
+The application for ${getLearnerName(app)} has been approved in principle by ${schoolName}.
+
+Parent portal login details
+- Learner: ${getLearnerName(app)}
+- Student ID: ${studentId}
+- Parent PIN: ${pin}
+- Class Applied: ${getLearnerClass(app)}
+- Portal Link: ${portalUrl}
+
+How to log in
+1. Open the portal link.
+2. Choose the Parent login option.
+3. Search for the learner name "${getLearnerName(app)}" or student ID "${studentId}".
+4. Click the learner name from the search results.
+5. Enter the parent PIN ${pin}.
+6. Upload the registration fee proof of payment from the dashboard.
+
+Support contacts
+- Email: ${SCHOOL_CONTACTS.email}
+- Payment queries: ${SCHOOL_CONTACTS.paymentEmail}
+- Phones: ${SCHOOL_CONTACTS.phonePrimary} / ${SCHOOL_CONTACTS.phoneSecondary}
+- Address: ${SCHOOL_CONTACTS.address}
+- Postal: ${SCHOOL_CONTACTS.postal}
+
+Kind regards,
+Admissions Office
+${schoolName}`;
+
+const buildApplicationApprovalEmailHtml = (app, schoolName, pin, studentId, portalUrl) => {
+  const parentName = escapeHtml(getParentName(app));
+  const learnerName = escapeHtml(getLearnerName(app));
+  const learnerClass = escapeHtml(getLearnerClass(app));
+  const safePin = escapeHtml(pin);
+  const safeStudentId = escapeHtml(studentId);
+  const safePortalUrl = escapeHtml(portalUrl);
+
+  return `
+  <div style="margin:0;padding:0;background:#eef6ff;font-family:Arial,Helvetica,sans-serif;color:#102033;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#eef6ff;">
+      <tr>
+        <td align="center" style="padding:34px 14px;">
+          <table role="presentation" width="720" cellspacing="0" cellpadding="0" style="width:720px;max-width:100%;border-collapse:collapse;background:#ffffff;border:1px solid #d8e8f8;box-shadow:0 18px 48px rgba(24,28,84,0.14);">
+            <tr>
+              <td style="background:#181c54;padding:28px 30px;color:#ffffff;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+                  <tr>
+                    <td width="92" style="vertical-align:top;">
+                      <div style="background:#ffffff;border-radius:18px;padding:10px;width:72px;height:72px;">
+                        <img src="${SCHOOL_LOGO_URL}" width="52" height="52" alt="${escapeHtml(schoolName)} logo" style="display:block;width:52px;height:52px;border:0;" />
+                      </div>
+                    </td>
+                    <td style="vertical-align:middle;">
+                      <div style="font-size:11px;font-weight:800;letter-spacing:0.24em;text-transform:uppercase;color:#9fd3ff;">Admissions Office</div>
+                      <div style="font-size:28px;font-weight:900;line-height:1.12;margin-top:7px;">Application approved</div>
+                      <div style="font-size:14px;line-height:1.6;color:#dbeafe;margin-top:8px;">Parent portal access and registration payment instructions for ${learnerName}.</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr><td style="height:6px;background:#70c8ff;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+            <tr>
+              <td style="padding:30px 30px 10px;background:#ffffff;">
+                <p style="margin:0 0 14px;font-size:16px;line-height:1.7;color:#102033;">Dear ${parentName},</p>
+                <p style="margin:0;font-size:15px;line-height:1.8;color:#334155;">
+                  We are pleased to inform you that the application for <strong style="color:#181c54;">${learnerName}</strong> has been approved in principle. Please log in to the parent portal and upload proof of registration payment so enrolment can continue.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:18px 30px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f4fbff;border:1px solid #cfe8ff;">
+                  <tr><td colspan="2" style="padding:18px 20px 8px;font-size:12px;font-weight:900;letter-spacing:0.18em;text-transform:uppercase;color:#1d4ed8;">Parent Portal Details</td></tr>
+                  <tr><td style="padding:10px 20px;border-top:1px solid #d9edf9;font-size:12px;font-weight:800;text-transform:uppercase;color:#64748b;width:36%;">Learner</td><td style="padding:10px 20px;border-top:1px solid #d9edf9;font-size:15px;font-weight:800;color:#0f172a;">${learnerName}</td></tr>
+                  <tr><td style="padding:10px 20px;border-top:1px solid #d9edf9;font-size:12px;font-weight:800;text-transform:uppercase;color:#64748b;">Student ID</td><td style="padding:10px 20px;border-top:1px solid #d9edf9;font-size:15px;font-weight:800;color:#0f172a;">${safeStudentId}</td></tr>
+                  <tr><td style="padding:10px 20px;border-top:1px solid #d9edf9;font-size:12px;font-weight:800;text-transform:uppercase;color:#64748b;">Parent PIN</td><td style="padding:10px 20px;border-top:1px solid #d9edf9;font-size:22px;font-weight:900;letter-spacing:0.24em;color:#181c54;">${safePin}</td></tr>
+                  <tr><td style="padding:10px 20px;border-top:1px solid #d9edf9;font-size:12px;font-weight:800;text-transform:uppercase;color:#64748b;">Class</td><td style="padding:10px 20px;border-top:1px solid #d9edf9;font-size:15px;font-weight:800;color:#0f172a;">${learnerClass}</td></tr>
+                  <tr><td style="padding:10px 20px;border-top:1px solid #d9edf9;font-size:12px;font-weight:800;text-transform:uppercase;color:#64748b;">Portal Link</td><td style="padding:10px 20px;border-top:1px solid #d9edf9;font-size:15px;font-weight:800;"><a href="${safePortalUrl}" style="color:#1d4ed8;text-decoration:none;">${safePortalUrl}</a></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:4px 30px 26px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #e2e8f0;">
+                  <tr><td style="padding:18px 20px;">
+                    <div style="font-size:12px;font-weight:900;letter-spacing:0.18em;text-transform:uppercase;color:#181c54;margin-bottom:10px;">How to continue</div>
+                    <div style="font-size:14px;line-height:1.8;color:#334155;">
+                      1. Open the parent portal link above.<br />
+                      2. Select <strong>Parent</strong> login.<br />
+                      3. Search for <strong>${learnerName}</strong> or student ID <strong>${safeStudentId}</strong>.<br />
+                      4. Enter PIN <strong>${safePin}</strong>.<br />
+                      5. Upload proof of registration payment from the payment section.
+                    </div>
+                  </td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:24px 30px;background:#f8fbff;border-top:1px solid #dbeafe;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+                  <tr>
+                    <td style="vertical-align:top;">
+                      <div style="font-size:12px;font-weight:900;letter-spacing:0.16em;text-transform:uppercase;color:#1d4ed8;margin-bottom:8px;">School Details</div>
+                      <div style="font-size:14px;line-height:1.8;color:#334155;"><strong style="color:#181c54;">${escapeHtml(schoolName)}</strong><br />${escapeHtml(SCHOOL_CONTACTS.address)}<br />${escapeHtml(SCHOOL_CONTACTS.postal)}</div>
+                    </td>
+                    <td style="vertical-align:top;text-align:right;">
+                      <div style="font-size:12px;font-weight:900;letter-spacing:0.16em;text-transform:uppercase;color:#1d4ed8;margin-bottom:8px;">Contact</div>
+                      <div style="font-size:14px;line-height:1.8;color:#334155;">${SCHOOL_CONTACTS.phonePrimary}<br />${SCHOOL_CONTACTS.phoneSecondary}<br /><a href="mailto:${SCHOOL_CONTACTS.email}" style="color:#181c54;text-decoration:none;font-weight:800;">${SCHOOL_CONTACTS.email}</a><br /><span style="color:#64748b;">${SCHOOL_CONTACTS.website}</span></div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr><td style="padding:18px 30px;background:#181c54;text-align:center;"><div style="font-size:12px;line-height:1.6;color:#dbeafe;">This automated approval email was sent by ${escapeHtml(schoolName)} Admissions Office.</div></td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>`;
+};
+
 const getTransporter = () => {
   const host = process.env.MAIL_SMTP_HOST;
   const port = parseInt(process.env.MAIL_SMTP_PORT || '587', 10);
@@ -230,6 +363,21 @@ const writeReplyLog = async (id, data) => {
   }, { merge: true });
 };
 
+const verifyAdminRequest = async (req) => {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!token) throw Object.assign(new Error('Missing auth token.'), { statusCode: 401 });
+
+  const decoded = await admin.auth().verifyIdToken(token);
+  const isAdminEmail = decoded.email === 'admin@coha.com';
+  const isAdminRole = ['ADMIN', 'SUPER_ADMIN', 'SUB_ADMIN'].includes(decoded.role);
+  if (!isAdminEmail && !isAdminRole) {
+    throw Object.assign(new Error('Only admin users can send automated replies.'), { statusCode: 403 });
+  }
+
+  return decoded;
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -238,9 +386,10 @@ export default async function handler(req, res) {
 
   try {
     getAdminApp();
+    await verifyAdminRequest(req);
 
-    const { applicationId, applicationType = 'STUDENT', replyType = 'APPLICATION_RECEIVED' } = req.body || {};
-    if (!applicationId || applicationType !== 'STUDENT' || replyType !== 'APPLICATION_RECEIVED') {
+    const { applicationId, applicationType = 'STUDENT', replyType = 'APPLICATION_APPROVED', pin, studentId, portalUrl } = req.body || {};
+    if (!applicationId || applicationType !== 'STUDENT' || !['APPLICATION_RECEIVED', 'APPLICATION_APPROVED'].includes(replyType)) {
       return res.status(400).json({ success: false, message: 'Unsupported automated reply request.' });
     }
 
@@ -261,9 +410,21 @@ export default async function handler(req, res) {
     const recipientName = getParentName(app);
     const learnerName = getLearnerName(app);
     const schoolName = process.env.MAIL_SCHOOL_NAME || DEFAULT_SCHOOL_NAME;
-    const subject = `Application received for ${learnerName}`;
-    const bodyText = buildApplicationReceivedEmailText(app, schoolName);
-    const bodyHtml = buildApplicationReceivedEmailHtml(app, schoolName);
+    const resolvedStudentId = studentId || app.approvedStudentId || '';
+    const resolvedPin = pin || app.approvedParentPin || '';
+    const resolvedPortalUrl = portalUrl || getPortalLoginUrl(req);
+    if (replyType === 'APPLICATION_APPROVED' && (!resolvedStudentId || !resolvedPin)) {
+      return res.status(400).json({ success: false, message: 'Approved replies require a student ID and parent PIN.' });
+    }
+    const subject = replyType === 'APPLICATION_APPROVED'
+      ? `Conditional Admission Approval: ${learnerName} - ${schoolName}`
+      : `Application received for ${learnerName}`;
+    const bodyText = replyType === 'APPLICATION_APPROVED'
+      ? buildApplicationApprovalEmailText(app, schoolName, resolvedPin, resolvedStudentId, resolvedPortalUrl)
+      : buildApplicationReceivedEmailText(app, schoolName);
+    const bodyHtml = replyType === 'APPLICATION_APPROVED'
+      ? buildApplicationApprovalEmailHtml(app, schoolName, resolvedPin, resolvedStudentId, resolvedPortalUrl)
+      : buildApplicationReceivedEmailHtml(app, schoolName);
     const baseLog = {
       applicationId,
       applicationType,
@@ -308,8 +469,9 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, messageId: info.messageId || '' });
   } catch (error) {
     console.error('send-automated-reply failed:', error);
+    const statusCode = error.statusCode || 500;
     const { applicationId, applicationType = 'STUDENT', replyType = 'APPLICATION_RECEIVED' } = req.body || {};
-    if (applicationId && admin.apps.length) {
+    if (applicationId && admin.apps.length && statusCode >= 500) {
       await writeReplyLog(`${replyType}_${applicationId}`, {
         applicationId,
         applicationType,
@@ -324,6 +486,6 @@ export default async function handler(req, res) {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       }).catch((logError) => console.error('Could not log automated reply failure:', logError));
     }
-    return res.status(500).json({ success: false, message: error.message || 'Automated reply failed.' });
+    return res.status(statusCode).json({ success: false, message: error.message || 'Automated reply failed.' });
   }
 }

@@ -22,7 +22,6 @@ const HOMEWORK_ASSIGNMENTS_COLLECTION = 'homework_assignments';
 const HOMEWORK_SUBMISSIONS_COLLECTION = 'homework_submissions';
 const STUDENT_DOCUMENTS_COLLECTION = 'student_documents';
 const ACTIVITY_LOGS_COLLECTION = 'activity_logs';
-const AUTOMATED_REPLIES_COLLECTION = 'automated_replies';
 const MATRONS_COLLECTION = 'matrons';
 const STUDENT_MEDICATIONS_COLLECTION = 'student_medications';
 const MATRON_LOGS_COLLECTION = 'matron_logs';
@@ -1194,13 +1193,63 @@ export const getActivityLogs = async (maxResults = 1000): Promise<ActivityLog[]>
 
 export const getAutomatedReplyLogs = async (maxResults = 1000): Promise<AutomatedReplyLog[]> => {
     try {
-        const q = query(collection(db, AUTOMATED_REPLIES_COLLECTION), orderBy('createdAt', 'desc'), limit(maxResults));
-        const snap = await getDocs(q);
-        return snap.docs.map(d => ({ id: d.id, ...d.data() } as AutomatedReplyLog));
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) {
+            throw new Error('Missing admin Auth session.');
+        }
+
+        const response = await fetch(`/api/automated-replies?limit=${encodeURIComponent(String(maxResults))}`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        const result = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(result?.message || 'Could not fetch automated reply logs.');
+        }
+
+        return (result?.logs || []) as AutomatedReplyLog[];
     } catch (error) {
         console.error('Error fetching automated reply logs:', error);
         return [];
     }
+};
+
+export type AutomatedApplicationReplyPayload = {
+    applicationId: string;
+    applicationType?: 'STUDENT';
+    replyType?: 'APPLICATION_APPROVED';
+    pin: string;
+    studentId: string;
+    portalUrl: string;
+};
+
+export const sendAutomatedApplicationReply = async (payload: AutomatedApplicationReplyPayload) => {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) {
+        throw new Error('Missing admin Auth session.');
+    }
+
+    const response = await fetch('/api/send-automated-reply', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+            applicationType: 'STUDENT',
+            replyType: 'APPLICATION_APPROVED',
+            ...payload,
+        }),
+    });
+
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+        throw new Error(result?.message || 'Automated approval reply failed.');
+    }
+
+    return result;
 };
 
 export const addReceipt = async (number: string, amount: string, date: string) => {
@@ -2262,38 +2311,16 @@ export const submitApplication = async (applicationData: Partial<Application>) =
       docRef.id
     );
 
-	    await setDoc(docRef, {
-	      ...sanitizedData,
-	      division,
-	      level,
-	      grade: division === Division.MAINSTREAM ? (applicationData.grade || '') : '', 
-	      status: 'PENDING',
-	      submissionDate: Timestamp.now()
-	    });
-	    if (typeof window !== 'undefined') {
-	      const noticePayload = JSON.stringify({ applicationId: docRef.id, createdAt: Date.now() });
-	      window.dispatchEvent(new CustomEvent('coha-automated-reply-started', { detail: { applicationId: docRef.id } }));
-	      localStorage.setItem('coha_automated_reply_started', noticePayload);
-	    }
-	    fetch('/api/send-automated-reply', {
-	      method: 'POST',
-	      headers: { 'Content-Type': 'application/json' },
-	      body: JSON.stringify({
-	        applicationId: docRef.id,
-	        applicationType: 'STUDENT',
-	        replyType: 'APPLICATION_RECEIVED',
-	      }),
-	    })
-	      .then(() => {
-	        if (typeof window !== 'undefined') {
-	          window.dispatchEvent(new CustomEvent('coha-automated-reply-finished', { detail: { applicationId: docRef.id } }));
-	        }
-	      })
-	      .catch((error) => {
-	        console.error('Automated application reply request failed:', error);
-	      });
-	    return true;
-	  } catch (error) {
+    await setDoc(docRef, {
+      ...sanitizedData,
+      division,
+      level,
+      grade: division === Division.MAINSTREAM ? (applicationData.grade || '') : '', 
+      status: 'PENDING',
+      submissionDate: Timestamp.now()
+    });
+    return true;
+  } catch (error) {
     console.error("Error submitting application:", error);
     return false;
   }
