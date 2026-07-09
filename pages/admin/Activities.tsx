@@ -220,11 +220,7 @@ export const ActivitiesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-coha-900">View Activities</h2>
-          <p className="text-sm text-gray-500">Audit trail of logins, payments, student movement, lesson plans, and admin changes.</p>
-        </div>
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-end gap-4">
         <div className="flex flex-wrap gap-2">
           <button onClick={load} className="h-11 px-4 rounded-[8px] border border-gray-200 bg-white text-sm font-bold text-gray-700 inline-flex items-center gap-2 shadow-sm">
             <RefreshCw size={16} /> Refresh

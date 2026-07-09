@@ -1,5 +1,63 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "applications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "submissionDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payment_proofs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "students",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "studentStatus", "order": "ASCENDING" },
+        { "fieldPath": "receiptSubmissionDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "vtcApplications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "submissionDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "internshipApplications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "submissionDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "homework_submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "homework_submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "className", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": [
     {
       "collectionGroup": "terms",

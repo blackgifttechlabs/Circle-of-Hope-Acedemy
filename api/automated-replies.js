@@ -2,6 +2,14 @@ import admin from 'firebase-admin';
 
 const AUTOMATED_REPLIES_COLLECTION = 'automated_replies';
 
+const setCorsHeaders = (req, res) => {
+  const allowedOrigin = process.env.APP_PUBLIC_URL || req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+};
+
 const getServiceAccount = () => {
   if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
     return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -63,6 +71,11 @@ const serializeLog = (doc) => {
 };
 
 export default async function handler(req, res) {
+  setCorsHeaders(req, res);
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ success: false, message: 'Method not allowed.' });

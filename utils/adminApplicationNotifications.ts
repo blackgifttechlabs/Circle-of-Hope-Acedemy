@@ -1,9 +1,9 @@
 import {
-  getApplications,
-  getInternshipApplications,
-  getPaymentProofs,
-  getStudents,
-  getVtcApplications,
+  getPaymentVerificationStudentCountSince,
+  getPendingApplicationCountSince,
+  getPendingInternshipApplicationCountSince,
+  getPendingPaymentProofCountSince,
+  getPendingVtcApplicationCountSince,
 } from '../services/dataService';
 
 export type AdminApplicationTab = 'student' | 'payments' | 'vtc' | 'internship';
@@ -43,25 +43,29 @@ export const getMillis = (value: any) => {
 
 export const getAdminApplicationUnreadCounts = async (adminId = 'admin'): Promise<AdminApplicationUnreadCounts> => {
   try {
-    const [applications, paymentProofs, students, vtcApplications, internshipApplications] = await Promise.all([
-      getApplications(),
-      getPaymentProofs(),
-      getStudents(),
-      getVtcApplications(),
-      getInternshipApplications(),
-    ]);
-
     const lastSeenStudent = getLastSeen('student', adminId);
     const lastSeenPayments = getLastSeen('payments', adminId);
     const lastSeenVtc = getLastSeen('vtc', adminId);
     const lastSeenInternship = getLastSeen('internship', adminId);
+    const [
+      student,
+      pendingPaymentProofs,
+      paymentVerificationStudents,
+      vtc,
+      internship,
+    ] = await Promise.all([
+      getPendingApplicationCountSince(lastSeenStudent),
+      getPendingPaymentProofCountSince(lastSeenPayments),
+      getPaymentVerificationStudentCountSince(lastSeenPayments),
+      getPendingVtcApplicationCountSince(lastSeenVtc),
+      getPendingInternshipApplicationCountSince(lastSeenInternship),
+    ]);
 
     const counts: AdminApplicationUnreadCounts = {
-      student: applications.filter((item) => item.status === 'PENDING' && getMillis(item.submissionDate) > lastSeenStudent).length,
-      payments: paymentProofs.filter((item) => item.status === 'PENDING' && getMillis(item.submittedAt) > lastSeenPayments).length +
-        students.filter((item) => item.studentStatus === 'PAYMENT_VERIFICATION' && getMillis(item.receiptSubmissionDate) > lastSeenPayments).length,
-      vtc: vtcApplications.filter((item) => item.status === 'PENDING' && getMillis(item.submissionDate) > lastSeenVtc).length,
-      internship: internshipApplications.filter((item) => item.status === 'PENDING' && getMillis(item.submissionDate) > lastSeenInternship).length,
+      student,
+      payments: pendingPaymentProofs + paymentVerificationStudents,
+      vtc,
+      internship,
       total: 0,
     };
 

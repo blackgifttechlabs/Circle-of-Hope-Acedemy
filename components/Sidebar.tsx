@@ -8,9 +8,8 @@ import {
 } from 'lucide-react';
 import { UserRole } from '../types';
 import {
-  getAllHomeworkSubmissions,
-  getAllLessonPlans,
-  getHomeworkSubmissionsForClass,
+  getLessonPlanCountSince,
+  getSubmittedHomeworkSubmissionCountSince,
   getStudentById,
 } from '../services/dataService';
 import { getAdminApplicationUnreadCounts } from '../utils/adminApplicationNotifications';
@@ -41,13 +40,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   const [studentDivision, setStudentDivision] = useState<string | null>(null);
   const [studentStatus, setStudentStatus] = useState<string | null>(null);
 
-  const getMillis = (value: any) => {
-    if (!value) return 0;
-    if (typeof value?.toDate === 'function') return value.toDate().getTime();
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
-  };
-
   const adminHomeworksViewKey = `coha_seen_admin_homeworks_${user?.id || 'admin'}`;
   const adminLessonPlansViewKey = `coha_seen_admin_lesson_plans_${user?.id || 'admin'}`;
   const teacherHomeworksViewKey = `coha_seen_teacher_homeworks_${user?.id || 'teacher'}_${user?.assignedClass || 'class'}`;
@@ -72,24 +64,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   useEffect(() => {
     if (role === UserRole.ADMIN) {
       const fetchCounts = async () => {
-        const [applicationCounts, homeworkSubmissions, lessonPlans] = await Promise.all([
-          getAdminApplicationUnreadCounts('admin'),
-          getAllHomeworkSubmissions(),
-          getAllLessonPlans(),
-        ]);
         const lastViewedHomeworksAt = parseInt(localStorage.getItem(adminHomeworksViewKey) || '0', 10) || 0;
         const lastViewedLessonPlansAt = parseInt(localStorage.getItem(adminLessonPlansViewKey) || '0', 10) || 0;
+        const [applicationCounts, homeworkSubmissionsCount, lessonPlansCount] = await Promise.all([
+          getAdminApplicationUnreadCounts('admin'),
+          location.pathname.startsWith('/admin/homeworks') ? Promise.resolve(0) : getSubmittedHomeworkSubmissionCountSince(lastViewedHomeworksAt),
+          location.pathname.startsWith('/admin/lesson-plans') ? Promise.resolve(0) : getLessonPlanCountSince(lastViewedLessonPlansAt),
+        ]);
         setApplicationBadgeCount(applicationCounts.total);
-        setHomeworkBadgeCount(
-          location.pathname.startsWith('/admin/homeworks')
-            ? 0
-            : homeworkSubmissions.filter((item) => item.status === 'SUBMITTED' && getMillis(item.submittedAt) > lastViewedHomeworksAt).length
-        );
-        setLessonPlanBadgeCount(
-          location.pathname.startsWith('/admin/lesson-plans')
-            ? 0
-            : lessonPlans.filter((item) => getMillis(item.uploadedAt) > lastViewedLessonPlansAt).length
-        );
+        setHomeworkBadgeCount(homeworkSubmissionsCount);
+        setLessonPlanBadgeCount(lessonPlansCount);
       };
 
       const handleUpdate = () => {
@@ -102,14 +86,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
       window.addEventListener('coha-admin-application-tab-seen', handleUpdate as EventListener);
       window.addEventListener('coha-homework-submission-update', handleUpdate as EventListener);
       window.addEventListener('coha-lesson-plan-update', handleUpdate as EventListener);
-      const interval = setInterval(fetchCounts, 30000);
       return () => {
         window.removeEventListener('focus', handleUpdate);
         window.removeEventListener('coha-payment-proof-update', handleUpdate as EventListener);
         window.removeEventListener('coha-admin-application-tab-seen', handleUpdate as EventListener);
         window.removeEventListener('coha-homework-submission-update', handleUpdate as EventListener);
         window.removeEventListener('coha-lesson-plan-update', handleUpdate as EventListener);
-        clearInterval(interval);
       };
     } else if (role === UserRole.TEACHER && user?.assignedClass) {
       const fetchTeacherHomeworkCount = async () => {
@@ -117,11 +99,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
           setHomeworkBadgeCount(0);
           return;
         }
-        const submissions = await getHomeworkSubmissionsForClass(user.assignedClass);
         const lastViewedHomeworksAt = parseInt(localStorage.getItem(teacherHomeworksViewKey) || '0', 10) || 0;
-        setHomeworkBadgeCount(
-          submissions.filter((item) => item.status === 'SUBMITTED' && getMillis(item.submittedAt) > lastViewedHomeworksAt).length
-        );
+        setHomeworkBadgeCount(await getSubmittedHomeworkSubmissionCountSince(lastViewedHomeworksAt, user.assignedClass));
       };
 
       const handleUpdate = () => {
@@ -131,11 +110,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
       fetchTeacherHomeworkCount();
       window.addEventListener('focus', handleUpdate);
       window.addEventListener('coha-homework-submission-update', handleUpdate as EventListener);
-      const interval = setInterval(fetchTeacherHomeworkCount, 30000);
       return () => {
         window.removeEventListener('focus', handleUpdate);
         window.removeEventListener('coha-homework-submission-update', handleUpdate as EventListener);
-        clearInterval(interval);
       };
     } else if (role === UserRole.PARENT && user?.id) {
       const fetchStudent = async () => {

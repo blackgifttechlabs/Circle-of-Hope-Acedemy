@@ -1,5 +1,5 @@
 import { db, auth } from '../firebase';
-import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
+import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch, getCountFromServer } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, ThemeOverride, CustomThemeEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment, InternshipApplication, AutomatedReplyLog } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
@@ -51,6 +51,11 @@ export const getPortalAuthEmail = (role: UserRole | 'ADMIN', id: string) => (
 const getPortalAuthPassword = (password: string) => (
   password.length >= 6 ? password : `coha-${password}`
 );
+
+const getAutomatedReplyApiUrl = (path: string) => {
+  const baseUrl = import.meta.env.VITE_AUTOMATED_REPLY_API_BASE_URL?.replace(/\/$/, '');
+  return `${baseUrl || ''}${path}`;
+};
 
 const ensureAdminAuthToken = async () => {
   if (auth.currentUser) {
@@ -225,6 +230,15 @@ const prepareChunkedDataUrlField = async <T extends ChunkableRecord>(
     ...chunkMeta,
   };
 };
+
+const countCollectionDocs = async (collectionName: string, constraints: any[] = []) => {
+  const snap = await getCountFromServer(query(collection(db, collectionName), ...constraints));
+  return snap.data().count || 0;
+};
+
+const timestampAfterConstraint = (fieldName: string, millis: number) => (
+  millis > 0 ? [where(fieldName, '>', Timestamp.fromMillis(millis))] : []
+);
 
 const hydrateChunkedDataUrlField = async <T extends ChunkableRecord>(
   item: T,
@@ -1108,6 +1122,13 @@ export const getStudents = async (): Promise<Student[]> => {
   return querySnapshot.docs.map(doc => normalizeStudentRecord({ id: doc.id, ...doc.data() } as Student));
 };
 
+export const getPaymentVerificationStudentCountSince = async (sinceMillis = 0): Promise<number> => (
+    countCollectionDocs(STUDENTS_COLLECTION, [
+        where('studentStatus', '==', 'PAYMENT_VERIFICATION'),
+        ...timestampAfterConstraint('receiptSubmissionDate', sinceMillis),
+    ])
+);
+
 export const getStudentsByStatus = async (status: string): Promise<Student[]> => {
     const q = query(collection(db, STUDENTS_COLLECTION), where("studentStatus", "==", status));
     const querySnapshot = await getDocs(q);
@@ -1236,7 +1257,7 @@ export type AutomatedApplicationReplyPayload = {
 export const sendAutomatedApplicationReply = async (payload: AutomatedApplicationReplyPayload) => {
     const token = await ensureAdminAuthToken();
 
-    const response = await fetch('/api/send-automated-reply', {
+    const response = await fetch(getAutomatedReplyApiUrl('/api/send-automated-reply'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1433,6 +1454,13 @@ export const getPaymentProofs = async (): Promise<PaymentProof[]> => {
     const records = snap.docs.map(d => ({ id: d.id, ...d.data() } as PaymentProof));
     return Promise.all(records.map((record) => hydrateChunkedDataUrlField(record, 'imageBase64')));
 };
+
+export const getPendingPaymentProofCountSince = async (sinceMillis = 0): Promise<number> => (
+    countCollectionDocs(PAYMENT_PROOFS_COLLECTION, [
+        where('status', '==', 'PENDING'),
+        ...timestampAfterConstraint('submittedAt', sinceMillis),
+    ])
+);
 
 export const getPaymentProofsForStudent = async (studentId: string): Promise<PaymentProof[]> => {
     const q = query(collection(db, PAYMENT_PROOFS_COLLECTION), where('studentId', '==', studentId));
@@ -1862,6 +1890,15 @@ export const getHomeworkSubmissionsForClass = async (className: string): Promise
       .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
 };
 
+export const getSubmittedHomeworkSubmissionCountSince = async (sinceMillis = 0, className?: string): Promise<number> => {
+    const constraints = [
+      where('status', '==', 'SUBMITTED'),
+      ...timestampAfterConstraint('submittedAt', sinceMillis),
+      ...(className ? [where('className', '==', className)] : []),
+    ];
+    return countCollectionDocs(HOMEWORK_SUBMISSIONS_COLLECTION, constraints);
+};
+
 export const getAllHomeworkSubmissions = async (): Promise<HomeworkSubmission[]> => {
     const q = query(collection(db, HOMEWORK_SUBMISSIONS_COLLECTION), orderBy('submittedAt', 'desc'));
     const snap = await getDocs(q);
@@ -1874,6 +1911,13 @@ export const getAllHomeworkAssignments = async (): Promise<HomeworkAssignment[]>
     const snap = await getDocs(q);
     const records = snap.docs.map(d => ({ id: d.id, ...d.data() } as HomeworkAssignment));
     return Promise.all(records.map(hydrateHomeworkAssignment));
+};
+
+export const getLessonPlanCountSince = async (sinceMillis = 0): Promise<number> => {
+    const constraints = sinceMillis > 0
+      ? [where('uploadedAt', '>', new Date(sinceMillis).toISOString())]
+      : [];
+    return countCollectionDocs('lesson_plans', constraints);
 };
 
 export const markHomeworkSubmissionReviewed = async (submissionId: string, notes?: string) => {
@@ -2316,7 +2360,7 @@ export const submitApplication = async (applicationData: Partial<Application>) =
       localStorage.setItem('coha_automated_reply_started', noticePayload);
     }
 
-    fetch('/api/send-automated-reply', {
+    fetch(getAutomatedReplyApiUrl('/api/send-automated-reply'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2341,6 +2385,13 @@ export const getApplications = async (): Promise<Application[]> => {
   const records = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application));
   return Promise.all(records.map(hydrateApplicationAttachments));
 };
+
+export const getPendingApplicationCountSince = async (sinceMillis = 0): Promise<number> => (
+  countCollectionDocs(APPLICATIONS_COLLECTION, [
+    where('status', '==', 'PENDING'),
+    ...timestampAfterConstraint('submissionDate', sinceMillis),
+  ])
+);
 
 export const getApplicationById = async (id: string): Promise<Application | null> => {
   const docRef = doc(db, APPLICATIONS_COLLECTION, id);
@@ -2388,6 +2439,13 @@ export const getVtcApplications = async (): Promise<any[]> => {
   const records = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   return Promise.all(records.map(hydrateApplicationAttachments));
 };
+
+export const getPendingVtcApplicationCountSince = async (sinceMillis = 0): Promise<number> => (
+  countCollectionDocs(VTC_APPLICATIONS_COLLECTION, [
+    where('status', '==', 'PENDING'),
+    ...timestampAfterConstraint('submissionDate', sinceMillis),
+  ])
+);
 
 export const getVtcApplicationById = async (id: string): Promise<any | null> => {
   const docRef = doc(db, VTC_APPLICATIONS_COLLECTION, id);
@@ -2449,6 +2507,13 @@ export const getInternshipApplications = async (): Promise<InternshipApplication
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InternshipApplication));
 };
+
+export const getPendingInternshipApplicationCountSince = async (sinceMillis = 0): Promise<number> => (
+  countCollectionDocs(INTERNSHIP_APPLICATIONS_COLLECTION, [
+    where('status', '==', 'PENDING'),
+    ...timestampAfterConstraint('submissionDate', sinceMillis),
+  ])
+);
 
 export const getInternshipApplicationById = async (id: string): Promise<InternshipApplication | null> => {
   const docRef = doc(db, INTERNSHIP_APPLICATIONS_COLLECTION, id);

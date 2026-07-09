@@ -519,7 +519,7 @@ export const ApplicationDetailsPage: React.FC = () => {
                             <p className="text-green-600">Awaiting Payment Verification</p>
                             {!!storedApprovalDraft && (
                               <div className="mt-6 flex flex-col gap-3">
-                                <Button fullWidth onClick={() => { setReplyType('email'); setApprovalModalOpen(true); }} className="bg-white !text-coha-900 border border-coha-200">
+                                <Button fullWidth onClick={() => { setReplyType('email'); setApprovalModalOpen(true); }} className="!bg-white !text-coha-900 hover:!bg-coha-50 border border-coha-200 shadow-sm">
                                   <Mail size={18} /> Open Email Draft
                                 </Button>
                                 <Button fullWidth onClick={() => { setReplyType('whatsapp'); setApprovalModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-700 border-none">

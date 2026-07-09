@@ -16,6 +16,14 @@ const SCHOOL_CONTACTS = {
   postal: 'P.O. Box 3675, Ondangwa',
 };
 
+const setCorsHeaders = (req, res) => {
+  const allowedOrigin = process.env.APP_PUBLIC_URL || req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+};
+
 const getServiceAccount = () => {
   if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
     return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -380,6 +388,11 @@ const verifyAdminRequest = async (req) => {
 };
 
 export default async function handler(req, res) {
+  setCorsHeaders(req, res);
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ success: false, message: 'Method not allowed.' });
