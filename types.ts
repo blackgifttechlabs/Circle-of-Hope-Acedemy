@@ -552,6 +552,25 @@ export interface ActivityLog {
   createdAt: any;
 }
 
+export interface AutomatedReplyLog {
+  id?: string;
+  applicationId: string;
+  applicationType: 'STUDENT' | 'VTC' | 'INTERNSHIP';
+  replyType: 'APPLICATION_RECEIVED' | 'APPLICATION_APPROVED' | 'PAYMENT_REQUIRED' | 'CUSTOM';
+  recipientEmail: string;
+  recipientName: string;
+  learnerName: string;
+  subject: string;
+  bodyText: string;
+  bodyHtml?: string;
+  status: 'SENT' | 'SKIPPED' | 'FAILED';
+  errorMessage?: string;
+  providerMessageId?: string;
+  incomingAt?: any;
+  sentAt?: any;
+  createdAt: any;
+}
+
 export interface PaymentProof {
   id?: string;
   studentId: string;

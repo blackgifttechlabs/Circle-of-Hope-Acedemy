@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, GraduationCap, History, ListChecks } from 'lucide-react';
+import { Bot, Briefcase, GraduationCap, History, ListChecks } from 'lucide-react';
 import {
   AdminApplicationTab,
   getAdminApplicationUnreadCounts,
   markAdminApplicationTabSeen,
 } from '../../utils/adminApplicationNotifications';
 
-type ApplicationWorkspaceTab = AdminApplicationTab | 'history';
+type ApplicationWorkspaceTab = AdminApplicationTab | 'history' | 'automated';
 
 type PendingCounts = Record<AdminApplicationTab, number> & { total: number };
 
@@ -47,7 +47,7 @@ export const ApplicationWorkspace: React.FC<ApplicationWorkspaceProps> = ({
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'history') return;
+    if (activeTab === 'history' || activeTab === 'automated') return;
     markAdminApplicationTabSeen(activeTab, 'admin');
     setCounts((current) => {
       const next = { ...current, [activeTab]: 0 };
@@ -83,6 +83,13 @@ export const ApplicationWorkspace: React.FC<ApplicationWorkspaceProps> = ({
       label: 'Previous Applications',
       icon: History,
       path: '/admin/applications-history',
+      count: 0,
+    },
+    {
+      id: 'automated' as const,
+      label: 'Automated Replies',
+      icon: Bot,
+      path: '/admin/automated-replies',
       count: 0,
     },
   ];

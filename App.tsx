@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { SEO } from './components/SEO';
 import { LandingPage } from './pages/LandingPage';
@@ -17,6 +17,7 @@ import { TeacherProgressPage } from './pages/admin/TeacherProgress';
 import { StudentsPage } from './pages/admin/Students';
 import { StudentDetailsPage } from './pages/admin/StudentDetails';
 import { ApplicationsPage } from './pages/admin/Applications';
+import { AutomatedRepliesPage } from './pages/admin/AutomatedReplies';
 import { ApplicationHistoryPage } from './pages/admin/ApplicationHistory';
 import { ApplicationDetailsPage } from './pages/admin/ApplicationDetails';
 import { VtcApplicationsPage } from './pages/admin/VtcApplications';
@@ -75,7 +76,32 @@ const AppLayout: React.FC<{
   onLogout: () => void 
 }> = ({ children, role, user, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [autoReplyNoticeVisible, setAutoReplyNoticeVisible] = useState(false);
   const hideSidebarOnMobile = role === UserRole.PARENT;
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (role !== UserRole.ADMIN) return;
+
+    let timeoutId: number | undefined;
+    const showNotice = () => {
+      setAutoReplyNoticeVisible(true);
+      if (timeoutId) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => setAutoReplyNoticeVisible(false), 5000);
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'coha_automated_reply_started' && event.newValue) showNotice();
+    };
+
+    window.addEventListener('coha-automated-reply-started', showNotice as EventListener);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      window.removeEventListener('coha-automated-reply-started', showNotice as EventListener);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [role]);
 
   return (
     <div className="h-screen bg-gray-50 flex font-sans overflow-hidden">
@@ -91,6 +117,33 @@ const AppLayout: React.FC<{
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
         {role === UserRole.ADMIN && (
           <AdminPageHeader user={user} onMenuClick={() => setSidebarOpen(true)} />
+        )}
+        {role === UserRole.ADMIN && autoReplyNoticeVisible && (
+          <div className="pointer-events-none absolute right-4 top-4 z-[80] w-[min(360px,calc(100vw-2rem))]">
+            <div className="pointer-events-auto rounded-[8px] border border-emerald-200 bg-white px-4 py-3 shadow-[0_18px_45px_rgba(15,23,42,0.18)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-950">Auto Replying application</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">The automated application reply is being sent and logged.</p>
+                </div>
+                <button
+                  onClick={() => setAutoReplyNoticeVisible(false)}
+                  className="text-xs font-black uppercase text-slate-400 hover:text-slate-700"
+                >
+                  Close
+                </button>
+              </div>
+              <button
+                onClick={() => {
+                  setAutoReplyNoticeVisible(false);
+                  navigate('/admin/automated-replies');
+                }}
+                className="mt-2 text-sm font-black text-coha-800 underline decoration-2 underline-offset-4"
+              >
+                View
+              </button>
+            </div>
+          </div>
         )}
         <main className={`flex-1 overflow-y-auto ${role === UserRole.ADMIN ? 'px-[10px] pb-5 pt-0 sm:px-5 sm:pb-5 sm:pt-0' : 'px-[10px] py-5 sm:p-5'}`}>
           {children}
@@ -238,6 +291,7 @@ const App: React.FC = () => {
                   {isSubAdmin ? (
                     <>
                       <Route path="applications" element={<ApplicationsPage />} />
+                      <Route path="automated-replies" element={<AutomatedRepliesPage />} />
                       <Route path="applications-history" element={<ApplicationHistoryPage />} />
                       <Route path="applications/:id" element={<ApplicationDetailsPage />} />
                       <Route path="vtc-applications" element={<VtcApplicationsPage />} />
@@ -254,6 +308,7 @@ const App: React.FC = () => {
                     <>
                       <Route path="dashboard" element={<AdminDashboard />} />
                       <Route path="applications" element={<ApplicationsPage />} />
+                      <Route path="automated-replies" element={<AutomatedRepliesPage />} />
                       <Route path="applications-history" element={<ApplicationHistoryPage />} />
                       <Route path="applications/:id" element={<ApplicationDetailsPage />} />
                       <Route path="vtc-applications" element={<VtcApplicationsPage />} />

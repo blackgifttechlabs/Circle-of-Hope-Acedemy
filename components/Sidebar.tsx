@@ -152,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   /* ─── nav link definitions ─── */
   const adminLinks: SidebarLink[] = [
     { label: 'Dashboard',        path: '/admin/dashboard',        icon: <LayoutDashboard size={17} strokeWidth={2.2} />, badge: 0 },
-    { label: 'Applications',     path: '/admin/applications',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: applicationBadgeCount, activePrefixes: ['/admin/applications', '/admin/applications-history', '/admin/payments', '/admin/vtc-applications', '/admin/internships'] },
+    { label: 'Applications',     path: '/admin/applications',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: applicationBadgeCount, activePrefixes: ['/admin/applications', '/admin/applications-history', '/admin/automated-replies', '/admin/payments', '/admin/vtc-applications', '/admin/internships'] },
     { label: 'Teachers',         path: '/admin/teachers',         icon: <Users           size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Lesson Plans',     path: '/admin/lesson-plans',     icon: <FileText        size={17} strokeWidth={2.2} />, badge: lessonPlanBadgeCount },
     { label: 'Assessments',      path: '/admin/assessment-progress', icon: <BarChart3   size={17} strokeWidth={2.2} />, badge: 0 },
@@ -164,7 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
   ];
 
   const subAdminLinks: SidebarLink[] = [
-    { label: 'Applications',     path: '/admin/applications',     icon: <FileText      size={17} strokeWidth={2.2} />, badge: applicationBadgeCount, activePrefixes: ['/admin/applications', '/admin/applications-history', '/admin/payments', '/admin/vtc-applications', '/admin/internships'] },
+    { label: 'Applications',     path: '/admin/applications',     icon: <FileText      size={17} strokeWidth={2.2} />, badge: applicationBadgeCount, activePrefixes: ['/admin/applications', '/admin/applications-history', '/admin/automated-replies', '/admin/payments', '/admin/vtc-applications', '/admin/internships'] },
     { label: 'Students',         path: '/admin/students',         icon: <GraduationCap size={17} strokeWidth={2.2} />, badge: 0 },
     { label: 'Matron Records',   path: '/admin/matron-records',   icon: <HeartPulse    size={17} strokeWidth={2.2} />, badge: 0 },
   ];

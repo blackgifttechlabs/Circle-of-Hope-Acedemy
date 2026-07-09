@@ -54,6 +54,9 @@ const getAdminHeaderMeta = (pathname: string) => {
   if (pathname.startsWith('/admin/applications-history')) {
     return { title: 'Previous Applications', subtitle: 'Review completed and archived applications.' };
   }
+  if (pathname.startsWith('/admin/automated-replies')) {
+    return { title: 'Automated Replies', subtitle: 'Review system-sent application reply logs.' };
+  }
   if (pathname.startsWith('/admin/applications/')) {
     return { title: 'Application Details', subtitle: 'Review applicant information and application status.', backPath: '/admin/applications' };
   }

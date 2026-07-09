@@ -251,6 +251,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /automated_replies/{replyId} {
+      allow read: if isAnyAdmin();
+      allow create, update, delete: if false;
+    }
+
     match /vtcApplications/{applicationId} {
       allow create: if publicVtcApplicationCreate() || isAnyAdmin();
       allow read: if isAnyAdmin() || (isVtcStudent() && request.auth.token.applicationId == applicationId);

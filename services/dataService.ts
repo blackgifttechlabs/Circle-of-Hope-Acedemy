@@ -1,7 +1,7 @@
 import { db, auth } from '../firebase';
 import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, ThemeOverride, CustomThemeEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment, InternshipApplication } from '../types';
+import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, ThemeOverride, CustomThemeEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment, InternshipApplication, AutomatedReplyLog } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 import { getPaymentOptionLabel, isRegistrationFeeOption } from '../utils/paymentOptions';
@@ -22,6 +22,7 @@ const HOMEWORK_ASSIGNMENTS_COLLECTION = 'homework_assignments';
 const HOMEWORK_SUBMISSIONS_COLLECTION = 'homework_submissions';
 const STUDENT_DOCUMENTS_COLLECTION = 'student_documents';
 const ACTIVITY_LOGS_COLLECTION = 'activity_logs';
+const AUTOMATED_REPLIES_COLLECTION = 'automated_replies';
 const MATRONS_COLLECTION = 'matrons';
 const STUDENT_MEDICATIONS_COLLECTION = 'student_medications';
 const MATRON_LOGS_COLLECTION = 'matron_logs';
@@ -1191,6 +1192,17 @@ export const getActivityLogs = async (maxResults = 1000): Promise<ActivityLog[]>
     }
 };
 
+export const getAutomatedReplyLogs = async (maxResults = 1000): Promise<AutomatedReplyLog[]> => {
+    try {
+        const q = query(collection(db, AUTOMATED_REPLIES_COLLECTION), orderBy('createdAt', 'desc'), limit(maxResults));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() } as AutomatedReplyLog));
+    } catch (error) {
+        console.error('Error fetching automated reply logs:', error);
+        return [];
+    }
+};
+
 export const addReceipt = async (number: string, amount: string, date: string) => {
     try {
         await addDoc(collection(db, RECEIPTS_COLLECTION), {
@@ -2250,16 +2262,38 @@ export const submitApplication = async (applicationData: Partial<Application>) =
       docRef.id
     );
 
-    await setDoc(docRef, {
-      ...sanitizedData,
-      division,
-      level,
-      grade: division === Division.MAINSTREAM ? (applicationData.grade || '') : '', 
-      status: 'PENDING',
-      submissionDate: Timestamp.now()
-    });
-    return true;
-  } catch (error) {
+	    await setDoc(docRef, {
+	      ...sanitizedData,
+	      division,
+	      level,
+	      grade: division === Division.MAINSTREAM ? (applicationData.grade || '') : '', 
+	      status: 'PENDING',
+	      submissionDate: Timestamp.now()
+	    });
+	    if (typeof window !== 'undefined') {
+	      const noticePayload = JSON.stringify({ applicationId: docRef.id, createdAt: Date.now() });
+	      window.dispatchEvent(new CustomEvent('coha-automated-reply-started', { detail: { applicationId: docRef.id } }));
+	      localStorage.setItem('coha_automated_reply_started', noticePayload);
+	    }
+	    fetch('/api/send-automated-reply', {
+	      method: 'POST',
+	      headers: { 'Content-Type': 'application/json' },
+	      body: JSON.stringify({
+	        applicationId: docRef.id,
+	        applicationType: 'STUDENT',
+	        replyType: 'APPLICATION_RECEIVED',
+	      }),
+	    })
+	      .then(() => {
+	        if (typeof window !== 'undefined') {
+	          window.dispatchEvent(new CustomEvent('coha-automated-reply-finished', { detail: { applicationId: docRef.id } }));
+	        }
+	      })
+	      .catch((error) => {
+	        console.error('Automated application reply request failed:', error);
+	      });
+	    return true;
+	  } catch (error) {
     console.error("Error submitting application:", error);
     return false;
   }
