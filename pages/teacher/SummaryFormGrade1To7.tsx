@@ -14,7 +14,7 @@ import { Loader } from '../../components/ui/Loader';
 import { ActionMenu } from '../../components/ui/ActionMenu';
 import { getSelectedTeachingClass, withTeachingClass } from '../../utils/teacherClassSelection';
 
-const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const LOGO_URL = '/logo.png';
 
 async function urlToBase64(url: string): Promise<{ data: string; format: string }> {
   const res = await fetch(url);

@@ -12,7 +12,7 @@ import { getTopicsForSubjectAndGrade } from './assessmentTopics';
 import { getGradeDisplayValue } from './assessmentWorkflow';
 import { getNonPromotionalSubjects, getPromotionalSubjects } from './subjects';
 
-const SCHOOL_LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const SCHOOL_LOGO_URL = '/logo.png';
 const REPORT_HEADER_RIGHT_LOGO_URL = 'https://i.ibb.co/rRHGVgVL/images.png';
 const PRINCIPAL_SIGNATURE_URL = 'https://i.ibb.co/MkKndHWd/eraze-result-medium-1.png';
 

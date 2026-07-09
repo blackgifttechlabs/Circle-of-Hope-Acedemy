@@ -24,7 +24,7 @@ const formatDateTime = (value: any) => {
 
 export const printActivityReport = async (logs: ActivityLog[], filterLabel: string) => {
   const doc = new jsPDF('landscape');
-  const logo = await fetchImage('https://i.ibb.co/LzYXwYfX/logo.png');
+  const logo = await fetchImage('/logo.png');
 
   if (logo) {
     doc.addImage(logo, 'PNG', 14, 10, 18, 18);

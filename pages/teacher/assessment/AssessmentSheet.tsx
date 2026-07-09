@@ -20,7 +20,7 @@ import { navigateBackOr } from '../../../utils/navigation';
 import { getSelectedTeachingClass, matchesTeachingClass, withTeachingClass } from '../../../utils/teacherClassSelection';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const LOGO_URL = '/logo.png';
 const PDF_FONT_FAMILY = 'helvetica';
 const EXCEL_FONT_FAMILY = 'Arial';
 

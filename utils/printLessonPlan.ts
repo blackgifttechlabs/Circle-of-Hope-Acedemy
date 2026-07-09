@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { SystemSettings, Teacher, WeeklyLessonPlan } from '../types';
 
-const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const LOGO_URL = '/logo.png';
 const COHA_CONTACT = 'P.O. Box 3675, Ondangwa | +264 81 666 4074';
 const COHA_EMAIL = 'circleofhopeacademy@yahoo.com';
 

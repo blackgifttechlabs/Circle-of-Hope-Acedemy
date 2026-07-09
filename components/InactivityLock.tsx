@@ -3,7 +3,7 @@ import { LockKeyhole, ShieldCheck } from 'lucide-react';
 import { UserRole } from '../types';
 import { signInPortalAccount, verifyAdminPin } from '../services/dataService';
 
-const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const LOGO_URL = '/logo.png';
 const INACTIVITY_TIMEOUT_MS = 300_000;
 const LOCK_STORAGE_KEY = 'coha_inactivity_locked';
 const ACTIVITY_EVENTS = ['click', 'keydown', 'touchstart', 'scroll', 'pointerdown'] as const;

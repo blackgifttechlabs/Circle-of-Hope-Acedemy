@@ -21,7 +21,7 @@ import {
 import { generateSummaryReportPDF, generateSummaryReportPDFBundle } from './pdfGenerator';
 import { getTopicHeaderHeight, getTopicHeaderLines, getTopicLabelParts } from './topicLabelFormat';
 
-const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const LOGO_URL = '/logo.png';
 const PDF_FONT_FAMILY = 'helvetica';
 const MAX_TOPIC_CHARS = 22;
 

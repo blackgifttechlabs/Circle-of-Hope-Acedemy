@@ -1,6 +1,6 @@
 import { Application, Student } from '../types';
 
-const SCHOOL_LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const SCHOOL_LOGO_URL = typeof window !== 'undefined' ? `${window.location.origin}/logo.png` : '/logo.png';
 const DEFAULT_SCHOOL_NAME = 'Circle of Hope Academy';
 const SCHOOL_CONTACTS = {
   phonePrimary: '+264 81 666 4074',

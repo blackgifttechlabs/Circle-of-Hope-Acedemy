@@ -9,7 +9,7 @@ export const PublicFooter: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
           <div className="col-span-1 lg:col-span-1">
             <div className="flex items-center gap-3 mb-6">
-              <img src="https://i.ibb.co/LzYXwYfX/logo.png" alt="COHA Logo" className="h-14 w-auto drop-shadow-lg" />
+              <img src="/logo.png" alt="COHA Logo" className="h-14 w-auto drop-shadow-lg" />
               <div>
                 <span className="text-xl font-black text-white uppercase tracking-wider block leading-none">COHA</span>
                 <span className="text-[10px] text-coha-500 uppercase tracking-[0.2em] font-bold">Academy</span>

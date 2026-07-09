@@ -278,7 +278,7 @@ export const VtcApplyPage: React.FC = () => {
               className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
             >
               <div className="bg-blue-900 text-white p-8 sm:p-12 text-center">
-                <img src="https://i.ibb.co/LzYXwYfX/logo.png" alt="COHA VTC" className="w-20 h-20 mx-auto mb-6 object-contain bg-white/10 rounded-2xl p-2" referrerPolicy="no-referrer" />
+                <img src="/logo.png" alt="COHA VTC" className="w-20 h-20 mx-auto mb-6 object-contain bg-white/10 rounded-2xl p-2" referrerPolicy="no-referrer" />
                 <h1 className="text-3xl sm:text-4xl font-black mb-4 font-archivo tracking-tight">VTC Application Form</h1>
                 <p className="text-blue-100 text-lg max-w-2xl mx-auto">
                   Circle of Hope Academy Vocational Training Centre - Ondangwa

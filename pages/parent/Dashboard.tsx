@@ -538,7 +538,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
           </div>
           <div className="h-11 w-11 rounded-full border border-white/15 bg-white/10 inline-flex items-center justify-center shrink-0 overflow-hidden">
             <img
-              src="https://i.ibb.co/LzYXwYfX/logo.png"
+              src="/logo.png"
               alt={`${schoolName} logo`}
               className="h-8 w-8 object-contain"
             />
@@ -1182,7 +1182,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
                         <div className="flex justify-center">
                           <div className="h-16 w-16 rounded-full border border-slate-200 bg-white flex items-center justify-center overflow-hidden">
                             <img
-                              src="https://i.ibb.co/LzYXwYfX/logo.png"
+                              src="/logo.png"
                               alt={`${schoolName} logo`}
                               className="h-12 w-12 object-contain"
                             />

@@ -44,7 +44,7 @@ export const LandingHeader: React.FC = () => {
                {/* Glowing Logo Backdrop */}
                <div className="absolute inset-0 bg-coha-900 rounded-none rotate-45 opacity-10 group-hover:opacity-20 group-hover:rotate-90 transition-all duration-500 blur-sm"></div>
                <div className="relative z-10 bg-white p-1 shadow-md border border-gray-100 group-hover:border-coha-500 transition-colors">
-                  <img src="https://i.ibb.co/LzYXwYfX/logo.png" alt="COHA Logo" className="h-6 w-auto md:h-8" />
+                  <img src="/logo.png" alt="COHA Logo" className="h-6 w-auto md:h-8" />
                </div>
             </div>
             

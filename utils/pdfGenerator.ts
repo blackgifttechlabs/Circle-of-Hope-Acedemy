@@ -4,7 +4,7 @@ import { Student, TermAssessmentRecord, PRE_PRIMARY_AREAS } from '../types';
 import { CLASS_LIST_SKILLS } from './classListSkills';
 import { getGradeDisplayValue } from './assessmentWorkflow';
 
-const SCHOOL_LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const SCHOOL_LOGO_URL = '/logo.png';
 
 type SkillLabelParts = {
   prefix: string;

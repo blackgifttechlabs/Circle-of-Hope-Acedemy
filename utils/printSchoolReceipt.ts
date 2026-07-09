@@ -32,7 +32,7 @@ export const printSchoolReceipt = async (
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  const logo = await fetchImageAsDataUrl('https://i.ibb.co/LzYXwYfX/logo.png');
+  const logo = await fetchImageAsDataUrl('/logo.png');
 
   doc.setFillColor(8, 18, 37);
   doc.rect(0, 0, pageWidth, 38, 'F');

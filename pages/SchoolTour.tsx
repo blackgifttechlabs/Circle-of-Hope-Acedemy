@@ -402,7 +402,7 @@ export const SchoolTour: React.FC = () => {
             {/* Top: logo + badge */}
             <div>
               <div className="flex items-center gap-4 mb-8">
-                <img src="https://i.ibb.co/LzYXwYfX/logo.png" alt="COHA VTC"
+                <img src="/logo.png" alt="COHA VTC"
                   className="w-16 h-16 object-contain" referrerPolicy="no-referrer"/>
                 <div>
                   <p className="text-white font-black text-xl leading-tight" style={{fontFamily:"'Outfit','Nunito',sans-serif"}}>COHA Vocational</p>

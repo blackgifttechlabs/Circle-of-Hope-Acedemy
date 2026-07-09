@@ -4,7 +4,8 @@ import nodemailer from 'nodemailer';
 const APPLICATIONS_COLLECTION = 'applications';
 const AUTOMATED_REPLIES_COLLECTION = 'automated_replies';
 const DEFAULT_SCHOOL_NAME = 'Circle of Hope Academy';
-const SCHOOL_LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const SCHOOL_LOGO_URL = process.env.MAIL_SCHOOL_LOGO_URL
+  || (process.env.APP_PUBLIC_URL ? `${process.env.APP_PUBLIC_URL.replace(/\/$/, '')}/logo.png` : '/logo.png');
 const SCHOOL_CONTACTS = {
   phonePrimary: '+264 81 666 4074',
   phoneSecondary: '+264 85 266 4074',

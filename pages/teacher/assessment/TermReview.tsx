@@ -13,7 +13,7 @@ import { saveAs } from 'file-saver';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const LOGO_URL = 'https://i.ibb.co/LzYXwYfX/logo.png';
+const LOGO_URL = '/logo.png';
 
 async function urlToBase64(url: string): Promise<{ data: string; format: string }> {
   const res = await fetch(url);

@@ -21,7 +21,7 @@ export const printStudentProfile = async (student: Student) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   
-  const logoUrl = "https://i.ibb.co/LzYXwYfX/logo.png";
+  const logoUrl = "/logo.png";
   const logoData = await fetchImage(logoUrl);
   if (logoData) {
       doc.addImage(logoData, 'PNG', 14, 10, 25, 25);

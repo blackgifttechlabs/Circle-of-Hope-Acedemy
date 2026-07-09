@@ -280,7 +280,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, role, user, o
                           bg-white
                           shadow-[0_4px_16px_rgba(0,0,0,0.25)]">
             <img
-              src="https://i.ibb.co/LzYXwYfX/logo.png"
+              src="/logo.png"
               alt="COHA Logo"
               className="w-7 h-7 object-contain relative z-10"
             />

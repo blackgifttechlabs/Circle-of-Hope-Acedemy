@@ -51,6 +51,30 @@ const getPortalAuthPassword = (password: string) => (
   password.length >= 6 ? password : `coha-${password}`
 );
 
+const ensureAdminAuthToken = async () => {
+  if (auth.currentUser) {
+    const tokenResult = await auth.currentUser.getIdTokenResult();
+    const isAdminEmail = tokenResult.claims.email === ADMIN_EMAIL || auth.currentUser.email === ADMIN_EMAIL;
+    const isAdminRole = ['ADMIN', 'SUPER_ADMIN', 'SUB_ADMIN'].includes(String(tokenResult.claims.role || ''));
+    if (isAdminEmail || isAdminRole) {
+      return auth.currentUser.getIdToken();
+    }
+  }
+
+  let authSessionError: unknown = null;
+  for (const password of [LEGACY_ADMIN_AUTH_PASSWORD, ADMIN_AUTH_PASSWORD]) {
+    try {
+      const credential = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
+      return credential.user.getIdToken();
+    } catch (error) {
+      authSessionError = error;
+    }
+  }
+
+  console.warn('Admin Firebase Auth session setup failed.', authSessionError);
+  throw new Error('Admin Firebase Auth session could not be started.');
+};
+
 export interface LoginIndexEntry {
   id: string;
   role: UserRole;
@@ -71,11 +95,7 @@ type AuthSyncPayload = {
 };
 
 const syncPortalAuthUser = async (payload: AuthSyncPayload) => {
-  const token = await auth.currentUser?.getIdToken();
-  if (!token) {
-    console.warn('Auth account was not synced because there is no admin Auth session.');
-    return false;
-  }
+  const token = await ensureAdminAuthToken();
 
   const response = await fetch('/api/sync-auth-user', {
     method: 'POST',
@@ -1193,10 +1213,7 @@ export const getActivityLogs = async (maxResults = 1000): Promise<ActivityLog[]>
 
 export const getAutomatedReplyLogs = async (maxResults = 1000): Promise<AutomatedReplyLog[]> => {
     try {
-        const token = await auth.currentUser?.getIdToken();
-        if (!token) {
-            throw new Error('Missing admin Auth session.');
-        }
+        const token = await ensureAdminAuthToken();
 
         const response = await fetch(`/api/automated-replies?limit=${encodeURIComponent(String(maxResults))}`, {
             headers: {
@@ -1226,10 +1243,7 @@ export type AutomatedApplicationReplyPayload = {
 };
 
 export const sendAutomatedApplicationReply = async (payload: AutomatedApplicationReplyPayload) => {
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) {
-        throw new Error('Missing admin Auth session.');
-    }
+    const token = await ensureAdminAuthToken();
 
     const response = await fetch('/api/send-automated-reply', {
         method: 'POST',
@@ -2055,22 +2069,7 @@ export const calculateFinalStage = async (studentId: string): Promise<{ success:
 };
 
 export const verifyAdminPin = async (pin: string): Promise<any | null> => {
-  let authSessionReady = false;
-  let authSessionError: unknown = null;
-  for (const password of [LEGACY_ADMIN_AUTH_PASSWORD, ADMIN_AUTH_PASSWORD]) {
-    try {
-      await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
-      authSessionReady = true;
-      break;
-    } catch (error) {
-      authSessionError = error;
-    }
-  }
-
-  if (!authSessionReady) {
-    console.warn("Admin Firebase Auth session setup failed.", authSessionError);
-    throw new Error('Admin Firebase Auth session could not be started.');
-  }
+  await ensureAdminAuthToken();
 
   const settings = await getSystemSettings();
   const validPin = settings ? settings.adminPin : DEFAULT_ADMIN_PASSWORD;

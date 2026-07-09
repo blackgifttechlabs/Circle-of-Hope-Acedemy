@@ -283,7 +283,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
               <div className="relative z-10">
                 <div className="flex items-center gap-3 mb-8 md:mb-12">
                   <div className="w-12 h-12 md:w-16 md:h-16 bg-white rounded-2xl p-2 shadow-lg">
-                    <img src="https://i.ibb.co/LzYXwYfX/logo.png" alt="COHA Logo" className="w-full h-full object-contain" />
+                    <img src="/logo.png" alt="COHA Logo" className="w-full h-full object-contain" />
                   </div>
                   <div>
                     <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight" style={{ fontFamily: '"Google Sans", sans-serif' }}>COHA</h1>

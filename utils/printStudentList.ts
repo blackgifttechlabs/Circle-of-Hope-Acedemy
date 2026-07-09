@@ -30,7 +30,7 @@ export const printStudentList = async (students: Student[], settings: SystemSett
       });
   }
 
-  const logoUrl = "https://i.ibb.co/LzYXwYfX/logo.png";
+  const logoUrl = "/logo.png";
   const logoData = await fetchImage(logoUrl);
   if (logoData) {
       doc.addImage(logoData, 'PNG', 14, 10, 20, 20);
