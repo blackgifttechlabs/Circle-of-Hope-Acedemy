@@ -22,6 +22,7 @@ const HOMEWORK_ASSIGNMENTS_COLLECTION = 'homework_assignments';
 const HOMEWORK_SUBMISSIONS_COLLECTION = 'homework_submissions';
 const STUDENT_DOCUMENTS_COLLECTION = 'student_documents';
 const ACTIVITY_LOGS_COLLECTION = 'activity_logs';
+const AUTOMATED_REPLIES_COLLECTION = 'automated_replies';
 const MATRONS_COLLECTION = 'matrons';
 const STUDENT_MEDICATIONS_COLLECTION = 'student_medications';
 const MATRON_LOGS_COLLECTION = 'matron_logs';
@@ -1213,20 +1214,10 @@ export const getActivityLogs = async (maxResults = 1000): Promise<ActivityLog[]>
 
 export const getAutomatedReplyLogs = async (maxResults = 1000): Promise<AutomatedReplyLog[]> => {
     try {
-        const token = await ensureAdminAuthToken();
-
-        const response = await fetch(`/api/automated-replies?limit=${encodeURIComponent(String(maxResults))}`, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-        });
-
-        const result = await response.json().catch(() => null);
-        if (!response.ok) {
-            throw new Error(result?.message || 'Could not fetch automated reply logs.');
-        }
-
-        return (result?.logs || []) as AutomatedReplyLog[];
+        await ensureAdminAuthToken();
+        const q = query(collection(db, AUTOMATED_REPLIES_COLLECTION), orderBy('createdAt', 'desc'), limit(maxResults));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() } as AutomatedReplyLog));
     } catch (error) {
         console.error('Error fetching automated reply logs:', error);
         return [];
