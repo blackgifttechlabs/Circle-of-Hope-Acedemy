@@ -138,6 +138,11 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
                                                 </>
                                             )}
                                         </button>
+                                        {!record.isComplete && (
+                                            <p className="mt-3 text-center text-[10px] font-black uppercase tracking-widest text-yellow-700">
+                                                Report available after assessment is complete.
+                                            </p>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -192,6 +197,11 @@ export const ParentAssessmentProgress: React.FC<ParentAssessmentProgressProps> =
                                       </>
                                     )}
                                   </button>
+                                  {!record.isComplete && (
+                                    <p className="mt-3 text-center text-[10px] font-black uppercase tracking-widest text-yellow-700">
+                                      Report available after assessment is complete.
+                                    </p>
+                                  )}
                                 </div>
                               );
                             })}

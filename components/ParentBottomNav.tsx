@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BookOpen, Home, Settings, User, type LucideIcon } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { BookOpen, FileText, Home, Settings, type LucideIcon } from 'lucide-react';
 import { getHomeworkAssignmentsForClass, getStudentById } from '../services/dataService';
 
-export type ParentPrimaryTab = 'home' | 'details' | 'homework' | 'settings';
+export type ParentPrimaryTab = 'home' | 'details' | 'homework' | 'reports' | 'settings';
 
 const NAV_ITEMS: { id: ParentPrimaryTab; label: string; Icon: LucideIcon }[] = [
   { id: 'home', label: 'Home', Icon: Home },
-  { id: 'details', label: 'Details', Icon: User },
   { id: 'homework', label: 'Homework', Icon: BookOpen },
+  { id: 'reports', label: 'Reports', Icon: FileText },
   { id: 'settings', label: 'Settings', Icon: Settings },
 ];
 
@@ -21,8 +21,10 @@ const getMillis = (value: any) => {
 
 export const ParentBottomNav: React.FC<{ activeTab?: ParentPrimaryTab | null; userId?: string }> = ({ activeTab = null, userId }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [homeworkBadgeCount, setHomeworkBadgeCount] = useState(0);
   const homeworkViewKey = useMemo(() => `coha_seen_parent_homework_${userId || 'unknown'}`, [userId]);
+  const resolvedActiveTab = location.pathname.startsWith('/parent/assessment') ? 'reports' : activeTab;
 
   useEffect(() => {
     if (!userId) return;
@@ -68,12 +70,12 @@ export const ParentBottomNav: React.FC<{ activeTab?: ParentPrimaryTab | null; us
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-[#3b3b78] bg-[#2b2b5e] shadow-[0_-10px_30px_rgba(15,23,42,0.28)]">
       <div className="grid grid-cols-4">
         {NAV_ITEMS.map(({ id, label, Icon }) => {
-          const isActive = activeTab === id;
+          const isActive = resolvedActiveTab === id;
           const badge = id === 'homework' ? homeworkBadgeCount : 0;
           return (
           <button
             key={id}
-            onClick={() => navigate(`/parent/dashboard?tab=${id}`)}
+            onClick={() => navigate(id === 'reports' ? '/parent/assessment' : `/parent/dashboard?tab=${id}`)}
             className={`relative h-16 flex flex-col items-center justify-center gap-1 text-[11px] transition-all ${
               isActive ? 'bg-white/10 text-white' : 'text-white'
             }`}

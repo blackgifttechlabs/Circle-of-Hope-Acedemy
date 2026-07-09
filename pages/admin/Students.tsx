@@ -23,10 +23,11 @@ import { TableHeaderCell, TableSkeletonRows } from '../../components/ui/TablePri
 
 const STUDENT_REFRESH_COOLDOWN_MS = 60_000;
 const AVATAR_COLORS = ['bg-purple-700', 'bg-emerald-600', 'bg-sky-600', 'bg-amber-600', 'bg-rose-600', 'bg-indigo-600', 'bg-teal-600'];
+type StudentViewMode = 'ENROLLED' | 'ASSESSMENT' | 'WAITING_PAYMENT';
 
 export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
   const isSubAdmin = !!user && (user.adminRole === 'sub_admin' || user.id !== 'admin');
-  const [viewMode, setViewMode] = useState<'ENROLLED' | 'ASSESSMENT'>('ENROLLED');
+  const [viewMode, setViewMode] = useState<StudentViewMode>('ENROLLED');
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const navigate = useNavigate();
@@ -60,11 +61,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
     setLoading(true);
     try {
       let data: Student[] = [];
-      if (viewMode === 'ENROLLED') {
-        data = await getStudentsByStatus('ENROLLED');
-      } else {
-        data = await getStudentsByStatus('ASSESSMENT');
-      }
+      data = await getStudentsByStatus(viewMode);
       setStudents(data);
       lastStudentsFetchRef.current = Date.now();
     } finally {
@@ -417,6 +414,7 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
          <div className="flex flex-wrap gap-1">
             <button onClick={() => setViewMode('ENROLLED')} className={`px-5 py-2.5 font-black text-xs uppercase tracking-widest rounded-[8px] transition-all ${viewMode === 'ENROLLED' ? 'bg-coha-900 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>Registered</button>
             <button onClick={() => setViewMode('ASSESSMENT')} className={`px-5 py-2.5 font-black text-xs uppercase tracking-widest rounded-[8px] transition-all ${viewMode === 'ASSESSMENT' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>Under Assessment</button>
+            <button onClick={() => setViewMode('WAITING_PAYMENT')} className={`px-5 py-2.5 font-black text-xs uppercase tracking-widest rounded-[8px] transition-all ${viewMode === 'WAITING_PAYMENT' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>Pending Payment</button>
          </div>
       </div>
 
@@ -579,6 +577,15 @@ export const StudentsPage: React.FC<{ user?: any }> = ({ user }) => {
                                   <Button onClick={() => handleFinalizeAssessment(student.id)} className="py-1 px-3 text-[10px] font-black uppercase !rounded-[8px]">
                                       Finalize
                                   </Button>
+                              </>
+                          ) : viewMode === 'WAITING_PAYMENT' ? (
+                              <>
+                                <button
+                                  onClick={() => navigate('/admin/payments')}
+                                  className="text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-500 hover:text-white font-black text-xs uppercase tracking-widest flex items-center gap-1 rounded-[8px] px-3 py-2 transition-all"
+                                >
+                                  <Eye size={16} /> Payments
+                                </button>
                               </>
                           ) : (
                               <>

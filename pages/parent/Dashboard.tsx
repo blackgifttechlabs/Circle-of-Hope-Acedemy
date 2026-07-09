@@ -70,6 +70,18 @@ const getMillis = (value: any) => {
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
+const readOptionalParentData = async <T,>(label: string, read: Promise<T>, fallback: T): Promise<T> => {
+  try {
+    return await read;
+  } catch (error: any) {
+    if (error?.code === 'permission-denied') {
+      console.warn(`Parent dashboard could not load ${label}: missing permissions.`);
+      return fallback;
+    }
+    throw error;
+  }
+};
+
 const fileToDataUrl = (file: File, onProgress?: (progress: number) => void) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -239,36 +251,42 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ user, onLogout
 
   const refreshData = async () => {
     if (!user?.id) return;
-    const stud = await getStudentById(user.id);
-    const setts = await getSystemSettings();
-    setStudent(stud);
-    setSettings(setts);
+    try {
+      const stud = await getStudentById(user.id);
+      const setts = await getSystemSettings();
+      setStudent(stud);
+      setSettings(setts);
 
-    if (stud?.assignedClass) {
-      const classTeacher = await getTeacherByClass(stud.assignedClass);
-      setTeacher(classTeacher);
-      const classAssignments = await getHomeworkAssignmentsForClass(stud.assignedClass);
-      setAssignments(classAssignments);
-    } else {
-      setTeacher(null);
-      setAssignments([]);
+      if (stud?.assignedClass) {
+        const [classTeacher, classAssignments] = await Promise.all([
+          readOptionalParentData('class teacher', getTeacherByClass(stud.assignedClass), null),
+          readOptionalParentData('homework assignments', getHomeworkAssignmentsForClass(stud.assignedClass), []),
+        ]);
+        setTeacher(classTeacher);
+        setAssignments(classAssignments);
+      } else {
+        setTeacher(null);
+        setAssignments([]);
+      }
+
+      const [studentReceipts, proofs, submissions, docs, logsData, matsData] = await Promise.all([
+        readOptionalParentData('receipts', getReceiptsForStudent(user.id), []),
+        readOptionalParentData('payment proofs', getPaymentProofsForStudent(user.id), []),
+        readOptionalParentData('homework submissions', getHomeworkSubmissionsForStudent(user.id), []),
+        readOptionalParentData('documents', getStudentDocuments(user.id), []),
+        readOptionalParentData('matron logs', getMatronLogsForStudent(user.id), []),
+        readOptionalParentData('matrons', getMatrons(), []),
+      ]);
+
+      setReceipts(studentReceipts.filter((item) => item.type !== 'BANK_REFERENCE' || item.usedByStudentId));
+      setPaymentProofs(proofs);
+      setHomeworkSubmissions(submissions);
+      setDocuments(docs);
+      setMatronLogs(logsData);
+      setMatrons(matsData);
+    } catch (error) {
+      console.error('Parent dashboard refresh failed:', error);
     }
-
-    const [studentReceipts, proofs, submissions, docs, logsData, matsData] = await Promise.all([
-      getReceiptsForStudent(user.id),
-      getPaymentProofsForStudent(user.id),
-      getHomeworkSubmissionsForStudent(user.id),
-      getStudentDocuments(user.id),
-      getMatronLogsForStudent(user.id),
-      getMatrons(),
-    ]);
-
-    setReceipts(studentReceipts.filter((item) => item.type !== 'BANK_REFERENCE' || item.usedByStudentId));
-    setPaymentProofs(proofs);
-    setHomeworkSubmissions(submissions);
-    setDocuments(docs);
-    setMatronLogs(logsData);
-    setMatrons(matsData);
   };
 
   useEffect(() => {
