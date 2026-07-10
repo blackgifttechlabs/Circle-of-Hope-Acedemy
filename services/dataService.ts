@@ -1,6 +1,6 @@
 import { db, auth } from '../firebase';
 import { collection, collectionGroup, addDoc, getDocs, getDoc, query, where, doc, updateDoc, deleteDoc, orderBy, Timestamp, setDoc, runTransaction, limit, startAt, endAt, writeBatch, getCountFromServer } from 'firebase/firestore';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { signInWithCustomToken, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { Teacher, Student, UserRole, Application, SystemSettings, Receipt, Division, AssessmentData, SelfCareAssessment, AssessmentDay, VtcApplication, StudentDailyRegister, WeeklyLessonPlan, AssessmentRating, TopicOverride, CustomTopicEntry, ThemeOverride, CustomThemeEntry, PaymentProof, HomeworkAssignment, HomeworkSubmission, UploadedDocument, ActivityLog, Matron, StudentMedication, MatronLog, MedicationAdministration, MatronLogCategory, ApplicationFileAttachment, InternshipApplication, AutomatedReplyLog } from '../types';
 import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
@@ -2086,36 +2086,15 @@ export const calculateFinalStage = async (studentId: string): Promise<{ success:
 };
 
 export const verifyAdminPin = async (pin: string): Promise<any | null> => {
-  // Use the existing admin session to read the account directory, then
-  // authenticate the submitted PIN below as the actual login operation.
-  await ensureAdminAuthToken();
-  const settings = await getSystemSettings();
-  const validPin = settings?.adminPin || '';
-
-  let adminUser = null;
-
-  if (pin === validPin) {
-    adminUser = { id: 'admin', name: settings?.adminName || 'Victoria Joel', adminRole: 'super_admin' };
-  } else if (settings?.admins) {
-    const subAdmin = settings.admins.find(a => a.pin === pin);
-    if (subAdmin) {
-      adminUser = { id: subAdmin.id, name: subAdmin.name, adminRole: subAdmin.adminRole || 'sub_admin' };
-    }
-  }
-
-  if (!adminUser) return null;
-
-  // Authenticate the supplied PIN with Firebase Auth as well as checking the
-  // profile record. This keeps admin sessions subject to the same backend
-  // authorization rules as every other portal role.
-  try {
-    await signInPortalAccount(UserRole.ADMIN, adminUser.id, pin);
-  } catch (error) {
-    console.error('Admin Firebase Auth login failed:', error);
-    return null;
-  }
-
-  return adminUser;
+  const response = await fetch('/api/admin-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin }),
+  });
+  if (!response.ok) return null;
+  const result = await response.json();
+  await signInWithCustomToken(auth, result.token);
+  return result.account;
 };
 
 export const createSubAdmin = async (name: string, pin: string): Promise<{success: boolean, message: string}> => {
