@@ -6,7 +6,7 @@ import { CLASS_LIST_SKILLS } from '../utils/classListSkills';
 import { findPrePrimarySkill } from '../utils/assessmentWorkflow';
 import { getPaymentOptionLabel, isRegistrationFeeOption } from '../utils/paymentOptions';
 import { hashPin } from '../utils/crypto';
-import { DEFAULT_ADMIN_PASSWORD, DEFAULT_TEACHER_PASSWORD, isStrongStaffPassword, STAFF_PASSWORD_REQUIREMENTS } from '../utils/credentials';
+import { isStrongStaffPassword, STAFF_PASSWORD_REQUIREMENTS } from '../utils/credentials';
 
 // Collections
 const TEACHERS_COLLECTION = 'teachers';
@@ -37,8 +37,6 @@ const FILE_CHUNKS_PER_BATCH = 8;
 
 // Admin Auth Configuration
 const ADMIN_EMAIL = "admin@coha.com";
-const ADMIN_AUTH_PASSWORD = DEFAULT_ADMIN_PASSWORD;
-const LEGACY_ADMIN_AUTH_PASSWORD = "111111";
 
 const encodeAuthId = (value: string) => (
   btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '').toLowerCase()
@@ -68,14 +66,7 @@ const ensureAdminAuthToken = async () => {
   }
 
   let authSessionError: unknown = null;
-  for (const password of [LEGACY_ADMIN_AUTH_PASSWORD, ADMIN_AUTH_PASSWORD]) {
-    try {
-      const credential = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
-      return credential.user.getIdToken();
-    } catch (error) {
-      authSessionError = error;
-    }
-  }
+  // No fallback password is kept in the client bundle.
 
   console.warn('Admin Firebase Auth session setup failed.', authSessionError);
   throw new Error('Admin Firebase Auth session could not be started.');
@@ -434,14 +425,14 @@ export const addTeacher = async (
       assignedClasses: normalizedClasses,
       assignedStudentIds: extras?.assignedStudentIds || [],
       role: UserRole.TEACHER,
-      pin: DEFAULT_TEACHER_PASSWORD,
+      pin: extras?.pin || '',
       activeTeachingClass: extras?.activeTeachingClass || normalizedClasses[0] || '',
       createdAt: new Date()
     });
     await syncPortalAuthUserSafely({
       role: UserRole.TEACHER,
       targetId: docRef.id,
-      password: DEFAULT_TEACHER_PASSWORD,
+      password: extras?.pin || '',
       name,
       subtitle: subject || normalizedClasses.join(', '),
       assignedClasses: normalizedClasses,
@@ -771,10 +762,10 @@ export const syncTeacherAssignments = async (
     });
 
     await batch.commit();
-    await syncPortalAuthUserSafely({
+    if (extras?.pin) await syncPortalAuthUserSafely({
       role: UserRole.TEACHER,
       targetId: teacherId,
-      password: teacher.pin || DEFAULT_TEACHER_PASSWORD,
+      password: teacher.pin || '',
       name: teacher.name,
       subtitle: teacher.subject || normalizedClasses.join(', '),
       assignedClasses: normalizedClasses,
@@ -942,7 +933,7 @@ export const createStudentByAdmin = async ({
       });
     }
 
-    await syncPortalAuthUserSafely({
+    if (teacher.pin) await syncPortalAuthUserSafely({
       role: UserRole.PARENT,
       targetId: customId,
       password: pin,
@@ -2108,7 +2099,7 @@ export const verifyAdminPin = async (pin: string): Promise<any | null> => {
   // authenticate the submitted PIN below as the actual login operation.
   await ensureAdminAuthToken();
   const settings = await getSystemSettings();
-  const validPin = settings ? settings.adminPin : DEFAULT_ADMIN_PASSWORD;
+  const validPin = settings?.adminPin || '';
 
   let adminUser = null;
 

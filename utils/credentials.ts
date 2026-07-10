@@ -1,6 +1,3 @@
-export const DEFAULT_TEACHER_PASSWORD = 'coha@2026';
-export const DEFAULT_ADMIN_PASSWORD = 'vic@admin2026';
-
 export const isStrongStaffPassword = (value: string) => (
   value.trim().length >= 8 && /[A-Za-z]/.test(value) && /\d/.test(value)
 );

@@ -23,7 +23,6 @@ import {
   searchStudents,
 } from '../services/dataService';
 import { Student, SystemSettings, UserRole } from '../types';
-import { DEFAULT_TEACHER_PASSWORD } from '../utils/credentials';
 import { getPaymentOptions } from '../utils/paymentOptions';
 import {
   STUDENT_FIRST_NAME_SUGGESTIONS,
@@ -543,7 +542,7 @@ export const AdminAssistant: React.FC<AdminAssistantProps> = ({ user, isSubAdmin
     }
     addMessage(
       'assistant',
-      `Done. ${teacherDraft.name} was added and assigned to ${teacherDraft.classes.join(', ')}. Default teacher password: ${DEFAULT_TEACHER_PASSWORD}. Run the Auth sync before they log in.`,
+      `Done. ${teacherDraft.name} was added and assigned to ${teacherDraft.classes.join(', ')}. Set a password for this teacher before they log in.`,
       'success'
     );
     showMainMenu();

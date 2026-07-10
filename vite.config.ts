@@ -6,6 +6,11 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: 'dist',
-    sourcemap: true
+    // Do not publish source maps: they can reconstruct the original source.
+    sourcemap: false,
+    // Keep the browser bundle compact and difficult to read.
+    minify: 'esbuild',
+    cssMinify: true,
+    reportCompressedSize: true
   }
 })
