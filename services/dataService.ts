@@ -762,15 +762,6 @@ export const syncTeacherAssignments = async (
     });
 
     await batch.commit();
-    if (extras?.pin) await syncPortalAuthUserSafely({
-      role: UserRole.TEACHER,
-      targetId: teacherId,
-      password: teacher.pin || '',
-      name: teacher.name,
-      subtitle: teacher.subject || normalizedClasses.join(', '),
-      assignedClasses: normalizedClasses,
-      assignedStudentIds: normalizedStudentIds,
-    });
     return true;
   } catch (error) {
     console.error('Error syncing teacher assignments:', error);
@@ -933,7 +924,7 @@ export const createStudentByAdmin = async ({
       });
     }
 
-    if (teacher.pin) await syncPortalAuthUserSafely({
+    await syncPortalAuthUserSafely({
       role: UserRole.PARENT,
       targetId: customId,
       password: pin,
