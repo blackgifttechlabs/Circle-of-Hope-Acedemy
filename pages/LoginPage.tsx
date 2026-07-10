@@ -348,12 +348,15 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                   aria-hidden="true"
                 >
                   {[0, 1, 2, 3, 4].map((wave) => (
-                    <motion.div
+                    <div
                       key={wave}
-                      animate={{ scale: [0.72, 1.42], opacity: [0.7, 0] }}
-                      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeOut', delay: wave * 0.42 }}
-                      className="absolute rounded-full border-2 border-coha-500/45 bg-coha-500/[0.06] shadow-lg shadow-coha-900/10 backdrop-blur-sm"
-                      style={{ inset: `${wave * 10}%`, zIndex: 5 - wave }}
+                      className="absolute animate-ping rounded-full border-2 border-coha-500/45 bg-coha-500/[0.06] shadow-lg shadow-coha-900/10"
+                      style={{
+                        inset: `${wave * 10}%`,
+                        zIndex: 5 - wave,
+                        animationDuration: '2.4s',
+                        animationDelay: `${wave * 0.48}s`,
+                      }}
                     />
                   ))}
                   <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-coha-900 shadow-xl shadow-coha-900/25">
