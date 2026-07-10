@@ -2104,8 +2104,9 @@ export const calculateFinalStage = async (studentId: string): Promise<{ success:
 };
 
 export const verifyAdminPin = async (pin: string): Promise<any | null> => {
+  // Use the existing admin session to read the account directory, then
+  // authenticate the submitted PIN below as the actual login operation.
   await ensureAdminAuthToken();
-
   const settings = await getSystemSettings();
   const validPin = settings ? settings.adminPin : DEFAULT_ADMIN_PASSWORD;
 
@@ -2121,6 +2122,16 @@ export const verifyAdminPin = async (pin: string): Promise<any | null> => {
   }
 
   if (!adminUser) return null;
+
+  // Authenticate the supplied PIN with Firebase Auth as well as checking the
+  // profile record. This keeps admin sessions subject to the same backend
+  // authorization rules as every other portal role.
+  try {
+    await signInPortalAccount(UserRole.ADMIN, adminUser.id, pin);
+  } catch (error) {
+    console.error('Admin Firebase Auth login failed:', error);
+    return null;
+  }
 
   return adminUser;
 };
@@ -2241,16 +2252,14 @@ export const updateAdminAccount = async (
       details: isMainAdmin ? 'Main admin profile updated.' : 'Sub-admin profile updated.',
     });
 
-    if (!isMainAdmin) {
-      await syncPortalAuthUserSafely({
-        role: 'ADMIN',
-        targetId: adminId,
-        password: cleanPin,
-        name: cleanName,
-        subtitle: 'Sub-admin',
-        adminRole: 'sub_admin',
-      });
-    }
+    await syncPortalAuthUserSafely({
+      role: 'ADMIN',
+      targetId: adminId,
+      password: cleanPin,
+      name: cleanName,
+      subtitle: isMainAdmin ? 'Super admin' : 'Sub-admin',
+      adminRole: isMainAdmin ? 'super_admin' : 'sub_admin',
+    });
 
     return { success: true, message: 'Admin updated successfully.' };
   } catch (error: any) {
