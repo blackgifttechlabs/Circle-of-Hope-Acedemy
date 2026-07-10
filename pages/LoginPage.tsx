@@ -16,7 +16,7 @@ import {
   getMatronById,
 } from '../services/dataService';
 import { UserRole, Teacher, Student, Matron } from '../types';
-import { User, ShieldCheck, GraduationCap, ArrowLeft, BookOpen, ChevronRight, Search as SearchIcon, HeartPulse } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Search as SearchIcon, LockKeyhole } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getFriendlyErrorMessage } from '../utils/friendlyErrors';
 
@@ -34,7 +34,6 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [frame, setFrame] = useState(0);
   const navigate = useNavigate();
 
   const [isMobile, setIsMobile] = useState(false);
@@ -51,22 +50,6 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-
-  const parentImages = [
-    'https://i.ibb.co/bg5LbyBP/s3.png',
-    'https://i.ibb.co/0p5kxm6J/s2.png',
-    'https://i.ibb.co/3m4MCwks/s1.png'
-  ];
-
-  useEffect(() => {
-    let interval: any;
-    if (activeTab === 'PARENT') {
-      interval = setInterval(() => {
-        setFrame((prev) => (prev + 1) % 3);
-      }, 80); // 80ms for a very fast looping switch
-    }
-    return () => clearInterval(interval);
-  }, [activeTab]);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,19 +212,20 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
   };
 
   const roles = [
-    { id: 'ADMIN', label: 'Admin', icon: ShieldCheck, desc: 'System Management' },
-    { id: 'TEACHER', label: 'Teacher', icon: User, desc: 'Class & Grades' },
-    { id: 'PARENT', label: 'Parent', icon: GraduationCap, desc: 'Student Progress' },
-    { id: 'MATRON', label: 'Matron', icon: HeartPulse, desc: 'Care & Medication' },
-    { id: 'VTC', label: 'VTC', icon: BookOpen, desc: 'Vocational Training' },
+    { id: 'ADMIN', label: 'Admin', icon: '/admin.png', desc: 'System Management' },
+    { id: 'TEACHER', label: 'Teacher', icon: '/teacher.png', desc: 'Class & Grades' },
+    { id: 'PARENT', label: 'Parent', icon: '/parent.png', desc: 'Student Progress' },
+    { id: 'MATRON', label: 'Matron', icon: '/matron.png', desc: 'Care & Medication' },
+    { id: 'VTC', label: 'VTC', icon: '/vtc.png', desc: 'Vocational Training' },
   ] as const;
+  const activeRole = roles.find((role) => role.id === activeTab);
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-8 overflow-hidden bg-gray-100">
       {/* Background Image */}
       <div 
         className="absolute inset-0 bg-cover bg-center z-0" 
-        style={{ backgroundImage: 'url("https://i.ibb.co/zWNcsGPP/login-wallpaper.jpg")' }}
+        style={{ backgroundImage: 'url("/login-bg.avif")' }}
       />
       {/* Light Overlay */}
       <div className="absolute inset-0 bg-white/40 backdrop-blur-sm z-0" />
@@ -276,7 +260,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
               animate={{ x: 0, opacity: 1 }}
               exit={isMobile ? { x: '-100%', opacity: 0 } : { opacity: 0, x: -20 }}
               transition={panelTransition}
-              className="w-full md:w-[45%] bg-gradient-to-br from-coha-900 to-coha-800 p-6 md:p-12 flex flex-col justify-between relative shrink-0 rounded-t-3xl md:rounded-l-3xl md:rounded-tr-none overflow-hidden"
+              className="w-full md:w-[45%] bg-gradient-to-br from-coha-900 to-coha-800 p-6 md:p-12 flex flex-col justify-between relative shrink-0 rounded-3xl md:rounded-l-3xl md:rounded-r-none overflow-hidden"
             >
               <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+CjxyZWN0IHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgZmlsbD0ibm9uZSIvPgo8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDUpIi8+Cjwvc3ZnPg==')] opacity-10 mix-blend-overlay" />
               
@@ -295,7 +279,6 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                   <h3 className="text-white text-[10px] md:text-xs uppercase tracking-[0.15em] font-bold mb-3 md:mb-4" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Select Access Level</h3>
                   {roles.map((role, idx) => {
                     const isActive = activeTab === role.id;
-                    const Icon = role.icon;
                     return (
                       <motion.button
                         key={role.id}
@@ -318,7 +301,12 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                       >
                         <div className="flex items-center gap-4">
                           <div className={`p-3 rounded-xl transition-colors ${isActive && !isMobile ? 'bg-white/20 text-white' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>
-                            <Icon size={22} />
+                            <img
+                              src={role.icon}
+                              alt=""
+                              aria-hidden="true"
+                              className="w-[22px] h-[22px] object-contain brightness-0 invert"
+                            />
                           </div>
                           <div>
                             <div className="font-bold text-sm md:text-base text-white" style={{ fontFamily: '"Google Sans", sans-serif' }}>{role.label}</div>
@@ -344,22 +332,45 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
           {(step === 1 || !isMobile) && (
             <motion.div 
               key={`form-panel-${activeTab}`}
-              initial={isMobile ? { x: '100%' } : { opacity: 0, x: 20 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={isMobile ? { x: '100%', opacity: 0 } : { opacity: 0, x: -20 }}
-              transition={panelTransition}
-              className="w-full md:w-[55%] p-8 md:p-16 flex flex-col justify-center relative bg-white rounded-b-3xl md:rounded-r-3xl md:rounded-bl-none"
+              initial={isMobile ? { x: '100%' } : false}
+              animate={isMobile ? { x: 0, opacity: 1 } : { opacity: 1 }}
+              exit={isMobile ? { x: '100%', opacity: 1 } : { opacity: 1 }}
+              transition={isMobile ? panelTransition : { duration: 0 }}
+              className="w-full md:w-[55%] p-8 md:p-16 flex flex-col justify-center relative bg-white rounded-3xl md:rounded-r-3xl md:rounded-l-none"
             >
               <div className="max-w-sm w-full mx-auto relative z-10">
                 
-                {/* Parent Animation */}
-                {activeTab === 'PARENT' && (
-                  <div className="w-24 h-24 md:w-40 md:h-40 mb-4 md:mb-6 pointer-events-none opacity-90 transition-opacity duration-300">
-                    <img src={parentImages[frame]} alt="Parent Animation" className="w-full h-full object-contain object-left" />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.7, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ duration: 0.5, ease: 'easeOut' }}
+                  className="relative mx-auto mb-8 flex h-40 w-40 items-center justify-center"
+                  aria-hidden="true"
+                >
+                  {[0, 1, 2, 3, 4].map((wave) => (
+                    <motion.div
+                      key={wave}
+                      animate={{ scale: [0.72, 1.42], opacity: [0.7, 0] }}
+                      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeOut', delay: wave * 0.42 }}
+                      className="absolute rounded-full border-2 border-coha-500/45 bg-coha-500/[0.06] shadow-lg shadow-coha-900/10 backdrop-blur-sm"
+                      style={{ inset: `${wave * 10}%`, zIndex: 5 - wave }}
+                    />
+                  ))}
+                  <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-coha-900 shadow-xl shadow-coha-900/25">
+                    <img
+                      src={activeRole?.icon}
+                      alt={`${activeRole?.label} icon`}
+                      className="h-9 w-9 object-contain brightness-0 invert"
+                    />
                   </div>
-                )}
+                </motion.div>
 
-                <div className="mb-8 md:mb-12">
+                <motion.div
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.12, ease: 'easeOut' }}
+                  className="mb-8 text-center md:mb-12"
+                >
                   <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3" style={{ fontFamily: '"Google Sans", sans-serif' }}>
                     {activeTab === 'ADMIN' ? 'Admin Access' : (activeTab === 'MATRON' && selectedUser) ? `Welcome, Matron` : `Welcome, ${activeTab.charAt(0) + activeTab.slice(1).toLowerCase()}`}
                   </h2>
@@ -368,21 +379,30 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                       ? 'Enter your security password to continue.' 
                       : (activeTab === 'MATRON' && !selectedUser) ? 'Search for your name to log in.' : 'Please identify yourself to proceed.'}
                   </p>
-                </div>
+                </motion.div>
 
                 {activeTab === 'ADMIN' && (
-                  <form onSubmit={handleAdminLogin} className="space-y-8">
+                  <motion.form
+                    onSubmit={handleAdminLogin}
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.45, delay: 0.22, ease: 'easeOut' }}
+                    className="mx-auto space-y-6 text-center"
+                  >
                     <div>
-                      <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-3" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Security Password</label>
-                      <input
-                        type="password"
-                        placeholder="Enter password"
-                        value={pin}
-                        onChange={(e) => setPin(e.target.value)}
-                        autoFocus
-                        disabled={loading}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 transition-all text-lg"
-                      />
+                      <label className="mb-3 block text-sm font-semibold tracking-tight text-gray-800" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>Security Password</label>
+                      <div className="group relative text-left">
+                        <LockKeyhole size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-coha-600" />
+                        <input
+                          type="password"
+                          placeholder="Enter password"
+                          value={pin}
+                          onChange={(e) => setPin(e.target.value)}
+                          autoFocus
+                          disabled={loading}
+                          className="w-full rounded-2xl border border-gray-200 bg-gray-50/80 py-4 pl-12 pr-5 text-gray-900 placeholder-gray-400 shadow-sm outline-none transition-all duration-300 focus:border-coha-500 focus:bg-white focus:ring-4 focus:ring-coha-500/10 focus:shadow-lg focus:shadow-coha-900/10 text-lg"
+                        />
+                      </div>
                     </div>
                     {error && <p className="text-red-500 text-sm font-medium" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>{error}</p>}
                     <Button
@@ -395,14 +415,19 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                       {!loading && <span>Login</span>}
                       {!loading && <ArrowLeft size={18} className="rotate-180" />}
                     </Button>
-                  </form>
+                  </motion.form>
                 )}
 
                 {(activeTab === 'TEACHER' || activeTab === 'PARENT' || activeTab === 'VTC' || activeTab === 'MATRON') && (
                   <form onSubmit={handleUserLogin} className="space-y-8">
                     {!selectedUser ? (
-                      <div className="relative">
-                        <label className="block text-gray-700 text-xs uppercase tracking-wider font-bold mb-3" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.45, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                        className="relative text-center"
+                      >
+                        <label className="mb-3 block text-sm font-semibold tracking-tight text-gray-800" style={{ fontFamily: '"Libre Franklin", sans-serif' }}>
                           {activeTab === 'PARENT' ? 'Student Name' : 'Your Name'}
                         </label>
                         <div className="relative">
@@ -412,7 +437,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                             placeholder="Start typing..."
                             value={searchTerm}
                             onChange={handleSearch}
-                            className="w-full bg-gray-50 border border-gray-200 rounded-2xl pl-12 pr-5 py-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-coha-500 focus:ring-4 focus:ring-coha-500/10 transition-all"
+                            className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-4 pl-12 pr-5 text-center text-gray-900 placeholder-gray-400 outline-none transition-all focus:border-coha-500 focus:bg-white focus:ring-4 focus:ring-coha-500/10"
                             style={{ fontFamily: '"Libre Franklin", sans-serif' }}
                           />
                         </div>
@@ -447,7 +472,7 @@ export const LoginPage: React.FC<LoginProps> = ({ onLogin, showToast }) => {
                             </motion.div>
                           )}
                         </AnimatePresence>
-                      </div>
+                      </motion.div>
                     ) : (
                       <motion.div 
                         initial={{ opacity: 0, scale: 0.95 }}
